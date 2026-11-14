@@ -37,6 +37,12 @@ import {
 import { PaintRegistryContext } from "../paint/paintRegistryContext";
 import type { GamesDeps } from "../retro/gamesDepsContext";
 import { GamesDepsContext } from "../retro/gamesDepsContext";
+import type { ScreenSaverDeps } from "../screensaver/screenSaverDepsContext";
+import { ScreenSaverDepsContext } from "../screensaver/screenSaverDepsContext";
+import {
+  MemoryScreenSaverStore,
+  ScreenSaverStoreContext,
+} from "../screensaver/screenSaverStore";
 import {
   FuseOsPrefsStoreContext,
   MemoryFuseOsPrefsStore,
@@ -129,6 +135,10 @@ export type ProviderOptions = {
   /** Defaults to a fresh store, i.e. a first visit: the greeting shows. */
   assistantOptions?: MemoryAssistantOptionsStore;
   systemProbe?: SystemProbe;
+  /** Defaults to a fresh store: 3D Pipes after 5 idle minutes. */
+  screenSaverStore?: MemoryScreenSaverStore;
+  /** Defaults to timers that never fire and a pipes loader that never resolves (no three.js in tests). */
+  screenSaverDeps?: Partial<ScreenSaverDeps>;
 };
 
 export const immediateAppStateDeps: AppStateDeps = {
@@ -235,6 +245,21 @@ export function createTestWinampDeps(
   };
 }
 
+/** Screen saver deps that never start the saver on their own: no idle timer fires and three.js is never loaded. */
+export function createTestScreenSaverDeps(
+  overrides: Partial<ScreenSaverDeps> = {},
+): ScreenSaverDeps {
+  return {
+    setTimeout: () => globalThis.setTimeout(() => undefined, 0),
+    clearTimeout: (handle) => globalThis.clearTimeout(handle),
+    subscribeActivity: () => () => undefined,
+    isVisible: () => true,
+    isGameFocused: () => false,
+    loadPipes: () => new Promise(() => undefined),
+    ...overrides,
+  };
+}
+
 export function createWrapper(options: ProviderOptions = {}) {
   const store = new MemoryStateStore(options.initialState ?? DEFAULT_STATE);
   const games = createTestGames(options.games ?? FIXTURE_GAMES, {
@@ -258,65 +283,78 @@ export function createWrapper(options: ProviderOptions = {}) {
   const winampDeps = createTestWinampDeps(winampPlayers, options.winampDeps);
   const winampRegistry = new Map<string, WinampControls>();
   const systemProbe = options.systemProbe ?? TEST_SYSTEM_PROBE;
+  const screenSaverStore =
+    options.screenSaverStore ?? new MemoryScreenSaverStore();
+  const screenSaverDeps = createTestScreenSaverDeps(options.screenSaverDeps);
 
   function Wrapper({ children }: { children: ReactNode }) {
     return (
-      <FuseGamesContext.Provider value={games}>
-        <AppStateDepsContext.Provider value={immediateAppStateDeps}>
-          <WindowsDepsContext.Provider value={testWindowsDeps}>
-            <DesktopDepsContext.Provider value={desktopDeps}>
-              <MediaDepsContext.Provider value={mediaDeps}>
-                <GamesDepsContext.Provider value={gamesDeps}>
-                  <WallpaperStoreContext.Provider value={wallpaperStore}>
-                    <DisplayPrefsStoreContext.Provider
-                      value={displayPrefsStore}
-                    >
-                      <FuseOsPrefsStoreContext.Provider value={prefsStore}>
-                        <PaintDepsContext.Provider value={paintDeps}>
-                          <PaintPrefsStoreContext.Provider value={paintPrefs}>
-                            <PaintRegistryContext.Provider
-                              value={paintRegistry}
-                            >
-                              <WinampDepsContext.Provider value={winampDeps}>
-                                <WinampRegistryContext.Provider
-                                  value={winampRegistry}
+      <ScreenSaverStoreContext.Provider value={screenSaverStore}>
+        <ScreenSaverDepsContext.Provider value={screenSaverDeps}>
+          <FuseGamesContext.Provider value={games}>
+            <AppStateDepsContext.Provider value={immediateAppStateDeps}>
+              <WindowsDepsContext.Provider value={testWindowsDeps}>
+                <DesktopDepsContext.Provider value={desktopDeps}>
+                  <MediaDepsContext.Provider value={mediaDeps}>
+                    <GamesDepsContext.Provider value={gamesDeps}>
+                      <WallpaperStoreContext.Provider value={wallpaperStore}>
+                        <DisplayPrefsStoreContext.Provider
+                          value={displayPrefsStore}
+                        >
+                          <FuseOsPrefsStoreContext.Provider value={prefsStore}>
+                            <PaintDepsContext.Provider value={paintDeps}>
+                              <PaintPrefsStoreContext.Provider
+                                value={paintPrefs}
+                              >
+                                <PaintRegistryContext.Provider
+                                  value={paintRegistry}
                                 >
-                                  <AssistantDepsContext.Provider
-                                    value={assistantDeps}
+                                  <WinampDepsContext.Provider
+                                    value={winampDeps}
                                   >
-                                    <AssistantOptionsStoreContext.Provider
-                                      value={assistantOptions}
+                                    <WinampRegistryContext.Provider
+                                      value={winampRegistry}
                                     >
-                                      <SystemProbeContext.Provider
-                                        value={() => systemProbe}
+                                      <AssistantDepsContext.Provider
+                                        value={assistantDeps}
                                       >
-                                        <Shell
-                                          store={store}
-                                          initialOpen={options.initialOpen}
+                                        <AssistantOptionsStoreContext.Provider
+                                          value={assistantOptions}
                                         >
-                                          {children}
-                                        </Shell>
-                                      </SystemProbeContext.Provider>
-                                    </AssistantOptionsStoreContext.Provider>
-                                  </AssistantDepsContext.Provider>
-                                </WinampRegistryContext.Provider>
-                              </WinampDepsContext.Provider>
-                            </PaintRegistryContext.Provider>
-                          </PaintPrefsStoreContext.Provider>
-                        </PaintDepsContext.Provider>
-                      </FuseOsPrefsStoreContext.Provider>
-                    </DisplayPrefsStoreContext.Provider>
-                  </WallpaperStoreContext.Provider>
-                </GamesDepsContext.Provider>
-              </MediaDepsContext.Provider>
-            </DesktopDepsContext.Provider>
-          </WindowsDepsContext.Provider>
-        </AppStateDepsContext.Provider>
-      </FuseGamesContext.Provider>
+                                          <SystemProbeContext.Provider
+                                            value={() => systemProbe}
+                                          >
+                                            <Shell
+                                              store={store}
+                                              initialOpen={options.initialOpen}
+                                            >
+                                              {children}
+                                            </Shell>
+                                          </SystemProbeContext.Provider>
+                                        </AssistantOptionsStoreContext.Provider>
+                                      </AssistantDepsContext.Provider>
+                                    </WinampRegistryContext.Provider>
+                                  </WinampDepsContext.Provider>
+                                </PaintRegistryContext.Provider>
+                              </PaintPrefsStoreContext.Provider>
+                            </PaintDepsContext.Provider>
+                          </FuseOsPrefsStoreContext.Provider>
+                        </DisplayPrefsStoreContext.Provider>
+                      </WallpaperStoreContext.Provider>
+                    </GamesDepsContext.Provider>
+                  </MediaDepsContext.Provider>
+                </DesktopDepsContext.Provider>
+              </WindowsDepsContext.Provider>
+            </AppStateDepsContext.Provider>
+          </FuseGamesContext.Provider>
+        </ScreenSaverDepsContext.Provider>
+      </ScreenSaverStoreContext.Provider>
     );
   }
   return {
     Wrapper,
+    screenSaverStore,
+    screenSaverDeps,
     store,
     games,
     desktopDeps,

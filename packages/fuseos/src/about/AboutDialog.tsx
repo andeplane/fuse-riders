@@ -1,4 +1,5 @@
 import { OS_NAME } from "../desktop/windowMeta";
+import { SCREEN_SAVER_CREDIT } from "../screensaver/credits";
 import { Win98Icon } from "../ui/icons";
 import { useWindowCommands } from "../windows/useWindowCommands";
 
@@ -31,6 +32,7 @@ export function AboutDialog({ windowId }: { windowId: string }) {
             Built on 98.css, react95 icons, Webamp, js-dos and clippyjs. The
             shareware games belong to their publishers.
           </p>
+          <p>{SCREEN_SAVER_CREDIT}</p>
         </div>
       </div>
       <div className="flex justify-end">

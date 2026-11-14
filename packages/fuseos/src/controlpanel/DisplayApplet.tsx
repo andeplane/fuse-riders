@@ -9,6 +9,7 @@ import {
   MIN_ICON_SPACING,
 } from "../desktop/displayPrefsStore";
 
+import { SCREEN_SAVER_DISPLAY_TAB } from "./ScreenSaverApplet";
 import { useControlPanelViewModel } from "./useControlPanelViewModel";
 import { WallpaperPicker } from "./WallpaperPicker";
 
@@ -120,6 +121,8 @@ export function DisplayApplet({ windowId }: { windowId: string }) {
           <label htmlFor="font-size-large">Large fonts</label>
         </div>
       </fieldset>
+      {/* Until the Display applet grows tabs, its Screen Saver tab (B10) sits below; the integrator moves it into the tab list. */}
+      <SCREEN_SAVER_DISPLAY_TAB.component windowId={windowId} />
     </div>
   );
 }
