@@ -484,31 +484,6 @@
   color: var(--fst-text-dim);
 }
 
-/* Friends, Servers, News: a note in a sunken pane. */
-.fst-placeholder {
-  flex: 1;
-  min-height: 0;
-  padding: 8px;
-  overflow-y: auto;
-}
-
-.fst-panel {
-  padding: 10px 12px;
-  background: var(--fst-bg-dark);
-  box-shadow:
-    inset 1px 1px var(--fst-border-dark),
-    inset -1px -1px var(--fst-border-light);
-}
-
-.fst-panel p {
-  margin: 0;
-  color: var(--fst-text-muted);
-}
-
-.fst-panel p + p {
-  margin-top: 6px;
-}
-
 /* Bottom bar: the wordmark where VALVE's logo sat, the buttons at the right. */
 .fst-footer {
   display: flex;

@@ -1,8 +1,14 @@
 import { useCallback, useContext, useMemo, useState } from "react";
 
 import { DesktopDepsContext } from "../desktop/desktopDepsContext";
+import {
+  FRIENDS_WINDOW_ID,
+  HALL_OF_FAME_WINDOW_ID,
+} from "../desktop/startMenuRegistry";
 import { FuseGamesContext } from "../fusegames/registry";
 import { useFuseGameLauncher } from "../fusegames/useFuseGameLauncher";
+import { openNetworkNeighborhood } from "../network/openNetworkNeighborhood";
+import { useDialUpCommands } from "../sounds/dialup/useDialUpCommands";
 import type { ImageIcon } from "../ui/icons";
 import { useWindowCommands } from "../windows/useWindowCommands";
 
@@ -43,8 +49,16 @@ export type LauncherDetails = {
 };
 
 export type LauncherViewModel = {
-  tab: LauncherTab;
-  setTab: (tab: LauncherTab) => void;
+  /**
+   * A tab across the top. My Games is the launcher's own page; the others are programs of their own on this
+   * desktop and open as windows: Friends is Fuse Messenger, Servers is Network Neighborhood, News is the Hall
+   * of Fame.
+   */
+  openTab: (tab: LauncherTab) => void;
+  /** FRIENDS & CHAT and the Friends link: Fuse Messenger. */
+  openFriends: () => void;
+  /** The Leaderboard link: the Hall of Fame on the selected game. */
+  openLeaderboard: () => void;
   games: LauncherGame[];
   selected: LauncherGame | undefined;
   details: LauncherDetails | undefined;
@@ -67,6 +81,8 @@ export function useLauncherViewModel(): LauncherViewModel {
   const desktopDeps = useContext(DesktopDepsContext);
   const launcherDeps = useContext(LauncherDepsContext);
   const commands = useWindowCommands();
+  // Fuse Messenger and Network Neighborhood dial in the first time one is opened by hand.
+  const online = useDialUpCommands();
   const { launch } = useFuseGameLauncher();
 
   const games = useMemo<LauncherGame[]>(
@@ -84,7 +100,6 @@ export function useLauncherViewModel(): LauncherViewModel {
     [registry],
   );
 
-  const [tab, setTab] = useState<LauncherTab>("games");
   const [selectedId, setSelectedId] = useState<string | undefined>(
     games[0]?.id,
   );
@@ -126,6 +141,40 @@ export function useLauncherViewModel(): LauncherViewModel {
     if (selected) playGame(selected.id);
   }, [selected, playGame]);
 
+  const openFriends = useCallback(
+    () => online.open({ kind: "friends" }, { id: FRIENDS_WINDOW_ID }),
+    [online],
+  );
+  const openLeaderboard = useCallback(
+    () =>
+      commands.open(
+        { kind: "halloffame", gameId: selected?.id },
+        { id: HALL_OF_FAME_WINDOW_ID },
+      ),
+    [commands, selected],
+  );
+  const openTab = useCallback(
+    (tab: LauncherTab) => {
+      switch (tab) {
+        case "games":
+          return;
+        case "friends":
+          openFriends();
+          return;
+        case "servers":
+          openNetworkNeighborhood(online);
+          return;
+        case "news":
+          commands.open(
+            { kind: "halloffame" },
+            { id: HALL_OF_FAME_WINDOW_ID },
+          );
+          return;
+      }
+    },
+    [openFriends, online, commands],
+  );
+
   const addGame = useCallback(
     () => commands.showInfo(LAUNCHER_TITLE, ADD_GAME_MESSAGE),
     [commands],
@@ -143,8 +192,9 @@ export function useLauncherViewModel(): LauncherViewModel {
     : undefined;
 
   return {
-    tab,
-    setTab,
+    openTab,
+    openFriends,
+    openLeaderboard,
     games,
     selected,
     details,

@@ -5,11 +5,7 @@ import { AppIcon } from "../ui/icons";
 import { WindowManagerContext } from "../windows/windowManagerContext";
 
 import { centeredLauncherRect } from "./launcherFacts";
-import type {
-  LauncherGame,
-  LauncherTab,
-  LauncherViewModel,
-} from "./useLauncherViewModel";
+import type { LauncherGame, LauncherViewModel } from "./useLauncherViewModel";
 import { LAUNCHER_TABS, useLauncherViewModel } from "./useLauncherViewModel";
 
 import "./launcher.css";
@@ -170,17 +166,21 @@ function GamesPage({ vm, active }: { vm: LauncherViewModel; active: boolean }) {
               </a>
               <a
                 className="fst-link"
-                href={selected.url}
-                target="_blank"
-                rel="noopener"
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault();
+                  vm.openLeaderboard();
+                }}
               >
                 Leaderboard
               </a>
               <a
                 className="fst-link"
-                href={selected.url}
-                target="_blank"
-                rel="noopener"
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault();
+                  vm.openFriends();
+                }}
               >
                 Friends
               </a>
@@ -198,50 +198,10 @@ function GamesPage({ vm, active }: { vm: LauncherViewModel; active: boolean }) {
   );
 }
 
-const PLACEHOLDERS: Record<
-  Exclude<LauncherTab, "games">,
-  { heading: string; lines: string[] }
-> = {
-  friends: {
-    heading: "Friends",
-    lines: [
-      "No friends online.",
-      "Fusteam Friends arrives in a later update. Until then, invite friends with a room link from inside a game.",
-    ],
-  },
-  servers: {
-    heading: "Servers",
-    lines: [
-      "Rooms are hosted by the players in them, so there is no server list.",
-      "Open a game, create a room and share its code; friends join from any device.",
-    ],
-  },
-  news: {
-    heading: "News",
-    lines: [
-      "Fusteam launcher released: pick a game from MY GAMES and press PLAY.",
-      "Every game on this desktop updates itself; there is nothing to download.",
-    ],
-  },
-};
-
-function PlaceholderPage({ tab }: { tab: Exclude<LauncherTab, "games"> }) {
-  const page = PLACEHOLDERS[tab];
-  return (
-    <div className="fst-placeholder">
-      <h2 className="fst-heading">{page.heading}</h2>
-      <div className="fst-panel">
-        {page.lines.map((line) => (
-          <p key={line}>{line}</p>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /**
  * Body of the Fusteam window, after the 2004 Steam client's Games window: tabs across the top, MY GAMES on the
  * left, the selected game's screenshot and PLAY on the right, ADD A GAME... and FRIENDS & CHAT along the bottom.
+ * My Games is the one page; the other tabs and FRIENDS & CHAT open the programs they name as windows of their own.
  * The olive skin, including this window's own title bar, is `launcher.css`.
  */
 export function LauncherWindow({ windowId, active }: LauncherWindowProps) {
@@ -256,7 +216,7 @@ export function LauncherWindow({ windowId, active }: LauncherWindowProps) {
   }, [windowId, viewport, setRect]);
 
   return (
-    <div className="fst-root" data-tab={vm.tab}>
+    <div className="fst-root" data-tab="games">
       <div className="fst-tabs" role="tablist" aria-label="Fusteam">
         {LAUNCHER_TABS.map((tab) => (
           <button
@@ -264,10 +224,10 @@ export function LauncherWindow({ windowId, active }: LauncherWindowProps) {
             type="button"
             role="tab"
             id={`fst-tab-${tab.id}`}
-            aria-selected={vm.tab === tab.id}
+            aria-selected={tab.id === "games"}
             aria-controls="fst-page"
-            className={`fst-tab ${vm.tab === tab.id ? "selected" : ""}`}
-            onClick={() => vm.setTab(tab.id)}
+            className={`fst-tab ${tab.id === "games" ? "selected" : ""}`}
+            onClick={() => vm.openTab(tab.id)}
           >
             {tab.label}
           </button>
@@ -277,13 +237,9 @@ export function LauncherWindow({ windowId, active }: LauncherWindowProps) {
         className="fst-page"
         id="fst-page"
         role="tabpanel"
-        aria-labelledby={`fst-tab-${vm.tab}`}
+        aria-labelledby="fst-tab-games"
       >
-        {vm.tab === "games" ? (
-          <GamesPage vm={vm} active={active} />
-        ) : (
-          <PlaceholderPage tab={vm.tab} />
-        )}
+        <GamesPage vm={vm} active={active} />
       </div>
       <div className="fst-footer">
         <span className="fst-wordmark" aria-label="Fusteam">
@@ -296,7 +252,7 @@ export function LauncherWindow({ windowId, active }: LauncherWindowProps) {
         <button
           type="button"
           className="fst-button"
-          onClick={() => vm.setTab("friends")}
+          onClick={vm.openFriends}
         >
           FRIENDS &amp; CHAT
         </button>

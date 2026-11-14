@@ -8,10 +8,18 @@ import {
 } from "../__mocks__/renderWithProviders";
 import { Desktop } from "../desktop/Desktop";
 import { MemoryFuseOsPrefsStore } from "../settings/fuseosPrefsStore";
+import { MemoryDialUpSession } from "../sounds/dialup/dialUpSession";
 
 import { MemoryLastPlayedStore } from "./lastPlayedStore";
 import { LAUNCHER_WINDOW_ID } from "./launcherFacts";
 import { ADD_GAME_MESSAGE } from "./useLauncherViewModel";
+
+/** A session that has already dialled in, so the online programs open without Dial-Up Networking in front. */
+function online(): MemoryDialUpSession {
+  const session = new MemoryDialUpSession();
+  session.markConnected();
+  return session;
+}
 
 /** The desktop with the launcher open, as every boot has it. */
 function renderLauncher(options: ProviderOptions = {}) {
@@ -72,11 +80,14 @@ describe("LauncherWindow", () => {
     expect(details).toHaveTextContent(/Disk usage:\d+ MB/);
     expect(details).toHaveTextContent("Last played:Never");
     const links = within(details).getByRole("navigation", { name: "Links" });
-    for (const name of ["Open in new tab", "Leaderboard", "Friends"]) {
-      const link = within(links).getByRole("link", { name });
-      expect(link).toHaveAttribute("href", "/fuse-riders/fuseball/");
-      expect(link).toHaveAttribute("target", "_blank");
-    }
+    const newTab = within(links).getByRole("link", { name: "Open in new tab" });
+    expect(newTab).toHaveAttribute("href", "/fuse-riders/fuseball/");
+    expect(newTab).toHaveAttribute("target", "_blank");
+    // Leaderboard and Friends open programs on this desktop, not pages.
+    for (const name of ["Leaderboard", "Friends"])
+      expect(within(links).getByRole("link", { name })).not.toHaveAttribute(
+        "target",
+      );
     expect(inside.getByText("FUSTEAM")).toBeInTheDocument();
   });
 
@@ -203,36 +214,86 @@ describe("LauncherWindow", () => {
     ).toHaveTextContent("Last played:Yesterday");
   });
 
-  it("switches to the Friends, Servers and News placeholders and back", async () => {
+  it("opens Fuse Messenger, Network Neighborhood and the Hall of Fame from the Friends, Servers and News tabs", async () => {
     const user = userEvent.setup();
-    const { inside } = renderLauncher();
-    for (const [tab, text] of [
-      ["Friends", "No friends online."],
-      ["Servers", "no server list"],
-      ["News", "Fusteam launcher released"],
+    const { inside, store } = renderLauncher({ dialUpSession: online() });
+    for (const [tab, title] of [
+      ["Friends", "Fuse Messenger"],
+      ["Servers", "Network Neighborhood"],
+      ["News", "Hall of Fame"],
     ] as const) {
       await user.click(inside.getByRole("tab", { name: tab }));
-      expect(inside.getByRole("tab", { name: tab })).toHaveAttribute(
+      expect(screen.getByRole("dialog", { name: title })).toBeInTheDocument();
+      // The launcher stays on My Games: the others are windows of their own.
+      expect(inside.getByRole("tab", { name: "My Games" })).toHaveAttribute(
         "aria-selected",
         "true",
       );
-      expect(inside.getByRole("tabpanel")).toHaveTextContent(text);
-      expect(inside.queryByRole("listbox")).toBeNull();
+      expect(inside.getByRole("tab", { name: tab })).toHaveAttribute(
+        "aria-selected",
+        "false",
+      );
     }
     await user.click(inside.getByRole("tab", { name: "My Games" }));
     expect(
       inside.getByRole("listbox", { name: "My Games" }),
     ).toBeInTheDocument();
+    // One window each, however often a tab is pressed.
+    await user.click(inside.getByRole("tab", { name: "News" }));
+    expect(
+      store
+        .load()
+        .windows.map((window) => window.kind)
+        .sort(),
+    ).toEqual(["friends", "halloffame", "launcher", "network"]);
   });
 
-  it("FRIENDS & CHAT opens the Friends tab and ADD A GAME... a message box", async () => {
+  it("dials in before the first online program of the session, from the Servers tab too", async () => {
     const user = userEvent.setup();
-    const { inside } = renderLauncher();
-    await user.click(inside.getByRole("button", { name: "FRIENDS & CHAT" }));
-    expect(inside.getByRole("tab", { name: "Friends" })).toHaveAttribute(
-      "aria-selected",
-      "true",
+    const { inside, dialUpSession } = renderLauncher();
+    await user.click(inside.getByRole("tab", { name: "Servers" }));
+    expect(
+      screen.queryByRole("dialog", { name: "Network Neighborhood" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Connect To" })).getByRole(
+        "button",
+        { name: "Cancel" },
+      ),
     );
+    expect(dialUpSession.connected).toBe(true);
+    expect(
+      screen.getByRole("dialog", { name: "Network Neighborhood" }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the Hall of Fame on the selected game from its Leaderboard link, and Fuse Messenger from Friends", async () => {
+    const user = userEvent.setup();
+    const { inside, store } = renderLauncher({ dialUpSession: online() });
+    await user.click(inside.getByRole("option", { name: /Fuse Riders/ }));
+    await user.click(inside.getByRole("link", { name: "Leaderboard" }));
+    expect(
+      screen.getByRole("dialog", { name: "Hall of Fame" }),
+    ).toBeInTheDocument();
+    // Another game's link turns the open window to that game rather than opening a second one.
+    await user.click(inside.getByRole("option", { name: /Fuseball/ }));
+    await user.click(inside.getByRole("link", { name: "Leaderboard" }));
+    expect(
+      store.load().windows.filter((window) => window.kind === "halloffame"),
+    ).toEqual([expect.objectContaining({ gameId: "fuseball" })]);
+    await user.click(inside.getByRole("link", { name: "Friends" }));
+    expect(
+      screen.getByRole("dialog", { name: "Fuse Messenger" }),
+    ).toBeInTheDocument();
+  });
+
+  it("FRIENDS & CHAT opens Fuse Messenger and ADD A GAME... a message box", async () => {
+    const user = userEvent.setup();
+    const { inside } = renderLauncher({ dialUpSession: online() });
+    await user.click(inside.getByRole("button", { name: "FRIENDS & CHAT" }));
+    expect(
+      screen.getByRole("dialog", { name: "Fuse Messenger" }),
+    ).toBeInTheDocument();
     await user.click(inside.getByRole("button", { name: "ADD A GAME..." }));
     // The message box is titled after the launcher, so two dialogs carry the name.
     const boxes = await screen.findAllByRole("dialog", { name: "Fusteam" });

@@ -267,6 +267,13 @@ export function mergeInstance(
     content.room !== undefined
   )
     return { ...existing, room: content.room };
+  // Fusteam's Leaderboard link over an open Hall of Fame: the window turns to that game.
+  if (
+    existing.kind === "halloffame" &&
+    content.kind === "halloffame" &&
+    content.gameId !== undefined
+  )
+    return { ...existing, gameId: content.gameId };
   if (existing.kind === "notepadpp" && content.kind === "notepadpp") {
     const added = content.paths.filter(
       (path) => !existing.paths.includes(path),
