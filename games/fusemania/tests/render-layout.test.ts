@@ -252,6 +252,38 @@ test("a field's columns stop growing with a wide screen, and a lone field is cen
   assert.ok(phone.hudX >= phone.x && phone.col * COLUMNS >= 300);
 });
 
+test("the race line is a band under the lanes, as wide as the fields, inside the canvas and above the touch buttons", () => {
+  let drawn = 0;
+  for (const screen of SCREENS)
+    for (const inset of [0, 130])
+      for (let riders = 1; riders <= 5; riders++)
+        for (const local of [-1, 0, riders - 1]) {
+          const unit = screen.ratio;
+          const width = Math.round(screen.width * unit),
+            height = Math.round(screen.height * unit);
+          const layout = layoutFor(width, height, riders, local, inset, unit);
+          const where = `${screen.name}, ${riders} riders, local ${local}, inset ${inset}`;
+          const race = layout.race;
+          if (!race) continue;
+          drawn++;
+          assert.ok(race.x >= 0 && race.x + race.width <= width, where);
+          assert.ok(race.y + race.height <= height - inset * unit, where);
+          assert.ok(race.height >= 24 * unit, where);
+          const first = layout.fields[0]!,
+            last = layout.fields[layout.fields.length - 1]!;
+          assert.equal(race.x, first.x, where);
+          assert.equal(race.x + race.width, last.x + last.col * COLUMNS, where);
+          for (const field of layout.fields)
+            assert.ok(field.laneBottom < race.y, `${where}: under the lanes`);
+          if (layout.panel && !layout.panel.strip)
+            assert.ok(race.x + race.width <= layout.panel.x, where);
+        }
+  assert.ok(drawn > 150, `on nearly every screen (${drawn})`);
+  // A phone on its side with touch buttons has no height to spare: the lanes keep it.
+  assert.equal(layoutFor(2220, 1080, 1, 0, 130, 3).race, undefined);
+  assert.ok(layoutFor(1366, 768, 1, 0).race);
+});
+
 test("degenerate canvases lay out without nonsense", () => {
   for (const [width, height] of [
     [0, 0],
