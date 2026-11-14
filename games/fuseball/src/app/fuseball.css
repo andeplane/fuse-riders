@@ -474,6 +474,11 @@ body.fb-display .fb-lobby {
 .fb-controller-result {
   justify-content: center;
 }
+.fb-controller-waiting {
+  margin: 0;
+  color: var(--fui-text-muted);
+  text-align: center;
+}
 /* On a phone the match needs the room: the account buttons wait in the lobby, and the status line folds away. */
 @media (max-width: 34rem) {
   body:has(.fb-room:is([data-screen="play"], [data-screen="controller"]))

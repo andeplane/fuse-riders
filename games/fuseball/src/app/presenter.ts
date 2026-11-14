@@ -157,7 +157,10 @@ export function present(view: View, viewer: Viewer): Model {
       ? "You ride in the next match"
       : mine
         ? "Watching"
-        : "Pick a name to ride in the next match";
+        : shared
+          ? // A page showing a shared-screen match is the big screen, whoever opened it: nothing is asked of it.
+            ""
+          : "Pick a name to ride in the next match";
 
   let result: Model["result"] = null;
   if (view.stage === "over" && world && sides.length === 2) {
@@ -193,7 +196,14 @@ export function present(view: View, viewer: Viewer): Model {
   const playing = inMatch ? view.play.mapId : view.settings.mapId;
   return {
     screen,
-    askName: !seated && !viewer.display && !viewer.solo && !mine,
+    // A shared-screen match is watched on whatever page shows the arena, the room creator's included: the name
+    // bar stays off it until the room is back in the lobby.
+    askName:
+      !seated &&
+      !viewer.display &&
+      !viewer.solo &&
+      !mine &&
+      !(shared && inMatch),
     seated,
     riding,
     localSlot,

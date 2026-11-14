@@ -201,6 +201,45 @@ test("in a match: the arena on devices and the TV, a controller on the phones of
   assert.equal(screen.localSlot, -1);
   assert.equal(screen.riding, false);
   assert.equal(screen.note, "", "the TV shows no note");
+  // The room made on the big screen itself: its creator holds no seat and that page is the TV in all but name.
+  // No name bar and no note over the arena while the match is on; both riders are on their phones.
+  const creatorTv: Viewer = {
+    me: "tvhost",
+    host: true,
+    solo: false,
+    display: false,
+  };
+  for (const stage of ["running", "over"] as const) {
+    const big = present(room(stage, shared), creatorTv);
+    assert.equal(big.screen, "play");
+    assert.equal(big.askName, false, `${stage}: no name bar over the arena`);
+    assert.equal(big.note, "");
+  }
+  assert.equal(
+    present(
+      room("lobby", (r) => (r.settings.display = true)),
+      creatorTv,
+    ).askName,
+    true,
+    "back in the lobby it may still take a seat",
+  );
+  assert.equal(
+    present(room("running"), creatorTv).askName,
+    true,
+    "an ordinary room still offers a visitor the next match",
+  );
+  // After the match the host's phone starts the next one, and the other rider's says who will.
+  const done = (r: Room, w: World | null) => {
+    shared(r);
+    w!.phase = "over";
+  };
+  const hostPhone = present(room("over", done), host),
+    guestPhone = present(room("over", done), guest);
+  assert.equal(hostPhone.screen, "controller");
+  assert.equal(hostPhone.result?.host, true);
+  assert.equal(guestPhone.screen, "controller");
+  assert.equal(guestPhone.result?.host, false);
+  assert.match(guestPhone.result!.waiting, /Waiting for the host/);
   // A watcher's phone has nothing to control: it sees the arena.
   const watcher = present(
     room("running", (r) => {

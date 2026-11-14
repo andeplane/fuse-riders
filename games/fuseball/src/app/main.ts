@@ -520,7 +520,14 @@ function room(solo: boolean): void {
   controllerRematch.onclick = rematch.onclick;
   controllerLobby.onclick = toLobby.onclick;
   controllerResult.append(controllerLobby, controllerRematch);
-  controller.append(controllerHead, controllerResult, controllerPads.row);
+  // A rider who is not the host is told who starts the next match, as on the arena's result card.
+  const controllerWaiting = el("p", "", "fb-controller-waiting");
+  controller.append(
+    controllerHead,
+    controllerResult,
+    controllerWaiting,
+    controllerPads.row,
+  );
 
   // Until the first frame nothing of the room shows, so a room that turns out not to exist never offers its controls.
   const connecting = el("p", "Connecting to the room…", "fb-connecting"),
@@ -677,6 +684,8 @@ function room(solo: boolean): void {
     }
     setText(controllerState, next.status);
     controllerResult.hidden = !(next.result && next.result.host);
+    setText(controllerWaiting, next.result?.waiting ?? "");
+    controllerWaiting.hidden = !next.result?.waiting;
     // Result.
     result.hidden = !next.result || next.screen === "controller";
     if (next.result) {
