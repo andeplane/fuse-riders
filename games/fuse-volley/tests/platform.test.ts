@@ -83,11 +83,11 @@ test("a confirmed match adds to an account's totals, which are read back strictl
   const standing = fuseVolleyRegistration.emptyTotals();
   fuseVolleyRegistration.addTotals(
     standing,
-    fuseVolleyRegistration.credit(player()),
+    fuseVolleyRegistration.credit(player(), [player(), loser()]),
   );
   fuseVolleyRegistration.addTotals(
     standing,
-    fuseVolleyRegistration.credit(loser()),
+    fuseVolleyRegistration.credit(loser(), [player(), loser()]),
   );
   assert.deepEqual(standing.totals, {
     matches: 2,
