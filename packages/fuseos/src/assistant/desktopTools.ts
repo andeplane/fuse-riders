@@ -8,7 +8,7 @@ import type { AssistantTool, ToolResult } from "../llm/tools";
 import { GAMES } from "../retro/games";
 import { GAME_IDS } from "../retro/gameIds";
 import type { WindowContent } from "../state/appState";
-import type { WinampControls } from "../winamp/winampControls";
+import type { WinampRegistry } from "../winamp/winampRegistry";
 import { WinampRegistryContext } from "../winamp/winampRegistryContext";
 import type { WindowCommands } from "../windows/useWindowCommands";
 import { useWindowCommands } from "../windows/useWindowCommands";
@@ -178,11 +178,11 @@ const MUSIC_SENTENCES: Record<MusicAction, string> = {
 };
 
 /**
- * `[music:<action>]` over the first Winamp window's transport. With no Winamp open, `play` opens one (it starts
- * with the Fuse soundtrack; the window cannot be driven before it has loaded) and the other actions say so.
+ * `[music:<action>]` over the running Winamp's transport. With no Winamp open, `play` opens one and presses
+ * Play the moment it has loaded, so the Fuse soundtrack starts from the top; the other actions say so.
  */
 export function createMusicTool(
-  winamp: () => WinampControls | undefined,
+  winamp: Pick<WinampRegistry, "first" | "onRegister">,
   commands: Pick<WindowCommands, "open">,
 ): AssistantTool {
   return {
@@ -200,12 +200,19 @@ export function createMusicTool(
           ok: false,
           sentence: `Winamp cannot "${arg.trim()}"; try ${MUSIC_ACTIONS.join(", ")}`,
         };
-      const controls = winamp();
+      const controls = winamp.first();
       if (!controls) {
         if (action !== "play")
           return { ok: false, sentence: "Winamp is not open" };
+        const unsubscribe = winamp.onRegister((loaded) => {
+          unsubscribe();
+          loaded.play();
+        });
         commands.open({ kind: "winamp" });
-        return { ok: true, sentence: "Opened Winamp" };
+        return {
+          ok: true,
+          sentence: "Starting Winamp with the Fuse soundtrack",
+        };
       }
       controls[action]();
       return { ok: true, sentence: MUSIC_SENTENCES[action] };
@@ -225,11 +232,10 @@ export function useDesktopTools(): {
   const commands = useWindowCommands();
   return useMemo(() => {
     const targets = desktopTargets(games);
-    const winamp = () => winampRegistry.values().next().value;
     return {
       tools: [
         createOpenTool(targets, commands),
-        createMusicTool(winamp, commands),
+        createMusicTool(winampRegistry, commands),
       ],
       targets,
       intents: intentCatalog(targets),

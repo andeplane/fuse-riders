@@ -74,8 +74,9 @@ describe(Desktop.name, () => {
     });
     const menu = await screen.findByRole("menu", { name: "Context menu" });
     await user.click(within(menu).getByRole("menuitem", { name: "Open" }));
+    // Winamp is frameless: Webamp's own windows on a desktop layer, not a FuseOS dialog.
     expect(
-      await screen.findByRole("dialog", { name: "Winamp" }),
+      await screen.findByRole("region", { name: "Winamp" }),
     ).toBeInTheDocument();
 
     screen.getByRole("button", { name: "Control Panel" }).focus();

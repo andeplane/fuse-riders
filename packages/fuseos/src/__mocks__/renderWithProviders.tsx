@@ -71,9 +71,9 @@ import { DEFAULT_STATE } from "../state/appState";
 import type { AppStateDeps } from "../state/appStateContext";
 import { AppStateDepsContext } from "../state/appStateContext";
 import { MemoryStateStore } from "../state/stateStore";
-import type { WinampControls } from "../winamp/winampControls";
 import type { WinampDeps } from "../winamp/winampDepsContext";
 import { WinampDepsContext } from "../winamp/winampDepsContext";
+import { createWinampRegistry } from "../winamp/winampRegistry";
 import { WinampRegistryContext } from "../winamp/winampRegistryContext";
 import { PlainWindowFrame } from "../windows/PlainWindowFrame";
 import type { WindowsDeps } from "../windows/windowsDepsContext";
@@ -299,8 +299,6 @@ export function createTestWinampDeps(
       players.push(player);
       return player;
     }),
-    createObjectURL: vi.fn((file: File) => `blob:${file.name}`),
-    revokeObjectURL: vi.fn(),
     // Never fires spontaneously; a test simulating a playback failure overrides this and calls the callback itself.
     subscribeMediaErrors: vi.fn(() => () => undefined),
     base: TEST_BASE,
@@ -373,7 +371,7 @@ export function createWrapper(options: ProviderOptions = {}) {
     options.assistantOptions ?? new MemoryAssistantOptionsStore();
   const winampPlayers: FakeWebampPlayer[] = [];
   const winampDeps = createTestWinampDeps(winampPlayers, options.winampDeps);
-  const winampRegistry = new Map<string, WinampControls>();
+  const winampRegistry = createWinampRegistry();
   const systemProbe = options.systemProbe ?? TEST_SYSTEM_PROBE;
   const llmFactory: FakeEngineFactory = createFakeEngineFactory();
   const modelCache = new MemoryModelCache();

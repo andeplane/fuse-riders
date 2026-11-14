@@ -18,8 +18,8 @@ export const PAINT_WINDOW_SIZE: Size = { width: 780, height: 580 };
 /** Room for the monitor preview, the picker buttons and Apply/OK/Cancel. */
 export const WALLPAPER_WINDOW_SIZE: Size = { width: 320, height: 400 };
 
-/** Room for the 275x348 main/equalizer/playlist stack and the file toolbar. */
-export const WINAMP_WINDOW_SIZE: Size = { width: 320, height: 440 };
+/** Winamp has no FuseOS frame (Webamp draws its own windows); the size is nominal, for the window list's sake. */
+export const WINAMP_WINDOW_SIZE: Size = { width: 275, height: 464 };
 
 /** A Fuse game opens at the size its lobby is laid out for; the window clamps to the desktop. */
 export const FUSE_GAME_WINDOW_SIZE: Size = { width: 1024, height: 700 };

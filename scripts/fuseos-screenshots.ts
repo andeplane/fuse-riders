@@ -167,10 +167,11 @@ export async function captureScreenshots(
     if (!(await isPresent(desktopIcon(page, "Winamp"))))
       await startMenu(page, ["Programs", "Accessories", "Winamp"]);
     else await desktopIcon(page, "Winamp").dblclick();
-    const window = osWindow(page, "Winamp");
-    await window.waitFor();
-    // Webamp arrives lazily; the window shows a status until it has mounted. Capture what is there after 20 s regardless.
-    await window
+    // Frameless: Webamp's own windows on the desktop layer, no FuseOS dialog around them.
+    const layer = page.getByRole("region", { name: "Winamp" });
+    await layer.waitFor();
+    // Webamp arrives lazily; the layer shows a status until it has mounted. Capture what is there after 20 s regardless.
+    await layer
       .getByRole("status")
       .waitFor({ state: "detached", timeout: 20_000 })
       .catch(() => undefined);

@@ -203,10 +203,10 @@ describe("StartMenu", () => {
 
     await choose(user, "Programs", "Accessories", "Winamp");
     expect(
-      await screen.findByRole("dialog", { name: "Winamp" }),
+      await screen.findByRole("region", { name: "Winamp" }),
     ).toBeInTheDocument();
     await choose(user, "Programs", "Accessories", "Winamp");
-    expect(screen.getAllByRole("dialog", { name: "Winamp" })).toHaveLength(1);
+    expect(screen.getAllByRole("region", { name: "Winamp" })).toHaveLength(1);
 
     await choose(user, "Programs", "Accessories", "Change desktop background");
     expect(

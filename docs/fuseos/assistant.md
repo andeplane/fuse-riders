@@ -91,7 +91,7 @@ The desktop registers two tools (`src/assistant/desktopTools.ts`):
 | Marker                                        | Does                                                                                                                                                              |
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `[open:<id>]`                                 | Opens a Fuse game (its portal id), a retro game (`doom`, `keen1`, ...), or an app: `paint`, `winamp`, `settings`, `display`, `about`. Names and aliases work too. |
-| `[music:<play\|pause\|stop\|next\|previous>]` | Drives the open Winamp window's transport; `play` opens Winamp when none is open.                                                                                 |
+| `[music:<play\|pause\|stop\|next\|previous>]` | Drives the running Winamp's transport; `play` opens Winamp when none is open and presses Play once it has loaded.                                                 |
 
 ### Adding a tool
 
