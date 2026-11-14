@@ -30,6 +30,39 @@ import {
   type LabNote,
 } from "../src/lab/notes.js";
 
+import {
+  parseResume,
+  resumeHash,
+  revealTop,
+  seekDelta,
+  typingIn,
+  type TransportKey,
+} from "../src/lab/playback.js";
+
+import { hiddenAtStart, parseShown } from "../src/lab/shown.js";
+
+import { bandMix, coversAll, dragSpan, grabAt } from "../src/lab/band.js";
+
+import { parseNotesUpload, writeNotesUpload } from "../src/lab/notes-upload.js";
+import {
+  mayStoreNotes,
+  storeNotes,
+} from "../../../scripts/lib/chart-lab-notes.js";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import {
+  addTap,
+  parseTaps,
+  removeSpan,
+  removeTap,
+  tapAt,
+  tapColumn,
+  tapGridBeat,
+  writeTaps,
+} from "../src/lab/taps.js";
+
 const sine = (hz: number, seconds: number, rate = LAB_RATE) =>
   Float32Array.from({ length: Math.round(seconds * rate) }, (_, i) =>
     Math.sin((2 * Math.PI * hz * i) / rate),
@@ -205,4 +238,395 @@ test("a note reads as one line for a chat", () => {
     describeNote(note({ lowHz: 1200, highHz: 3400, chart: "Hard" })),
     "final-chase 0:42.10–0:44.50 (beats 102.80–108.80) · 1.20 kHz–3.40 kHz · Hard · [melody, 16ths]: the lead line runs 16ths here",
   );
+});
+
+const press = (
+  key: string,
+  held: Partial<TransportKey> = {},
+): TransportKey => ({
+  key,
+  shiftKey: false,
+  altKey: false,
+  metaKey: false,
+  ctrlKey: false,
+  ...held,
+});
+
+test("chart lab: the arrow keys seek 0.5 s, 3 s with shift and 10 s with option", () => {
+  assert.equal(seekDelta(press("ArrowLeft")), -0.5);
+  assert.equal(seekDelta(press("ArrowRight")), 0.5);
+  assert.equal(seekDelta(press("ArrowLeft", { shiftKey: true })), -3);
+  assert.equal(seekDelta(press("ArrowRight", { shiftKey: true })), 3);
+  assert.equal(seekDelta(press("ArrowLeft", { altKey: true })), -10);
+  assert.equal(seekDelta(press("ArrowRight", { altKey: true })), 10);
+  assert.equal(
+    seekDelta(press("ArrowLeft", { altKey: true, shiftKey: true })),
+    -10,
+  );
+});
+
+test("chart lab: other keys, and the browser's own ⌘/ctrl arrows, do not seek", () => {
+  assert.equal(seekDelta(press(" ")), undefined);
+  assert.equal(seekDelta(press("ArrowUp")), undefined);
+  assert.equal(seekDelta(press("ArrowLeft", { metaKey: true })), undefined);
+  assert.equal(seekDelta(press("ArrowRight", { ctrlKey: true })), undefined);
+});
+
+test("chart lab: text fields keep their keys, other controls give them to playback", () => {
+  assert.equal(typingIn(null), false);
+  assert.equal(typingIn({ tagName: "BODY" }), false);
+  assert.equal(typingIn({ tagName: "TEXTAREA" }), true);
+  assert.equal(typingIn({ tagName: "INPUT", type: "text" }), true);
+  assert.equal(typingIn({ tagName: "INPUT" }), true);
+  assert.equal(typingIn({ tagName: "DIV", isContentEditable: true }), true);
+  for (const type of ["checkbox", "range", "file"])
+    assert.equal(typingIn({ tagName: "INPUT", type }), false, type);
+  assert.equal(typingIn({ tagName: "BUTTON", type: "button" }), false);
+  assert.equal(typingIn({ tagName: "SELECT", type: "select-one" }), false);
+});
+
+test("chart lab: the view moves only when the playhead leaves it", () => {
+  // A 10 s view from 20 s: a playhead in the middle stays put.
+  assert.equal(revealTop(25, 20, 10), 20);
+  // Above, below, and inside the edge margin: the playhead lands 30% down.
+  assert.equal(revealTop(12, 20, 10), 9);
+  assert.equal(revealTop(40, 20, 10), 37);
+  assert.equal(revealTop(20.2, 20, 10), 17.2);
+  assert.equal(revealTop(29.9, 20, 10), 26.9);
+});
+
+test("chart lab: a song opens with one chart shown, or the ones chosen last time", () => {
+  const charts = ["Easy", "Medium", "Hard", "Challenge"].map((label, i) => ({
+    key: `song:${i}`,
+    label,
+  }));
+  assert.deepEqual(hiddenAtStart(charts, undefined), [
+    "song:0",
+    "song:1",
+    "song:3",
+  ]);
+  assert.deepEqual(hiddenAtStart(charts, ["Easy", "Challenge"]), [
+    "song:1",
+    "song:2",
+  ]);
+  // A remembered difficulty this song lacks falls back to the default, and no Hard falls back to the first chart.
+  assert.deepEqual(hiddenAtStart(charts, ["Beginner"]), [
+    "song:0",
+    "song:1",
+    "song:3",
+  ]);
+  assert.deepEqual(hiddenAtStart(charts.slice(0, 2), undefined), ["song:1"]);
+  // Everything unticked stays unticked.
+  assert.equal(hiddenAtStart(charts, []).length, 4);
+  assert.deepEqual(hiddenAtStart([], undefined), []);
+});
+
+test("chart lab: the remembered chart choice survives only as a list of labels", () => {
+  assert.equal(parseShown(null), undefined);
+  assert.equal(parseShown("not json"), undefined);
+  assert.equal(parseShown('{"a":1}'), undefined);
+  assert.deepEqual(parseShown('["Hard", 3, "Easy"]'), ["Hard", "Easy"]);
+  assert.deepEqual(parseShown("[]"), []);
+});
+
+test("chart lab: a press on the frequency axis grabs an edge or the box", () => {
+  const span = { from: 100, to: 200 };
+  assert.equal(grabAt(span, 97), "low");
+  assert.equal(grabAt(span, 104), "low");
+  assert.equal(grabAt(span, 204), "high");
+  assert.equal(grabAt(span, 150), "move");
+  // Beside the box: the nearer edge, to pull it out.
+  assert.equal(grabAt(span, 50), "low");
+  assert.equal(grabAt(span, 260), "high");
+  // A box narrower than the reach: the nearer edge wins.
+  assert.equal(grabAt({ from: 100, to: 108 }, 103), "low");
+  assert.equal(grabAt({ from: 100, to: 108 }, 106), "high");
+});
+
+test("chart lab: the listening box is resized and moved inside the axis", () => {
+  const span = { from: 100, to: 200 };
+  // Edges follow the pointer, stop short of each other and at the axis ends.
+  assert.deepEqual(dragSpan(span, "low", 100, 60, 0, 400), {
+    from: 60,
+    to: 200,
+  });
+  assert.deepEqual(dragSpan(span, "low", 100, 300, 0, 400), {
+    from: 192,
+    to: 200,
+  });
+  assert.deepEqual(dragSpan(span, "low", 100, -50, 0, 400), {
+    from: 0,
+    to: 200,
+  });
+  assert.deepEqual(dragSpan(span, "high", 200, 350, 0, 400), {
+    from: 100,
+    to: 350,
+  });
+  assert.deepEqual(dragSpan(span, "high", 200, 20, 0, 400), {
+    from: 100,
+    to: 108,
+  });
+  // Moving keeps the width and stays on the axis; a box as wide as the axis has nowhere to go.
+  assert.deepEqual(dragSpan(span, "move", 150, 180, 0, 400), {
+    from: 130,
+    to: 230,
+  });
+  assert.deepEqual(dragSpan(span, "move", 150, 900, 0, 400), {
+    from: 300,
+    to: 400,
+  });
+  assert.deepEqual(dragSpan(span, "move", 150, -900, 0, 400), {
+    from: 0,
+    to: 100,
+  });
+  assert.deepEqual(dragSpan({ from: 0, to: 400 }, "move", 150, 250, 0, 400), {
+    from: 0,
+    to: 400,
+  });
+});
+
+test("chart lab: a box over the whole axis turns nothing down", () => {
+  assert.equal(coversAll({ from: 0, to: 400 }, 0, 400), true);
+  assert.equal(coversAll({ from: 0.6, to: 399.5 }, 0, 400), true);
+  assert.equal(coversAll({ from: 20, to: 400 }, 0, 400), false);
+  assert.equal(coversAll({ from: 0, to: 380 }, 0, 400), false);
+});
+
+test("chart lab: outside the band the song keeps a tenth of its level", () => {
+  assert.deepEqual(bandMix(false), { dry: 1, band: 0 });
+  const mix = bandMix(true);
+  assert.equal(mix.dry, 0.1);
+  assert.equal(mix.dry + mix.band, 1);
+});
+
+/** The smallest PNG: its signature and nothing else, which is all the upload checks. */
+const TINY_PNG = `data:image/png;base64,${btoa("\x89PNG\r\n\x1a\n")}`;
+const uploadNote: LabNote = {
+  id: "abc-123",
+  created: "2026-11-14T20:00:00.000Z",
+  song: "final-chase",
+  start: 12.5,
+  end: 14,
+  startBeat: 30,
+  endBeat: 34,
+  lowHz: 400,
+  highHz: 900,
+  tags: ["melody"],
+  text: "the lead should carry the steps here",
+};
+
+test("chart lab: an upload becomes a notes file and a picture named by its note", () => {
+  const stored = parseNotesUpload(
+    writeNotesUpload({
+      notes: { version: 1, notes: [uploadNote] },
+      shot: { id: uploadNote.id, png: TINY_PNG },
+    }),
+  );
+  assert.deepEqual(parseNotes(stored.notes).notes, [uploadNote]);
+  assert.equal(stored.shot?.file, "abc-123.png");
+  assert.deepEqual(
+    [...(stored.shot?.bytes ?? [])].slice(0, 4),
+    [0x89, 0x50, 0x4e, 0x47],
+  );
+  const plain = parseNotesUpload(
+    writeNotesUpload({ notes: { version: 1, notes: [] } }),
+  );
+  assert.equal(plain.shot, undefined);
+});
+
+test("chart lab: a bad upload is refused before anything is written", () => {
+  const notes = { version: 1 as const, notes: [uploadNote] };
+  const bad = (body: string) =>
+    assert.throws(() => parseNotesUpload(body), NotesError);
+  bad("not json");
+  bad("7");
+  bad(JSON.stringify({ notes: { version: 2, notes: [] } }));
+  bad(JSON.stringify({ notes, shot: 3 }));
+  // A picture cannot choose its own file name, or be for a note that is not there.
+  bad(JSON.stringify({ notes, shot: { id: "../../etc/x", png: TINY_PNG } }));
+  bad(JSON.stringify({ notes, shot: { id: "other", png: TINY_PNG } }));
+  bad(
+    JSON.stringify({ notes, shot: { id: "abc-123", png: "data:text/html,x" } }),
+  );
+  bad(
+    JSON.stringify({
+      notes,
+      shot: { id: "abc-123", png: "data:image/png;base64,%%%" },
+    }),
+  );
+  bad(
+    JSON.stringify({
+      notes,
+      shot: { id: "abc-123", png: `data:image/png;base64,${btoa("GIF89a..")}` },
+    }),
+  );
+});
+
+test("chart lab: the dev server stores notes only for a page it served to this machine", () => {
+  const ok = {
+    remoteAddress: "127.0.0.1",
+    host: "localhost:5180",
+    origin: "http://localhost:5180",
+    contentType: "application/json",
+  };
+  assert.equal(mayStoreNotes(ok), true);
+  assert.equal(mayStoreNotes({ ...ok, remoteAddress: "::1" }), true);
+  assert.equal(mayStoreNotes({ ...ok, origin: undefined }), true);
+  assert.equal(mayStoreNotes({ ...ok, remoteAddress: "192.168.1.20" }), false);
+  assert.equal(mayStoreNotes({ ...ok, remoteAddress: undefined }), false);
+  assert.equal(mayStoreNotes({ ...ok, host: "evil.example" }), false);
+  assert.equal(mayStoreNotes({ ...ok, origin: "https://evil.example" }), false);
+  assert.equal(mayStoreNotes({ ...ok, origin: "nonsense" }), false);
+  assert.equal(mayStoreNotes({ ...ok, contentType: "text/plain" }), false);
+  assert.equal(mayStoreNotes({ ...ok, contentType: undefined }), false);
+});
+
+test("chart lab: stored notes land in notes.json with the picture beside them", () => {
+  const dir = mkdtempSync(join(tmpdir(), "chart-lab-notes-"));
+  try {
+    const written = storeNotes(
+      dir,
+      writeNotesUpload({
+        notes: { version: 1, notes: [uploadNote] },
+        shot: { id: uploadNote.id, png: TINY_PNG },
+      }),
+    );
+    assert.deepEqual(written, ["notes.json", "shots/abc-123.png"]);
+    assert.deepEqual(
+      parseNotes(readFileSync(join(dir, "notes.json"), "utf8")).notes,
+      [uploadNote],
+    );
+    assert.equal(readFileSync(join(dir, "shots", "abc-123.png")).length, 8);
+    assert.throws(() => storeNotes(dir, "not json"), NotesError);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("chart lab: the URL fragment remembers the playhead across a reload", () => {
+  assert.equal(resumeHash(83.44), "#t=83.4");
+  assert.equal(resumeHash(-1), "#t=0.0");
+  assert.equal(parseResume(resumeHash(83.44)), 83.4);
+  assert.equal(parseResume("#t=12"), 12);
+  assert.equal(parseResume(""), undefined);
+  assert.equal(parseResume("#t=abc"), undefined);
+  assert.equal(parseResume("#t=1e9"), undefined);
+  assert.equal(parseResume("#other"), undefined);
+});
+
+test("chart lab: WASD and IJKL tap the four lanes", () => {
+  assert.deepEqual(["a", "s", "w", "d"].map(tapColumn), [0, 1, 2, 3]);
+  assert.deepEqual(["J", "K", "I", "L"].map(tapColumn), [0, 1, 2, 3]);
+  assert.equal(tapColumn("x"), undefined);
+  assert.equal(tapColumn(" "), undefined);
+});
+
+test("chart lab: taps stay in time order and survive storage", () => {
+  let taps = addTap([], { time: 2, beat: 4, column: 3 });
+  taps = addTap(taps, { time: 1, beat: 2, column: 0 });
+  taps = addTap(taps, { time: 2, beat: 4, column: 1 });
+  assert.deepEqual(
+    taps.map((tap) => [tap.time, tap.column]),
+    [
+      [1, 0],
+      [2, 1],
+      [2, 3],
+    ],
+  );
+  const file = { version: 1 as const, song: "final-chase", taps };
+  assert.deepEqual(parseTaps(writeTaps(file)), file);
+  const bad = (value: unknown) =>
+    assert.throws(() => parseTaps(JSON.stringify(value)), NotesError);
+  assert.throws(() => parseTaps("nope"), NotesError);
+  bad(3);
+  bad({ ...file, version: 2 });
+  bad({ ...file, song: "../x" });
+  bad({ ...file, taps: "x" });
+  bad({ ...file, taps: [3] });
+  bad({ ...file, taps: [{ time: 1, beat: 1, column: 4 }] });
+  bad({ ...file, taps: [{ time: 1, beat: 1, column: 1.5 }] });
+  bad({ ...file, taps: [{ time: -1, beat: 1, column: 1 }] });
+  bad({ ...file, taps: [{ time: "1", beat: 1, column: 1 }] });
+});
+
+test("chart lab: a tapped rhythm is stored under its song's name", () => {
+  const dir = mkdtempSync(join(tmpdir(), "chart-lab-taps-"));
+  try {
+    const taps = {
+      version: 1 as const,
+      song: "final-chase",
+      taps: [{ time: 1.25, beat: 2.5, column: 2 }],
+    };
+    const written = storeNotes(
+      dir,
+      writeNotesUpload({ notes: { version: 1, notes: [] }, taps }),
+    );
+    assert.deepEqual(written, ["notes.json", "taps/final-chase.json"]);
+    assert.deepEqual(
+      parseTaps(readFileSync(join(dir, "taps", "final-chase.json"), "utf8")),
+      taps,
+    );
+    assert.throws(
+      () =>
+        storeNotes(
+          dir,
+          JSON.stringify({
+            notes: { version: 1, notes: [] },
+            taps: { ...taps, song: "../../x" },
+          }),
+        ),
+      NotesError,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("chart lab: undo takes one tap away and leaves the rest", () => {
+  const a = { time: 1, beat: 2, column: 0 };
+  const b = { time: 2, beat: 4, column: 1 };
+  assert.deepEqual(removeTap([a, b], b), [a]);
+  assert.deepEqual(removeTap([a, b], { time: 9, beat: 9, column: 0 }), [a, b]);
+  // Pressed twice at the same moment: one goes.
+  assert.deepEqual(removeTap([a, a, b], a), [a, b]);
+});
+
+test("chart lab: deleting a selection removes the taps inside it, ends included", () => {
+  const taps = [1, 2, 3, 4].map((time) => ({
+    time,
+    beat: time * 2,
+    column: 0,
+  }));
+  assert.deepEqual(
+    removeSpan(taps, 2, 3).map((tap) => tap.time),
+    [1, 4],
+  );
+  assert.deepEqual(removeSpan(taps, 5, 6), taps);
+  assert.deepEqual(removeSpan(taps, 0, 9), []);
+});
+
+test("chart lab: a click picks the nearest tap in its lane, within reach", () => {
+  const taps = [
+    { time: 1, beat: 2, column: 0 },
+    { time: 1.1, beat: 2.2, column: 0 },
+    { time: 1.05, beat: 2.1, column: 2 },
+  ];
+  assert.equal(tapAt(taps, 1.08, 0, 0.1), taps[1]);
+  assert.equal(tapAt(taps, 1.02, 0, 0.1), taps[0]);
+  assert.equal(tapAt(taps, 1.05, 2, 0.1), taps[2]);
+  assert.equal(tapAt(taps, 1.05, 1, 0.1), undefined);
+  assert.equal(tapAt(taps, 2, 0, 0.1), undefined);
+});
+
+test("chart lab: a tapped beat reads as 4ths, 8ths, 16ths, triplets, 24ths or 32nds", () => {
+  const near = (beat: number, want: number) =>
+    assert.ok(Math.abs(tapGridBeat(beat) - want) < 1e-9, `${beat} → ${want}`);
+  near(4.02, 4); // a late quarter
+  near(4.48, 4.5); // an early 8th
+  near(4.27, 4.25); // a late 16th stays a 16th
+  near(4.32, 4 + 1 / 3); // nearer the triplet
+  near(4.66, 4 + 2 / 3);
+  near(4.17, 4 + 1 / 6); // a 24th
+  near(4.12, 4.125); // a 32nd
+  near(4.875, 4.875);
 });
