@@ -337,6 +337,7 @@ function room(solo: boolean): void {
   main.append(nameEntry.form, lobby, table, result);
   app.replaceChildren(top, main);
   createRoomLayout({
+    primaryAction: start,
     playerName: () => social.playerName(undefined) ?? undefined,
     background: async (host) =>
       (await import("./attract.js")).createAttract(host),

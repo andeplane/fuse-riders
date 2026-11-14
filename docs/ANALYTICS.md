@@ -2,7 +2,7 @@
 
 Every game reports product events to Mixpanel through [`fuse-ui/analytics`](../packages/fuse-ui/src/analytics.ts).
 All event names start with `fuse.` and every event carries `gameId`, the stable platform id
-(`fuse-riders`, `dice`, `fuse-axe`, `fuse-bombers`, `fuse-choppers`, `fuse-craft`, `fuse-freight`, `fuse-lane`, `fuseball` or `hook-havok`).
+(`fuse-riders`, `dice`, `fuse-axe`, `fuse-bombers`, `fuse-choppers`, `fuse-craft`, `fuse-freight`, `fuse-lane`, `fuseball`, `killer-fuse` or `hook-havok`).
 Use the same events for cross-game dashboards, and filter or break down by `gameId`.
 The rename from `FlowRiders.*` is an intentional breaking change: existing dashboards must switch to `fuse.*`;
 historical events are not renamed and there is no dual reporting.
@@ -278,6 +278,34 @@ else's bomb — is a `Miss`, because no kill is credited to it.
 is a number as an array, so one such key makes it iterate indices instead of keys and drop the whole property
 bag — super properties included — while the API still answers `200`. The room setting called `length` is
 reported as `matchLength` for exactly this reason.
+
+### Killer Fuse: how each game of a set was won
+
+Killer Fuse (`gameId` `killer-fuse`) reports the shared four and one event of its own,
+[`games/killer-fuse/src/app/metrics.ts`](../games/killer-fuse/src/app/metrics.ts). The shared `Match Started` and
+`Match Ended` are about a **set** — the first to the set's wins; a set is several games, each on its own map with
+its own way of being won, and the set's events say nothing about which. `Game Ended` fills that in: one per decided
+game, in the same `fuse.` namespace with the same `gameId`, so it needs no namespace of its own.
+
+| Property          | Meaning                                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------------------------- |
+| `round`           | which game of the set, from 1                                                                             |
+| `mapId`           | the map it was played on                                                                                  |
+| `winKind`         | how it was won: `military` (the Queen's three lives), `economy` (a full hive) or `snail` (the snail home) |
+| `winningTeam`     | `cyan` or `pink`                                                                                          |
+| `durationSeconds` | from the countdown to the win, to the second                                                              |
+| `humanCount`      | people in the crew that played it                                                                         |
+| `botCount`        | bots filling the rest of the six slots                                                                    |
+| `played`          | whether this device held a slot; `won` comes with it when it did                                          |
+| `mode`            | the shared room mode, as on the other events                                                              |
+
+It is **a per-device observation, like the shared four**, not one event per room: every seated device reports the
+game it watched end, so a room of three sends three. Break down by `played` to count games rather than devices.
+
+It is sent only once the game's record can no longer be rolled back — the recorded tick is confirmed — and only
+for games this page saw end: a device that joins or reloads midway adopts the set's finished games as already
+reported rather than inventing them, and sends nothing for them. No name, room code, slot id or invite URL is in
+it; `winningTeam` is a team colour and the crew is reported as counts.
 
 ## What is deliberately not tracked
 

@@ -1,0 +1,4 @@
+{
+  "_comment": "The music files that are actually in this folder; see games/killer-fuse/docs/MUSIC.md. Known names: lobby, match-day, match-dusk, match-night, victory, defeat, each .mp3 or .ogg. Anything not listed here is never requested, so an empty list means the game plays its synthesised bed and nothing else.",
+  "files": ["match-day.mp3", "victory.mp3"]
+}

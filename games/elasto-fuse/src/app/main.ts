@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
@@ -5,6 +6,14 @@ import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
+import {
+  bindAudioInput,
+  browserAudioDependencies,
+  createAudioControl,
+  createGameAudio,
+} from "fuse-ui/game-audio";
+import "fuse-ui/game-audio.css";
+import { safeStorage } from "fuse-ui/safe-storage";
 import "./elasto-fuse.css";
 import QRCode from "qrcode";
 import {
@@ -21,6 +30,7 @@ import {
   createGameMenu,
   createInviteCard,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createNotice,
   createRoster,
@@ -28,6 +38,7 @@ import {
   el,
 } from "fuse-ui";
 import { GAS, RESTART } from "../engine/input.js";
+import { CAPACITY } from "../engine/tuning.js";
 import { LEVELS, centiseconds } from "../engine/index.js";
 import type { WorldView } from "../engine/view.js";
 import { GAME_ID } from "../basics.js";
@@ -46,14 +57,8 @@ import { cueGate, cuesBetween, type Cue } from "../render/cues.js";
 import { slotColor, slotName } from "../render/palette.js";
 import { createScene } from "../render/scene.js";
 import { createSmoother } from "../render/smooth.js";
-import {
-  artBase,
-  browserCanvas,
-  browserImages,
-  browserTint,
-  loadArt,
-} from "./art.js";
-import { createSfx } from "./audio.js";
+import { browserCanvas, browserImages, browserTint, loadArt } from "./art.js";
+import { createSfx, ELASTO_SONGS } from "./audio.js";
 import {
   HeldControls,
   PadSet,
@@ -121,6 +126,15 @@ const roomLevelKey = `${GAME}-room-level`;
 const query = new URLSearchParams(location.search);
 const muted = query.has("mute");
 const app = document.querySelector<HTMLElement>("#app")!;
+/** One sound bus for the page: the header's button, `M` and the remembered volumes are the shared module's. */
+const audio = createGameAudio(
+  browserAudioDependencies(safeStorage(() => localStorage)),
+  { forceMute: muted },
+);
+audio.setSongs(ELASTO_SONGS, import.meta.env.BASE_URL);
+audio.startMusic();
+bindAudioInput(audio, document, window);
+const audioControl = createAudioControl(document, audio);
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** A link within the game that keeps this page's developer flags. */
 const withFlags = (path: string) =>
@@ -195,7 +209,13 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     base: import.meta.env.BASE_URL,
     search: location.search,
   });
-  bar.append(portal.element, logo(), social.element(), ...extra);
+  bar.append(
+    portal.element,
+    logo(),
+    social.element(),
+    audioControl.element,
+    ...extra,
+  );
   return bar;
 }
 
@@ -253,6 +273,8 @@ function landing(): void {
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   let level = soloLevel();
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "ELASTO FUSE",
     tagline:
       "A springy motorbike, twelve neon tracks. Eat every apple, then touch the flower, and keep your head off the ground. Chase your best times alone, or race up to four friends: online, or on one TV with phones as controllers.",
@@ -278,15 +300,6 @@ function landing(): void {
     },
   });
   card.create.after(shared);
-  const hero = el("img", "", "ef-hero");
-  hero.src = `${artBase(import.meta.env.BASE_URL)}hero.webp`;
-  hero.alt = "";
-  hero.width = 1536;
-  hero.height = 864;
-  hero.decoding = "async";
-  // The key art is optional: a missing file leaves no broken picture.
-  hero.onerror = () => hero.remove();
-  card.element.prepend(hero);
   const picker = createLevelPicker(false, (picked) => {
     level = picked;
     store.setItem(names.level, String(picked));
@@ -295,7 +308,8 @@ function landing(): void {
   picker.update(level, true);
   const rules = el("section", "", "ef-landing-rules");
   rules.append(el("h2", "SOLO MAP", "fui-lobby-title"), picker.element);
-  card.element.append(rules, keyHelp());
+  card.menu.addSettings(rules);
+  card.menu.help.append(keyHelp());
   const back = el("a", "← ALL GAMES", "ef-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
   const menu = createGameMenu(GUIDE);
@@ -338,7 +352,7 @@ function room(solo: boolean): void {
     display = role === "display";
   document.body.classList.toggle("ef-display", display);
   const viewer: Viewer = { me: "", host: solo, solo, display };
-  const sfx = createSfx(muted);
+  const sfx = createSfx(audio);
   const leave = () => {
     runtime.stop();
     location.href = withFlags(endpoints.appUrl());
@@ -368,17 +382,18 @@ function room(solo: boolean): void {
   let settings: Settings = { ...DEFAULT_SETTINGS };
   const lobby = el("section", "", "ef-lobby"),
     lobbyMain = el("div", "", "ef-panel"),
-    lobbySide = el("aside", "", "ef-panel ef-lobby-side"),
     roster = createRoster({ emptyText: "No riders yet" }),
     start = button("START RACE", "fui-button-primary ef-start"),
     lobbyNote = el("p", "", "fui-lobby-note"),
     tvLink = button("OPEN TV SCREEN", "ef-tv");
+  let inviteCard: HTMLElement | undefined;
   if (!solo) {
     const invite = createInviteCard({
       code,
       link: endpoints.appUrl(`?room=${code}`),
       qr: (text) => QRCode.toDataURL(text, { margin: 1, width: 360 }),
     });
+    inviteCard = invite.element;
     lobbyMain.append(invite.element);
   }
   const nameEntry = createNameEntry({
@@ -388,7 +403,11 @@ function room(solo: boolean): void {
     buttonText: "JOIN",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name });
+      runtime.command({
+        type: "join",
+        name,
+        slot: requestedRoomSlot(nameEntry.form),
+      });
     },
   });
   lobbyMain.append(el("h2", "RIDERS", "fui-lobby-title"), roster.element);
@@ -404,14 +423,8 @@ function room(solo: boolean): void {
   });
   const lobbyActions = el("div", "", "ef-actions");
   lobbyActions.append(tvLink, start);
-  lobbySide.append(
-    el("h2", "MAP", "fui-lobby-title"),
-    levelPicker.element,
-    lobbyNote,
-    lobbyActions,
-    keyHelp(),
-  );
-  lobby.append(lobbyMain, lobbySide);
+  const mapTitle = el("h2", "MAP", "fui-lobby-title");
+  lobby.append(lobbyMain);
 
   // The race: the canvas, the card over it (the table between two races, the result) and the touch buttons.
   const stage = el("section", "", "ef-stage"),
@@ -526,6 +539,21 @@ function room(solo: boolean): void {
   const main = el("main", "", "ef-room");
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
+  const roomLayout = createRoomLayout({
+    primaryAction: start,
+    playerName: () => social.playerName(undefined) ?? undefined,
+    slotColor,
+    slotLabel: (slot) => `${slotName(slot)} · Slot ${slot + 1}`,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
+    element: lobby,
+    ...(inviteCard ? { invite: inviteCard } : {}),
+    roster,
+    capacity: CAPACITY,
+    join: nameEntry.form,
+    settings: [mapTitle, levelPicker.element, keyHelp()],
+    actions: [lobbyNote, lobbyActions],
+  });
   lobby.hidden = true;
   stage.hidden = true;
   controller.hidden = true;
@@ -677,6 +705,7 @@ function room(solo: boolean): void {
     roster.update(
       next.lobby.members.map((member) => ({
         id: member.id,
+        slot: member.slot,
         name: member.you ? `${member.name} (you)` : member.name,
         color: slotColor(member.slot),
         status: member.connected ? slotName(member.slot) : "OFFLINE",
@@ -693,7 +722,7 @@ function room(solo: boolean): void {
       !solo
     );
     levelPicker.update(view.settings.level, next.lobby.editable);
-    lobbySide.hidden = display;
+    roomLayout.update(next.lobby.members.length, CAPACITY);
     const touchGuide = coarse() || next.screen === "controller";
     const watching = display || (view.stage !== "lobby" && !next.riding);
     menu.update({
@@ -810,9 +839,13 @@ function room(solo: boolean): void {
         );
       }
       const next = present(frame, viewer, bestBefore);
-      if (next.askName && remembered && !joinSent) {
+      if (next.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
-        runtime.command({ type: "join", name: remembered });
+        runtime.command({
+          type: "join",
+          slot: requestedRoomSlot(nameEntry.form),
+          name: remembered,
+        });
       }
       if (next.seated) joinSent = false;
       render(next, frame);
@@ -850,6 +883,8 @@ function room(solo: boolean): void {
     ended() {
       status.show("Room ended", "error");
       over = true;
+      // The frames stop here, so nothing else would let the engine go.
+      sfx.engine(0, false, false);
       controls.clear();
       for (const part of [connecting, nameEntry.form, lobby, stage, controller])
         part.hidden = true;
@@ -912,7 +947,6 @@ function room(solo: boolean): void {
     (target instanceof HTMLButtonElement && !model?.riding);
   const captured = new Set<string>();
   document.addEventListener("keydown", (event) => {
-    sfx.resume();
     if (
       menu.isOpen() ||
       typing(event.target) ||
@@ -953,10 +987,6 @@ function room(solo: boolean): void {
       gamepads.letGo();
     }
   });
-  document.addEventListener("pointerdown", () => sfx.resume(), {
-    passive: true,
-  });
-  window.addEventListener("gamepadconnected", () => sfx.resume());
   // A pinch or a double tap must never zoom the race away from under the thumbs.
   for (const type of ["gesturestart", "gesturechange", "dblclick"])
     stage.addEventListener(type, (event) => event.preventDefault());

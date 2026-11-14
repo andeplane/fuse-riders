@@ -107,14 +107,24 @@ export const BLOB_HALF = 32;
 export const HEAD_BOUNCE = 1400;
 // ---- three a side ----
 /**
- * Three a side, each half of the court is cut into three lanes of this width, px, from the net out: front, middle and
- * back. A side's three blobs each keep to one lane. The middle lane holds the serve, so whoever plays the middle serves.
+ * The three-a-side court's width, px: one big beach with the singles court's net, pole and heights, and no lanes, a
+ * third of a side for each blob. Normal bots played rallies as long as doubles' (8 to 10 s, about 10 touches) on every
+ * width from 1700 to 2100, each of the three taking its share; 2000 keeps the blobs big enough on a phone.
  */
-export const TRIO_LANE = 240;
-/** The three-a-side court: three lanes a side. */
-export const TRIO_COURT_W = 6 * TRIO_LANE;
-/** A blob moving to its new lane after a rotation slides at this speed, px per step, hopping as it goes. */
-export const ROTATE_SPEED = 5;
+export const TRIPLE_COURT_W = 2000;
+/** Where a three-a-side side's blobs start, px from the net: front, middle (under the serve) and back. */
+export const TRIPLE_FRONT = 180,
+  TRIPLE_MID = 500,
+  TRIPLE_BACK = 800;
+
+// ---- three teams of two ----
+/**
+ * Three teams of two play king of the court on the doubles court: two teams play each rally while the third waits;
+ * the side that loses a rally walks off and the waiting team comes on in its place and serves. First to the target
+ * wins outright (no lead of two: with three teams a deuce never settles).
+ */
+export const KINGS_RALLY_TARGET = 11,
+  KINGS_CLASSIC_TARGET = 7;
 /** px per step, no inertia, the same in the air (the exe's 12 px a frame). */
 export const RUN_SPEED = 3;
 /** Jump launch in height units per step. The exe's 10 000 a frame, resampled to 120 Hz to keep its 264 px apex. */

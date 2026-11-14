@@ -86,6 +86,9 @@ importers:
       jose:
         specifier: ^6.2.12
         version: 6.2.12
+      killer-fuse:
+        specifier: workspace:*
+        version: link:games/killer-fuse
       tsx:
         specifier: ^4.20.5
         version: 4.23.13
@@ -562,6 +565,28 @@ importers:
       phaser:
         specifier: 4.2.1
         version: 4.2.1
+
+  games/killer-fuse:
+    dependencies:
+      fuse-netcode:
+        specifier: workspace:*
+        version: link:../../packages/fuse-netcode
+      fuse-platform:
+        specifier: workspace:*
+        version: link:../../packages/fuse-platform
+    devDependencies:
+      '@fontsource/press-start-2p':
+        specifier: ^5.3.0
+        version: 5.3.0
+      fuse-network-fe:
+        specifier: workspace:*
+        version: link:../../packages/fuse-network-fe
+      fuse-ui:
+        specifier: workspace:*
+        version: link:../../packages/fuse-ui
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
 
   packages/fuse-netcode:
     dependencies:

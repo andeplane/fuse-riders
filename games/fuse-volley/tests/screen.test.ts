@@ -145,7 +145,7 @@ test("in a match each player sees their side; on a shared screen a phone becomes
     display: true,
     scoring: "classic",
     bot: 1,
-    team: 1,
+    format: "1v1",
   });
   const phone = present(view(shared), viewer("b"));
   assert.equal(phone.screen, "controller");
@@ -272,11 +272,13 @@ test("the jelly wobbles after a kick and comes back to rest", () => {
 test("art arrives in the background and a missing file leaves its fallback", async () => {
   const asked: string[] = [];
   const image = { width: 1 } as unknown as CanvasImageSource;
+  const lime = { width: 2 } as unknown as CanvasImageSource;
   const loader: ImageLoader = {
     load(url) {
       asked.push(url);
       return Promise.resolve(url.endsWith("ball.png") ? undefined : image);
     },
+    recolour: () => lime,
   };
   const art = loadArt("/base/", loader);
   assert.deepEqual(art(), {});
@@ -286,7 +288,8 @@ test("art arrives in the background and a missing file leaves its fallback", asy
   );
   assert.equal(art().court, image);
   assert.equal(art().ball, undefined);
-  assert.deepEqual(art().blobs, [image, image]);
+  // The third team's lime blob is the cyan one recoloured.
+  assert.deepEqual(art().blobs, [image, image, lime]);
 });
 
 test("sounds: silent when muted, a voice for each cue once the page may play", async () => {
@@ -338,7 +341,7 @@ test("a classic side-out is not reported as a point", () => {
     display: false,
     scoring: "classic",
     bot: 1,
-    team: 1,
+    format: "1v1",
   });
   const server = room.world!.server;
   const watch = createPointWatch();

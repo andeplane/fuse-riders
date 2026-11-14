@@ -53,7 +53,7 @@ export function cuesBetween(
       best = Infinity;
     for (const [index, blob] of after.blobs.entries()) {
       const away = Math.hypot(blob.x - ball.x, blob.y - ball.y);
-      if (blob.side === side && away < best) {
+      if (blob.side === side && !blob.benched && away < best) {
         best = away;
         slot = index;
       }
@@ -74,7 +74,7 @@ export function cuesBetween(
     cues.push({ kind: "floor", x: ball.x, speed });
   for (const [slot, now] of after.blobs.entries()) {
     const was = before.blobs[slot];
-    if (!was) continue;
+    if (!was || now.benched || was.benched) continue;
     const side = now.side;
     if (was.air && !now.air) cues.push({ kind: "land", side, slot, x: now.x });
     if (!was.air && now.air) cues.push({ kind: "jump", side, slot, x: now.x });

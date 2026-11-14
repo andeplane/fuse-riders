@@ -1,13 +1,13 @@
 import * as T from "./tuning.js";
 
 /**
- * The two courts: the original's 800 px for one blob a side, and a wider one for two a side. Everything the rules
+ * The courts: the original's 800 px for one blob a side, a wider one for two a side and a wider still for three. Everything the rules
  * place by x (the walls, the serve, the blobs' limits, the net's pole and its tunnelling guard, the line that clears
  * a side's touches) is measured from the net here, so the wide court plays the narrow one's net exactly. The narrow
  * court's numbers are the exe's (`tuning.ts`); `tests/engine.test.ts` holds them in step.
  */
 export interface Court {
-  /** Blobs a side: 1, 2 or 3. */
+  /** Blobs a side on the court at once: 1, 2 or 3. */
   team: 1 | 2 | 3;
   /** Width and the net's line, px. */
   w: number;
@@ -39,18 +39,13 @@ export interface Court {
   /** A ball this far past the net clears the other side's touches, ball units. */
   clearLeft: number;
   clearRight: number;
-  /**
-   * Three a side, each side is cut into three lanes, and each blob's centre stays inside its own: by side, then by lane
-   * from the net out (0 front, 1 middle, 2 back), the lowest and highest x. Adjacent lanes leave a blob's width between
-   * their limits, so two teammates at a lane line just touch. Empty on the other courts.
-   */
-  laneMin: readonly (readonly number[])[];
-  laneMax: readonly (readonly number[])[];
-  /** The lane lines' x, px, both sides, left to right; empty without lanes. */
-  laneLines: readonly number[];
 }
 
-function court(team: 1 | 2 | 3, w: number, start: readonly number[]): Court {
+export function court(
+  team: 1 | 2 | 3,
+  w: number,
+  start: readonly number[],
+): Court {
   const net = w / 2,
     n = net * T.BU;
   return {
@@ -76,39 +71,6 @@ function court(team: 1 | 2 | 3, w: number, start: readonly number[]): Court {
     guardPutRight: n + T.GUARD_PUT_RIGHT - T.NET_X * T.BU,
     clearLeft: n + T.CLEAR_LEFT - T.NET_X * T.BU,
     clearRight: n + T.CLEAR_RIGHT - T.NET_X * T.BU,
-    laneMin: [],
-    laneMax: [],
-    laneLines: [],
-  };
-}
-
-/** The three-a-side court: lanes `TRIO_LANE` wide from the net out, the back one running to the wall. */
-function trio(): Court {
-  const w = T.TRIO_COURT_W,
-    net = w / 2,
-    lane = T.TRIO_LANE,
-    half = T.BLOB_HALF;
-  const base = court(3, w, []);
-  // The left side's limits by lane, front to back; the right side's mirror them.
-  const left: [number, number][] = [
-    [net - lane + half, net - T.NET_GAP],
-    [net - 2 * lane + half, net - lane - half],
-    [0, net - 2 * lane - half],
-  ];
-  const right = left.map(([low, high]) => [w - high, w - low] as const);
-  const centre = (range: readonly [number, number] | readonly number[]) =>
-    (range[0]! + range[1]!) / 2;
-  // Slots alternate sides; a side's first blob starts in the front lane, its second in the middle, its third at the back.
-  const start = [0, 1, 2].flatMap((laneIndex) => [
-    centre(left[laneIndex]!),
-    centre(right[laneIndex]!),
-  ]);
-  return {
-    ...base,
-    start,
-    laneMin: [left.map((range) => range[0]), right.map((range) => range[0])],
-    laneMax: [left.map((range) => range[1]), right.map((range) => range[1])],
-    laneLines: [net - 2 * lane, net - lane, net + lane, net + 2 * lane],
   };
 }
 
@@ -124,9 +86,37 @@ export const DOUBLES = court(2, W, [
   NET + T.TEAM_BACK,
 ]);
 
-/** Three blobs a side, in lanes. Slots alternate sides (0, 2, 4 left; 1, 3, 5 right). */
-export const TRIOS = trio();
+const W3 = T.TRIPLE_COURT_W,
+  NET3 = W3 / 2;
+/** Three blobs a side on one big court. Slots alternate sides (0, 2, 4 left; 1, 3, 5 right): front, middle, back. */
+export const TRIPLES = court(
+  3,
+  W3,
+  [T.TRIPLE_FRONT, T.TRIPLE_MID, T.TRIPLE_BACK].flatMap((out) => [
+    NET3 - out,
+    NET3 + out,
+  ]),
+);
 
-/** The court for a world with `blobs` blobs (2, 4 or 6). */
-export const courtFor = (blobs: number): Court =>
-  blobs === 6 ? TRIOS : blobs === 4 ? DOUBLES : SINGLES;
+/**
+ * The formats a match can have: one, two or three blobs a side, or three teams of two playing king of the court on the
+ * doubles court (`KINGS` in `tuning.ts`).
+ */
+export const FORMATS = ["1v1", "2v2", "3v3", "2v2v2"] as const;
+export type Format = (typeof FORMATS)[number];
+export const isFormat = (value: unknown): value is Format =>
+  FORMATS.some((format) => format === value);
+/** Blobs (and seats) a format takes. */
+export const blobsFor = (format: Format): number =>
+  format === "1v1" ? 2 : format === "2v2" ? 4 : 6;
+/** The format two, four or six blobs play by default: six are three a side. */
+export const formatFor = (blobs: number): Format =>
+  blobs === 6 ? "3v3" : blobs === 4 ? "2v2" : "1v1";
+
+/** The court a format plays on: three teams of two share the doubles court. */
+export const courtFor = (format: Format): Court =>
+  format === "3v3"
+    ? TRIPLES
+    : format === "2v2" || format === "2v2v2"
+      ? DOUBLES
+      : SINGLES;
