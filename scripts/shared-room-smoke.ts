@@ -50,7 +50,7 @@ for (const { name, kind } of BOTH_ENGINES) {
         await phone.goto(base);
         await openPlayOptions(phone);
         await phone
-          .getByRole("button", { name: "CREATE ROOM", exact: true })
+          .getByRole("button", { name: "Host room", exact: true })
           .click();
         await phone.waitForURL(/room=/);
         await takeHostSeat(phone, "Phone host");
@@ -239,9 +239,7 @@ for (const { name, kind } of BOTH_ENGINES) {
     await host.locator(".landing-mode label", { has: sharedMode }).click();
     assert.equal(await sharedMode.isChecked(), true, "Shared TV is selected");
     await openPlayOptions(host);
-    await host
-      .getByRole("button", { name: "CREATE ROOM", exact: true })
-      .click();
+    await host.getByRole("button", { name: "Host room", exact: true }).click();
     await host.waitForURL(/room=/);
     const invite = host.url(),
       code = new URL(invite).searchParams.get("room")!;
@@ -562,7 +560,9 @@ for (const { name, kind } of BOTH_ENGINES) {
     await host.getByRole("button", { name: "ROOM", exact: true }).click();
     await host.getByRole("button", { name: "END ROOM", exact: true }).click();
     await openPlayOptions(host);
-    await host.getByRole("link", { name: /PLAY SOLO/ }).waitFor(); // #44: a joined phone must see the ended room without opening ☰ MENU — the thirds controller gives way to the ordinary header, status and MENU.
+    await host
+      .getByRole("button", { name: "Single player", exact: true })
+      .waitFor(); // #44: a joined phone must see the ended room without opening ☰ MENU — the thirds controller gives way to the ordinary header, status and MENU.
     const ended = guest.getByText(/room.*(ended|expired)/i).first();
     await ended.waitFor({ state: "visible" });
     const endedBox = await ended.boundingBox();

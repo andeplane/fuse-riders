@@ -141,7 +141,7 @@ try {
   const beforeEnter = await music();
   assert.ok(beforeEnter.src, "the landing page owns a music element");
   await openPlayOptions(host);
-  await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
+  await host.getByRole("button", { name: "Host room", exact: true }).click();
   await host.waitForURL(/room=/);
   {
     const afterEnter = await music();

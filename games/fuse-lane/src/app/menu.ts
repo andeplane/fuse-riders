@@ -471,6 +471,18 @@ export function createMenu(options: MenuOptions): HTMLElement {
         : `${people_ === 1 ? "You" : `${people_} players`}${choice.bots ? ` vs ${choice.bots} ${LEVELS[choice.level]!.toLowerCase()} AI` : ""} · about ${choice.goal <= 30 ? "20" : choice.goal <= 50 ? "25–30" : "35–40"} weeks`;
   }
   update(true);
+  form.hidden = false;
+  root.querySelector(".fl-mode-tabs")?.remove();
+  if (options.online) options.online.sheet.hidden = true;
+  const hostingOptions = options.online ? el("div") : undefined;
+  const onlineError =
+    options.online?.sheet.querySelector<HTMLElement>(".fl-online-error");
+  const joinField =
+    options.online?.sheet.querySelector<HTMLElement>(".fl-join")?.parentElement;
+  if (hostingOptions && options.online) {
+    const fields = [...options.online.sheet.children];
+    hostingOptions.append(fields[0]!, fields[1]!);
+  }
   const menu = createMainMenu({
     background: async (host) =>
       (await import("./attract.js")).createAttract(host),
@@ -478,6 +490,11 @@ export function createMenu(options: MenuOptions): HTMLElement {
     description:
       "Work, study, shop and invest. First to reach all four goals wins.",
     play: root,
+    singlePlayerContent: [root],
+    hostingOptions,
+    ...(joinField
+      ? { joinContent: onlineError ? [joinField, onlineError] : [joinField] }
+      : {}),
     ...(options.online
       ? {
           onPlay: async () => {
@@ -486,12 +503,10 @@ export function createMenu(options: MenuOptions): HTMLElement {
                 ".fl-create-room",
               )!;
             await create.onclick?.call(create, new PointerEvent("click"));
-            const error =
-              options.online!.sheet.querySelector<HTMLElement>(
-                ".fl-online-error",
+            if (onlineError && !onlineError.hidden)
+              throw new Error(
+                onlineError.textContent ?? "Could not create room",
               );
-            if (error && !error.hidden)
-              throw new Error(error.textContent ?? "Could not create room");
           },
         }
       : {}),

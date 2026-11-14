@@ -209,6 +209,8 @@ function landing(): void {
     title: "FUSE BIRDS",
     description: intro.textContent ?? "",
     play: card,
+    onSinglePlayer: () => practice.click(),
+    joinContent: [joinForm, message],
     onPlay: async () => {
       await create.onclick?.call(create, new PointerEvent("click"));
       if (message.textContent?.includes("Try again"))

@@ -1458,12 +1458,28 @@ export function mountFuseCraft(
       const play = root.querySelector<HTMLElement>(".menu-layout")!;
       const marker = root.ownerDocument.createComment("Shared menu");
       play.before(marker);
+      const singlePlayerOptions = root.ownerDocument.createElement("div");
+      singlePlayerOptions.className = "fui-single-player-options";
+      const newGame = play.querySelector<HTMLElement>(
+        '[data-action="new-game"]',
+      )!;
+      newGame.textContent = "New game";
+      singlePlayerOptions.append(
+        newGame,
+        play.querySelector<HTMLElement>('[data-action="tutorial"]')!,
+      );
       const menu = createMainMenu({
         background: async (host) =>
           (await import("./attract.js")).createAttract(host),
         title: "FUSE CRAFT",
         description: "Build your network. Keep the signal alive.",
         play,
+        singlePlayerContent: [singlePlayerOptions],
+        onJoinRoom: () => {
+          roomError = null;
+          screen = "multiplayer";
+          render();
+        },
         onPlay: dependencies.online
           ? async () => {
               screen = "multiplayer";

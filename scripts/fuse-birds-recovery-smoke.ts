@@ -1,4 +1,4 @@
-import { openPlayOptions } from "./lib/main-menu.js";
+import { openPlayOptions, takeHostSeat } from "./lib/main-menu.js";
 import { chromium, type Page } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
@@ -36,32 +36,39 @@ try {
   );
   await creator.goto(`${base}/fuse-birds/?mute`);
   await openPlayOptions(creator);
-  await creator.getByRole("button", { name: "CREATE ROOM" }).click();
+  await creator.getByRole("button", { name: "Host room" }).click();
   assert.equal(
-    await creator.getByRole("button", { name: "JOIN ROOM" }).isDisabled(),
+    await creator
+      .getByRole("button", { name: "Join room", exact: true })
+      .isDisabled(),
     true,
   );
-  assert.equal(await creator.getByPlaceholder("ROOM CODE").isDisabled(), true);
-  releaseCreate();
-  await creator.getByRole("status").filter({ hasText: "Try again" }).waitFor();
   assert.equal(
-    await creator.getByRole("button", { name: "CREATE ROOM" }).isEnabled(),
+    await creator
+      .getByRole("button", { name: "Single player", exact: true })
+      .isDisabled(),
+    true,
+  );
+  releaseCreate();
+  await creator.getByRole("alert").filter({ hasText: "Try again" }).waitFor();
+  assert.equal(
+    await creator.getByRole("button", { name: "Host room" }).isEnabled(),
     true,
   );
   await creator.screenshot({ path: `${output}/create-retry.png` });
   assert.equal(
-    await creator.getByRole("button", { name: "JOIN ROOM" }).isEnabled(),
+    await creator
+      .getByRole("button", { name: "Join room", exact: true })
+      .isEnabled(),
     true,
   );
   await openPlayOptions(creator);
-  await creator.getByRole("button", { name: "CREATE ROOM" }).click();
-  await creator.locator(".fui-name-input").fill("SKYE");
-  await creator.getByRole("button", { name: "Join" }).click();
+  await creator.getByRole("button", { name: "Host room" }).click();
+  await takeHostSeat(creator, "SKYE");
   const code = await creator.locator(".birds-code").innerText();
   async function join(page: Page, name: string) {
     await page.goto(`${base}/fuse-birds/?room=${code}&mute`);
-    await page.locator(".fui-name-input").fill(name);
-    await page.getByRole("button", { name: "Join" }).click();
+    await takeHostSeat(page, name);
     await page
       .locator(".birds-roster")
       .getByText(`${name} · YOU`, { exact: true })
@@ -71,7 +78,7 @@ try {
     await page.locator("summary").filter({ hasText: "MENU" }).click();
     await page.getByRole("button", { name: "LEAVE", exact: true }).click();
     await openPlayOptions(page);
-    await page.getByRole("button", { name: "CREATE ROOM" }).waitFor();
+    await page.getByRole("button", { name: "Host room" }).waitFor();
   }
   await join(successor, "EMBER");
   await creator
