@@ -177,11 +177,13 @@ function receptor(g: Pen, s: number, turn: number, lit: boolean): void {
   g.stroke();
 }
 
+/** A soft round light: many faint discs, so it falls off without visible rings even when stretched. */
 function blob(g: Pen, radius: number, color: string): void {
-  g.fillStyle = hexA(color, 0.085);
-  for (let ring = 0; ring < 12; ring++) {
+  const rings = 40;
+  g.fillStyle = hexA(color, 0.03);
+  for (let ring = 0; ring < rings; ring++) {
     g.beginPath();
-    g.arc(0, 0, radius * (1 - ring / 12), 0, Math.PI * 2);
+    g.arc(0, 0, radius * (1 - ring / rings), 0, Math.PI * 2);
     g.fill();
   }
 }
@@ -297,7 +299,8 @@ export function createSprites(factory: CanvasFactory, cell: number): SpriteSet {
     core: make(factory, s * 1.6, "core", (g) => {
       arrowPath(g, s * 0.92);
       g.shadowColor = WHITE;
-      g.shadowBlur = s * 0.28;
+      // A tight glow: the flash must still read as this column's arrow.
+      g.shadowBlur = s * 0.12;
       g.fillStyle = WHITE;
       g.fill();
       g.shadowBlur = 0;

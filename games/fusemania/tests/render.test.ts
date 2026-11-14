@@ -1116,20 +1116,18 @@ test("more than one rider: a box each on the right, ranked, with place, name, sc
     calls
       .filter((call) => call.op === "fillText" && inRow(call, index))
       .map((call) => call.what);
-  assert.deepEqual(row(0).slice(0, 2), ["1ST", "BEA"]);
-  assert.ok(
-    row(0).includes("0600000") &&
-      row(0).includes("x3") &&
-      row(0).includes("MAX 57"),
-  );
-  assert.ok(row(0).includes("EASY"), "the chart it plays");
-  assert.deepEqual(row(1).slice(0, 3), ["2ND", "ADA", "YOU"]);
-  assert.ok(
-    row(1).includes("0412345") &&
-      row(1).includes("x12") &&
-      row(1).includes("MAX 40"),
-  );
-  assert.deepEqual(row(2).slice(0, 2), ["3RD", "CY"]);
+  // Place, name and chart; the score; the combo and the best one.
+  assert.deepEqual(row(0), ["1ST", "BEA", "EASY", "0600000", "x3", "MAX 57"]);
+  assert.deepEqual(row(1), [
+    "2ND",
+    "ADA",
+    "HARD",
+    "YOU",
+    "0412345",
+    "x12",
+    "MAX 40",
+  ]);
+  assert.deepEqual(row(2), ["3RD", "CY", "HARD", "0001000", "x0", "MAX 0"]);
   // The item in hand and the effects a rider is under, as icons in its box.
   const icons = (index: number) =>
     calls

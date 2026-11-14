@@ -6,12 +6,7 @@
  * natural the tempo is to step to; then the beat's place among those pulses and the bar's among four beats are
  * chosen together, from where the kick sits, where the harmony changes and where sections turn over.
  */
-import {
-  BINS,
-  STFT_RATE,
-  binHz,
-  type Onset,
-} from "./dsp.js";
+import { BINS, STFT_RATE, binHz, type Onset } from "./dsp.js";
 import { onsetWeight, type BandOnset } from "./tempo.js";
 
 const TAU = 2 * Math.PI;
@@ -87,7 +82,10 @@ export function strengthByPulse(
 }
 
 /** Twelve pitch classes per spectrogram frame, from the harmonic part between 300 Hz and 3 kHz. */
-export function chromaFrames(harmonic: Float32Array, frames: number): Float32Array {
+export function chromaFrames(
+  harmonic: Float32Array,
+  frames: number,
+): Float32Array {
   const out = new Float32Array(frames * 12);
   const classes: number[] = [];
   for (let bin = 0; bin < BINS; bin++) {
@@ -284,9 +282,7 @@ export function findMetre(input: MetreInput): Metre {
     for (const i of turns.slice(0, 10)) votes[i % 4]! += step[i]!;
     const voteTotal = votes.reduce((a, b) => a + b, 0);
     // The song's first sound: the first beat within 30 dB of the loud parts.
-    const loud = [...decibels].sort((a, b) => a - b)[
-      Math.floor(total * 0.9)
-    ]!;
+    const loud = [...decibels].sort((a, b) => a - b)[Math.floor(total * 0.9)]!;
     const entry = decibels.findIndex((value) => value > loud - 30);
     const kicks = beats.map((pulse) => kick[pulse - first]!),
       snares = beats.map(
@@ -317,7 +313,7 @@ export function findMetre(input: MetreInput): Metre {
           0.35 * backbeat) *
         (0.6 + 0.4 * beatWeight);
       scored.push({
-        offset: (((beats[phase]! % bar) + bar) % bar),
+        offset: ((beats[phase]! % bar) + bar) % bar,
         score,
         harmony,
         form,

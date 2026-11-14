@@ -84,7 +84,8 @@ export function outlined(
   g.font = pixelFont(size);
   g.textAlign = "center";
   g.lineJoin = "round";
-  g.lineWidth = Math.max(2, size * 0.3);
+  // Thick enough to read over a note, and not a blob round a big number.
+  g.lineWidth = Math.max(2, Math.min(size * 0.3, 6 + size * 0.1));
   g.strokeStyle = "rgba(3,9,25,0.92)";
   g.strokeText(text, x, y, Math.max(1, maxWidth));
   g.fillStyle = color;

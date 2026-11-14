@@ -159,11 +159,7 @@ function slotLevels(share: readonly number[]): string {
   let out = "Q";
   for (let slot = 1; slot < slots; slot++)
     out +=
-      slot === eighth
-        ? "E"
-        : share[slot]! >= 0.3 * share[eighth]!
-          ? "S"
-          : "X";
+      slot === eighth ? "E" : share[slot]! >= 0.3 * share[eighth]! ? "S" : "X";
   return out;
 }
 
@@ -423,8 +419,7 @@ export function analyzeSamples(
         Math.round(beatSeconds(timing(), bar * 4 + 4) * STFT_RATE),
       );
     for (let frame = first; frame <= last; frame++)
-      for (let p = 0; p < 12; p++)
-        out[p] = out[p]! + chroma[frame * 12 + p]!;
+      for (let p = 0; p < 12; p++) out[p] = out[p]! + chroma[frame * 12 + p]!;
     return out;
   };
   const turn = new Array<number>(4).fill(0);
@@ -461,8 +456,7 @@ export function analyzeSamples(
       sum += energy[other]!;
       count++;
     }
-    const score =
-      sum / Math.max(1, count) + (bar % 4 === phrase ? 0.03 : 0);
+    const score = sum / Math.max(1, count) + (bar % 4 === phrase ? 0.03 : 0);
     if (score > sampleScore + 1e-9) {
       sampleScore = score;
       sampleBar = bar;

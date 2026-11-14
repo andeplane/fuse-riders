@@ -48,7 +48,12 @@ export interface Layout {
 /** A field's lanes are at least this many columns long, header included. */
 const MIN_COLUMNS_HIGH = 6.5;
 /** How far from the lanes' near edge the targets sit, in columns. */
-export const TARGET_INSET = 0.72;
+export const TARGET_INSET = 0.95;
+/**
+ * Half a note: a note comes in, and a missed one is gone, with its centre this far inside the lanes, so nothing is
+ * drawn over the header or under the touch buttons.
+ */
+const NOTE_MARGIN = 0.5;
 
 /** The widest a column is drawn: a field does not grow with a wide screen, only with a tall one. */
 const columnCap = (areaHeight: number, unit: number): number =>
@@ -140,7 +145,7 @@ export function layoutFor(
   const fieldWidth = col * COLUMNS;
   const total = shown * fieldWidth + (shown - 1) * gap;
   const start = Math.round((right - total) / 2);
-  const headerHeight = Math.round(Math.max(26 * unit, col * 0.42));
+  const headerHeight = Math.round(Math.max(30 * unit, col * 0.44));
   for (let i = 0; i < shown; i++) {
     const x = start + i * (fieldWidth + gap);
     const gutter = shown === 1 && x >= col * 2.6;
@@ -176,8 +181,9 @@ export function laneOf(
   out.columnWidth = field.col;
   out.down = down;
   out.targetY = down ? field.laneBottom - inset : field.laneTop + inset;
-  out.length = Math.max(1, field.laneBottom - field.laneTop - inset);
-  out.runout = inset;
+  const margin = field.col * NOTE_MARGIN;
+  out.length = Math.max(1, field.laneBottom - field.laneTop - inset - margin);
+  out.runout = Math.max(1, inset - margin);
   out.windowMs = BASE_WINDOW_MS / (speed > 0 ? speed : 1);
   return out;
 }

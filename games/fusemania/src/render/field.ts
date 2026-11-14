@@ -37,7 +37,7 @@ import {
   type Frame,
   type RiderTexts,
 } from "./frame.js";
-import { laneOf, type Field } from "./layout.js";
+import { TARGET_INSET, laneOf, type Field } from "./layout.js";
 import {
   LAG_MS,
   aheadMs,
@@ -100,10 +100,13 @@ export const BURST_MS = 240,
   SHAKE_MS = 260,
   WORD_MS = 520,
   WORD_POP_MS = 80;
+/** How far from the targets the warning line is, in columns: under the word and the combo. */
+const WARN_AT = 4.05;
 /** The combo is shown from here up. */
 export const COMBO_FROM = 4;
 const WARNINGS = ITEM_NAMES.map((name) => `INCOMING: ${name}`);
-const LANE = "rgba(11,25,51,0.6)",
+// The lanes' colour is opaque (the navy over the background, worked out once): an opaque fill is the cheapest there is.
+const LANE = "#08132a",
   GUIDE = "rgba(54,84,119,0.4)",
   EDGE = "rgba(54,84,119,0.9)",
   DOUBLE_TINT = "rgba(255,228,107,0.1)",
@@ -254,7 +257,8 @@ export function drawField(
     height = field.laneBottom - field.laneTop;
   const doubled = covered(effects, DOUBLE, songMs),
     starred = covered(effects, STAR, songMs),
-    shielded = player.shield > songMs;
+    // 0 is "no shield", also before the song starts.
+    shielded = player.shield !== 0 && player.shield > songMs;
   const thin = Math.max(1, Math.round(unit));
 
   // ---- the lanes ----
@@ -267,7 +271,7 @@ export function drawField(
   if (doubled) {
     g.fillStyle = DOUBLE_TINT;
     g.fillRect(ox, top, width, height);
-    g.globalAlpha = 0.16;
+    g.globalAlpha = 0.12;
     label(
       g,
       "x2",
@@ -468,7 +472,7 @@ export function drawField(
         fade = (1 - t) * (1 - t);
       if (calm) blit(g, set.glows[judgment]!, x, y, fade * 0.6, 1, 0);
       else {
-        blit(g, set.glows[judgment]!, x, y, fade, 1 + 0.4 * t, 0);
+        blit(g, set.glows[judgment]!, x, y, fade * 0.65, 1 + 0.4 * t, 0);
         flare(
           g,
           set.bursts[judgment]!,
@@ -662,8 +666,8 @@ export function drawField(
 
   // ---- warnings and banners, further down the lanes ----
   const warnY = frame.down
-    ? lane.targetY - col * 4.3
-    : lane.targetY + col * 4.3;
+    ? lane.targetY - col * WARN_AT
+    : lane.targetY + col * WARN_AT;
   const blockedAge = songMs - state.blockedAt;
   if (blockedAge >= 0 && blockedAge < 900) {
     const pop = calm || blockedAge >= 90 ? 1 : 1.3 - (0.3 * blockedAge) / 90;
@@ -733,7 +737,7 @@ function header(
     col = field.col,
     width = col * COLUMNS;
   const size = Math.round(
-    Math.max(7 * unit, Math.min(col * 0.19, field.headerHeight * 0.36)),
+    Math.max(7 * unit, Math.min(col * 0.19, field.headerHeight * 0.34)),
   );
   const left = field.x + Math.round(col * 0.08),
     right = field.x + width - Math.round(col * 0.08);
@@ -750,7 +754,8 @@ function header(
       x,
       first,
       size,
-      player.place === 1 ? GOLD : MUTED,
+      // The lead in gold, any other place in the rider's own colour.
+      player.place === 1 ? GOLD : slotColor(player.slot),
       "left",
       size * 3,
     );
@@ -793,7 +798,7 @@ function header(
   );
   if (doubled && chars >= 10)
     label(g, "x2", left + size * 7.5, second, size, GOLD, "left", size * 2);
-  if (!Number.isNaN(info.gap) && chars >= 16)
+  if (!Number.isNaN(info.gap) && info.gap !== 0 && chars >= 16)
     label(
       g,
       gapText(info.texts.gap, info.gap),
@@ -820,42 +825,57 @@ function readout(
     songMs = frame.songMs;
   const size = Math.round(Math.max(6 * unit, Math.min(10 * unit, col * 0.16)));
   const row = size + Math.round(9 * unit);
-  const align: CanvasTextAlign = field.hudAlign < 0 ? "right" : "left";
+  const inside = field.hudAlign > 0;
+  const align: CanvasTextAlign = inside ? "left" : "right";
   const x = field.hudX,
-    way = field.hudAlign < 0 ? -1 : 1;
-  const span = size * 9;
-  // Rows run in from the far end, where the notes are still faint.
-  const step = frame.down ? row : -row;
-  let y = frame.down
+    way = inside ? 1 : -1;
+  const span = size * 9,
+    pitch = span + size;
+  const height = field.laneBottom - field.laneTop;
+  // Beside the field the labels are a column that starts level with the targets, where the eyes are. Over the lanes
+  // they sit side by side at the far end, where the notes are still faint, and stay clear of the warning line.
+  const across = inside
+    ? Math.max(1, Math.floor((field.x + col * COLUMNS - x) / pitch))
+    : 1;
+  const rows = Math.floor(
+    (inside ? height - col * (TARGET_INSET + WARN_AT + 0.35) : height / 2) /
+      row,
+  );
+  if (rows < 1) return;
+  const fromTop = inside ? frame.down : !frame.down;
+  const step = fromTop ? row : -row;
+  let y = fromTop
     ? field.laneTop + Math.round(row * 0.8)
     : field.laneBottom - Math.round(row * 0.8);
-  const rows = Math.floor((field.laneBottom - field.laneTop) / 2 / row);
   let used = 0;
 
-  if (player.item > NO_ITEM && player.item < ITEM_KINDS && rows >= 2) {
-    const side = row * 2 - Math.round(4 * unit);
+  if (player.item > NO_ITEM && player.item < ITEM_KINDS) {
+    // Two rows when there is room: the icon, its name, and the key that throws it. Otherwise one line.
+    const tall = rows >= 2;
+    const side = (tall ? row * 2 : row) - Math.round(4 * unit);
     const icon = frame.icons.get(player.item, side);
-    const centre = y + step / 2;
+    const centre = tall ? y + step / 2 : y;
     if (icon) blit(g, icon, x + (way * side) / 2, centre, 1, 1, 0);
     g.globalAlpha = 1;
     const text = x + way * (side + Math.round(5 * unit));
-    label(
-      g,
-      ITEM_NAMES[player.item]!,
-      text,
-      info.local ? centre - row * 0.3 : centre,
-      size,
-      itemColor(player.item),
-      align,
-      span,
-    );
+    if (tall || !info.local)
+      label(
+        g,
+        ITEM_NAMES[player.item]!,
+        text,
+        tall && info.local ? centre - row * 0.42 : centre,
+        size,
+        itemColor(player.item),
+        align,
+        span,
+      );
     if (info.local) {
       g.globalAlpha = frame.calm ? 1 : 0.65 + 0.35 * Math.sin(songMs * 0.012);
       label(
         g,
         pressText(info.texts.press, frame.itemKey),
         text,
-        centre + row * 0.3,
+        tall ? centre + row * 0.42 : centre,
         size,
         WHITE,
         align,
@@ -863,10 +883,11 @@ function readout(
       );
       g.globalAlpha = 1;
     }
-    y += step * 2;
-    used = 2;
+    used = tall ? 2 : 1;
+    y += step * used;
   }
   const bar = Math.max(2, Math.round(3 * unit));
+  let place = 0;
   for (let i = -1; i < player.effects.length && used < rows; i++) {
     // The shield first, then each effect in force.
     let kind = SHIELD,
@@ -882,8 +903,9 @@ function readout(
       left = (effect[2] - songMs) / Math.max(1, effect[2] - effect[1]);
     }
     const color = itemColor(kind);
-    label(g, ITEM_NAMES[kind]!, x, y - bar, size, color, align, span);
-    const from = way < 0 ? x - span : x,
+    const at = x + place * pitch;
+    label(g, ITEM_NAMES[kind]!, at, y - bar, size, color, align, span);
+    const from = way < 0 ? at - span : at,
       top = y + Math.round(size / 2);
     g.fillStyle = LINE;
     g.fillRect(from, top, span, bar);
@@ -894,7 +916,10 @@ function readout(
       Math.round(span * Math.max(0, Math.min(1, left))),
       bar,
     );
-    y += step;
-    used++;
+    if (++place >= across) {
+      place = 0;
+      y += step;
+      used++;
+    }
   }
 }

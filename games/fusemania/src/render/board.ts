@@ -1,5 +1,11 @@
 import type { WorldView } from "../engine/view.js";
-import { ITEM_KINDS, ITEM_NAMES, NO_ITEM, SHIELD } from "../engine/view-kit.js";
+import {
+  ITEM_KINDS,
+  ITEM_NAMES,
+  MINES,
+  NO_ITEM,
+  SHIELD,
+} from "../engine/view-kit.js";
 import {
   HIT_BLOCKED,
   HIT_MINE,
@@ -55,7 +61,7 @@ export const FLASH_MS = 200,
   HIT_MS = 800,
   ZAP_MS = 500;
 const BOX = "rgba(8,19,39,0.94)",
-  VEIL = "rgba(3,9,25,0.8)";
+  VEIL = "rgba(3,9,25,0.93)";
 const DIM_SLOTS = SLOT_COLORS.map((color) => hexA(color, 0.5));
 const HIT_LABELS = ITEM_NAMES.map((name) => `${name}!`);
 
@@ -112,7 +118,7 @@ function box(
   g.fillRect(x, y, thin * 3, height);
   // Every judgment flashes the box in its colour.
   if (rider.popJudgment >= 0 && flashAge >= 0 && flashAge < FLASH_MS) {
-    g.globalAlpha = calm ? 0.2 : 0.55 * (1 - flashAge / FLASH_MS);
+    g.globalAlpha = calm ? 0.2 : 0.42 * (1 - flashAge / FLASH_MS);
     g.fillStyle = JUDGMENT_COLORS[rider.popJudgment]!;
     g.fillRect(x, y, width, height);
     g.globalAlpha = dim;
@@ -187,12 +193,17 @@ function box(
       );
   } else {
     const size = Math.round(
-      Math.max(6 * unit, Math.min(10 * unit, height / 7.2)),
+      Math.max(6 * unit, Math.min(10 * unit, height / 7.2, width / 24)),
     );
     const chars = Math.floor((right - left) / size);
     const first = y + height * 0.22,
       second = y + height * 0.52,
       third = y + height * 0.82;
+    // The first line: place, name, and at the right the chart and the rider's own tag, as far as they fit.
+    const tag = local ? 4 : 0;
+    const chart = info.chartNames[slot] ?? "";
+    const charted =
+      chart.length > 0 && chars - 4 - tag - (chart.length + 1) >= 6;
     label(
       g,
       placeName(player.place),
@@ -208,7 +219,7 @@ function box(
       fitText(
         texts.boxName,
         info.names[slot] ?? "",
-        chars - 4 - (local ? 4 : 0),
+        chars - 4 - tag - (charted ? chart.length + 1 : 0),
       ),
       left + size * 4,
       first,
@@ -217,6 +228,17 @@ function box(
       "left",
       Math.max(1, right - left - size * 4),
     );
+    if (charted)
+      label(
+        g,
+        fitText(texts.boxChart, chart, chart.length),
+        right - size * tag,
+        first,
+        size,
+        MUTED,
+        "right",
+        size * chart.length,
+      );
     if (local) {
       // The rider's own box wears a tag.
       g.fillStyle = color;
@@ -229,13 +251,13 @@ function box(
       label(g, "YOU", right - size * 1.7, first, size, INK, "center", size * 3);
     }
     if (rising) {
-      // Going up.
-      const tip = right - size * (local ? 4.6 : 0.6);
+      // Going up: an arrowhead after the score.
+      const tip = left + size * 10.5;
       g.fillStyle = GREEN;
       g.beginPath();
-      g.moveTo(tip, first - size * 0.6);
-      g.lineTo(tip + size * 0.6, first + size * 0.5);
-      g.lineTo(tip - size * 0.6, first + size * 0.5);
+      g.moveTo(tip, second - size * 0.7);
+      g.lineTo(tip + size * 0.7, second + size * 0.5);
+      g.lineTo(tip - size * 0.7, second + size * 0.5);
       g.closePath();
       g.fill();
     }
@@ -295,12 +317,19 @@ function box(
     }
     // What the rider is under, as small icons; with none, the chart it plays.
     const small = Math.round(size * 1.7);
+    // As many as fit beside the combos.
+    const fit = Math.min(
+      4,
+      Math.floor(
+        (right - left - size * (chars >= 13 ? 13 : 5.5)) / (small + thin),
+      ),
+    );
     let at = right - small / 2,
       shown = 0;
-    for (let i = -1; i < player.effects.length && shown < 4; i++) {
+    for (let i = -1; i < player.effects.length && shown < fit; i++) {
       let kind = SHIELD;
       if (i < 0) {
-        if (!(player.shield > songMs)) continue;
+        if (!(player.shield !== 0 && player.shield > songMs)) continue;
       } else {
         const effect = player.effects[i]!;
         kind = effect[0];
@@ -313,18 +342,6 @@ function box(
       shown++;
     }
     g.globalAlpha = dim;
-    const room = chars - 14;
-    if (shown === 0 && room >= 3)
-      label(
-        g,
-        fitText(texts.boxChart, info.chartNames[slot] ?? "", room),
-        right,
-        third,
-        size,
-        MUTED,
-        "right",
-        size * room,
-      );
   }
 
   if (struck) {
@@ -336,6 +353,19 @@ function box(
     const size = Math.round(
       Math.max(6 * unit, Math.min(11 * unit, height / 4, (width - pad) / 11)),
     );
+    // With room, its icon beside the name.
+    const side = Math.round(Math.min(height * 0.5, 30 * unit));
+    const icon = panel.strip
+      ? undefined
+      : frame.icons.get(
+          kind === HIT_MINE ? MINES : kind === HIT_BLOCKED ? SHIELD : kind,
+          side,
+        );
+    if (icon) {
+      const shown = g.globalAlpha;
+      blit(g, icon, x + pad + side / 2, y + height / 2, shown, 1, 0);
+      g.globalAlpha = shown;
+    }
     label(
       g,
       kind === HIT_MINE
@@ -343,7 +373,7 @@ function box(
         : kind === HIT_BLOCKED
           ? "BLOCKED!"
           : (HIT_LABELS[kind] ?? "HIT!"),
-      x + width / 2,
+      x + width / 2 + (icon ? side / 2 : 0),
       y + height / 2,
       size,
       kind === HIT_MINE ? ORANGE : kind === HIT_BLOCKED ? CYAN : PINK,

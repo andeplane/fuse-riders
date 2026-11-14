@@ -354,8 +354,7 @@ export function fitSegments(
       high = nextHigh;
       end = candidate;
       // Aim at the last beat itself where the bounds allow, so the next segment starts with its error spent.
-      const aim =
-        (beatTimes[end]! - beatTimes[0]! - startTime) / (end - start);
+      const aim = (beatTimes[end]! - beatTimes[0]! - startTime) / (end - start);
       seconds = Math.min(Math.max(aim, low), Math.max(low, high));
       if (candidate === last) break;
     }

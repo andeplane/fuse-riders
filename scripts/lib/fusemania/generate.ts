@@ -55,6 +55,8 @@ interface Tuning {
   floor: number;
   /** The most rows a sixteenth-speed run may have. */
   burst: number;
+  /** The least time between two rows, in seconds, whatever the grid allows. */
+  gap: number;
   /** Jumps: the least accent, how many per bar at most, and the clear space needed either side, in beats. */
   jump: { accent: number; perBar: number; clear: number };
   /** Freezes: how many per bar at most, and how many rows the other foot may take while one is held. */
@@ -73,11 +75,12 @@ const clamp = (value: number, low: number, high: number): number =>
 
 const TUNING: Record<Difficulty, Tuning> = {
   Easy: {
-    density: [0.75, 1.45],
-    cap: 1.75,
+    density: [0.8, 1.6],
+    cap: 2.0,
     levels: { Q: 1, E: 0, S: 0 },
     hats: 0.5,
     floor: 0.3,
+    gap: 0.3,
     burst: 1,
     jump: { accent: 1.15, perBar: 0.125, clear: 1 },
     hold: { perBar: 0.25, rowsInside: 0 },
@@ -92,8 +95,9 @@ const TUNING: Record<Difficulty, Tuning> = {
     levels: { Q: 1, E: 0.62, S: 0 },
     hats: 0.7,
     floor: 0.3,
+    gap: 0.16,
     burst: 1,
-    jump: { accent: 0.95, perBar: 0.6, clear: 0.75 },
+    jump: { accent: 1.05, perBar: 0.45, clear: 0.75 },
     hold: { perBar: 0.5, rowsInside: 1 },
     crossover: undefined,
     candle: 4,
@@ -106,25 +110,27 @@ const TUNING: Record<Difficulty, Tuning> = {
     levels: { Q: 1, E: 0.85, S: 0.5 },
     hats: 0.85,
     floor: 0.25,
+    gap: 0.095,
     burst: 5,
-    jump: { accent: 0.85, perBar: 1.25, clear: 0.4 },
+    jump: { accent: 0.95, perBar: 0.8, clear: 0.4 },
     hold: { perBar: 0.75, rowsInside: 3 },
-    crossover: 5,
-    candle: 1.8,
+    crossover: 2.8,
+    candle: 1.1,
     jack: 0.5,
     meter: (average) => 8 + clamp(Math.round((average - 2.7) / 0.8), 0, 2),
   },
   Challenge: {
-    density: [4.0, 8.0],
+    density: [3.8, 7.6],
     cap: 9.0,
     levels: { Q: 1, E: 0.95, S: 0.8 },
     hats: 1,
     floor: 0.2,
-    burst: 64,
-    jump: { accent: 0.75, perBar: 2, clear: 0.3 },
+    gap: 0.07,
+    burst: 33,
+    jump: { accent: 0.9, perBar: 1.1, clear: 0.3 },
     hold: { perBar: 1, rowsInside: 6 },
-    crossover: 3.5,
-    candle: 1.2,
+    crossover: 2.2,
+    candle: 0.8,
     jack: 0.5,
     meter: (average, peak) =>
       10 + clamp(Math.round((0.6 * average + 0.4 * peak - 4.4) / 1.1), 0, 3),
@@ -144,8 +150,12 @@ function hash(text: string): number {
 /** A number in [0, 1) from a seed and up to three integers. */
 function noise(seed: number, a: number, b = 0, c = 0): number {
   let value = seed ^ Math.imul(a + 1, 0x9e3779b1);
-  value = Math.imul(value ^ (value >>> 15), 0x85ebca6b) ^ Math.imul(b + 1, 0xc2b2ae35);
-  value = Math.imul(value ^ (value >>> 13), 0x27d4eb2f) ^ Math.imul(c + 1, 0x165667b1);
+  value =
+    Math.imul(value ^ (value >>> 15), 0x85ebca6b) ^
+    Math.imul(b + 1, 0xc2b2ae35);
+  value =
+    Math.imul(value ^ (value >>> 13), 0x27d4eb2f) ^
+    Math.imul(c + 1, 0x165667b1);
   value ^= value >>> 16;
   return (value >>> 0) / 4294967296;
 }
@@ -201,11 +211,29 @@ function readSong(analysis: Analysis): Song {
     loud = sorted[Math.floor(sorted.length * 0.9)] ?? 1;
   // A song that is loud throughout is busy throughout: the scale never spans less than seven decibels.
   const span = Math.max(loud - quiet, 0.3);
-  const energy = smooth.map((value) =>
-    clamp((value - (loud - span)) / span, 0, 1),
-  );
   const strength = (slot: number): number =>
     Math.max(low[slot]!, mid[slot]!, high[slot]!, tone[slot]!);
+  // And how much is going on: the share of the bar's slots that sound, again between the song's sparse and busy bars.
+  const busy = new Float32Array(smooth.length);
+  for (let bar = 0; bar < bars; bar++) {
+    let sum = 0;
+    for (let slot = bar * perBar; slot < (bar + 1) * perBar; slot++)
+      sum += Math.min(1, strength(slot));
+    busy[bar] = sum / perBar;
+  }
+  const busySorted = Float32Array.from(busy.subarray(0, bars)).sort();
+  const sparse = busySorted[Math.floor(bars * 0.1)] ?? 0,
+    dense = busySorted[Math.floor(bars * 0.9)] ?? 1;
+  const energy = smooth.map(
+    (value, bar) =>
+      0.5 * clamp((value - (loud - span)) / span, 0, 1) +
+      0.5 *
+        clamp(
+          ((busy[bar] ?? 0) - sparse) / Math.max(dense - sparse, 0.05),
+          0,
+          1,
+        ),
+  );
   // Steps start on the first bar line two seconds in whose bar has a beat to step to: two of its beats sound.
   let first = slots;
   for (let bar = 0; bar < bars; bar++) {
@@ -293,13 +321,16 @@ function pickRows(
         count++;
       }
     }
+    phraseMean = sum / Math.max(1, count);
     const level = levelOf(slot);
     let weight = level === "X" ? 0 : tuning.levels[level];
     // On Easy the first and third beats come first.
     if (difficulty === "Easy" && (within / slotsPerBeat) % 2 === 1)
       weight *= 0.72;
-    return (0.6 * salience[slot]! + (0.4 * sum) / Math.max(1, count)) * weight;
+    return (0.45 * salience[slot]! + 0.55 * phraseMean) * weight;
   };
+  /** The salience of the slot `priority` was last asked about, averaged over the bars of its phrase. */
+  let phraseMean = 0;
 
   const chosen = new Set<number>();
   for (const slot of base)
@@ -308,8 +339,16 @@ function pickRows(
   chosen.add(song.last);
   const beatGap = (a: number, b: number): number =>
     Math.abs(a - b) / slotsPerBeat;
-  /** Whether adding `slot` keeps every four-beat window under the cap. */
+  /** Whether adding `slot` keeps every four-beat window under the cap and its neighbours far enough away. */
   const fits = (slot: number): boolean => {
+    for (let near = slot - 1; near >= 0; near--) {
+      if (song.seconds[slot]! - song.seconds[near]! >= tuning.gap) break;
+      if (chosen.has(near)) return false;
+    }
+    for (let near = slot + 1; near < song.slots; near++) {
+      if (song.seconds[near]! - song.seconds[slot]! >= tuning.gap) break;
+      if (chosen.has(near)) return false;
+    }
     for (let start = slot - perBar + 1; start <= slot; start++) {
       let rows = 1;
       for (let at = Math.max(0, start); at < start + perBar; at++)
@@ -324,7 +363,11 @@ function pickRows(
   /** How many rows a sixteenth-speed run through `slot` would have if `slot` were added. */
   const runLength = (slot: number): number => {
     let length = 1;
-    for (let at = slot, next = slot - 1; next >= 0 && beatGap(at, next) < 0.4; next--)
+    for (
+      let at = slot, next = slot - 1;
+      next >= 0 && beatGap(at, next) < 0.4;
+      next--
+    )
       if (chosen.has(next)) {
         length++;
         at = next;
@@ -341,13 +384,28 @@ function pickRows(
     return length;
   };
 
-  for (let bar = Math.floor(song.first / perBar); bar * perBar <= song.last; bar++) {
+  for (
+    let bar = Math.floor(song.first / perBar);
+    bar * perBar <= song.last;
+    bar++
+  ) {
     const from = bar * perBar,
       to = Math.min(song.slots, from + perBar);
     const barSeconds = song.seconds[to]! - song.seconds[from]!;
+    // The bars of a four-bar phrase aim at much the same density, so a rhythm that repeats is stepped the same way.
+    const phraseStart = bar - ((((bar - analysis.phrase) % 4) + 4) % 4);
+    let phraseEnergy = 0,
+      phraseBars = 0;
+    for (let other = Math.max(0, phraseStart); other < phraseStart + 4; other++)
+      if (other < song.bars) {
+        phraseEnergy += song.energy[other]!;
+        phraseBars++;
+      }
+    const energy =
+      0.7 * (phraseEnergy / Math.max(1, phraseBars)) +
+      0.3 * (song.energy[bar] ?? 0);
     const target = Math.round(
-      (tuning.density[0] +
-        (tuning.density[1] - tuning.density[0]) * song.energy[bar]!) *
+      (tuning.density[0] + (tuning.density[1] - tuning.density[0]) * energy) *
         barSeconds,
     );
     const candidates: number[] = [];
@@ -357,8 +415,9 @@ function pickRows(
       else if (
         slot > song.first &&
         slot < song.last &&
-        salience[slot]! >= tuning.floor &&
-        priority(slot) > 0
+        priority(slot) > 0 &&
+        // A slot the rest of the phrase hits hard needs only a faint onset of its own to keep the rhythm going.
+        salience[slot]! >= (phraseMean >= 0.6 ? 0.5 : 1) * tuning.floor
       )
         candidates.push(slot);
     }
@@ -371,11 +430,16 @@ function pickRows(
       count++;
     }
   }
-  // A sixteenth-level step needs the step it leads into: alone it reads as a mistake.
+  // On a straight grid a sixteenth needs the step it leads into: alone it reads as a mistake. (A swung one is the
+  // rhythm itself.)
   for (const slot of [...chosen].sort((a, b) => a - b)) {
-    if (levelOf(slot) !== "S" || base.has(slot)) continue;
+    if (slotsPerBeat !== 4 || levelOf(slot) !== "S" || base.has(slot)) continue;
     let leads = false;
-    for (let next = slot + 1; next < song.slots && beatGap(slot, next) < 0.4; next++)
+    for (
+      let next = slot + 1;
+      next < song.slots && beatGap(slot, next) < 0.4;
+      next++
+    )
       if (chosen.has(next)) leads = true;
     if (!leads) chosen.delete(slot);
   }
@@ -450,7 +514,7 @@ function pickRows(
     while (
       slot + length < song.slots &&
       length < 4 * slotsPerBeat + 1 &&
-      song.tone[slot + length]! < 0.4 &&
+      song.tone[slot + length]! < 0.5 &&
       song.level[slot + length]! >= 0.55 * reference &&
       song.level[slot + length]! >= 0.12
     )
@@ -461,7 +525,7 @@ function pickRows(
     .map((slot, at) => ({ slot, at, length: sustain(slot) }))
     .filter(
       ({ slot, at, length }) =>
-        song.tone[slot]! >= 0.5 &&
+        song.tone[slot]! >= 0.4 &&
         levelOf(slot) !== "S" &&
         length >= slotsPerBeat &&
         at < slots.length - 1 &&
@@ -480,7 +544,11 @@ function pickRows(
     let end = slot + Math.floor((length - 1) / half) * half;
     // Rows while it is held go to the other foot: only so many, none of them fast, and never a jump (a hand).
     let inside = 0;
-    for (let next = at + 1; next < slots.length && slots[next]! <= end; next++) {
+    for (
+      let next = at + 1;
+      next < slots.length && slots[next]! <= end;
+      next++
+    ) {
       const gap = beatGap(slots[next]!, slots[next - 1]!);
       if (
         inside >= tuning.hold.rowsInside ||
@@ -497,7 +565,8 @@ function pickRows(
     }
     if (end - slot < slotsPerBeat) continue;
     // One freeze at a time, with a breath between them.
-    if (heldUntil.some(([a, b]) => slot <= b + half && end + half >= a)) continue;
+    if (heldUntil.some(([a, b]) => slot <= b + half && end + half >= a))
+      continue;
     // The row after the tail needs a moment too.
     const after = slots.find((other) => other > end);
     if (after !== undefined && after - end < half && inside === 0) continue;
@@ -525,6 +594,8 @@ interface State {
   holding: number;
   holdEnd: number;
   uses: readonly [number, number, number, number];
+  /** The last jump's two arrows as `4 * lower + higher`, or -1. */
+  lastJump: number;
   cost: number;
   /** The arrows of the row that led here, and the state before it. */
   columns: readonly number[];
@@ -547,7 +618,7 @@ function placeSteps(
   const { slotsPerBeat, perBar } = song;
   const BEAM = 14;
 
-  // A bar's signature: its rhythm, its jumps and freezes, and whether the melody rises or falls into each row.
+  // A bar's signature is its rhythm and its jumps. (The melody's rise and fall into each row steers the arrows too.)
   const contour = (at: number): number => {
     if (at === 0) return 0;
     const now = song.pitch[rows[at]!.slot]!,
@@ -563,7 +634,7 @@ function placeSteps(
     if (!firstRow.has(bar)) firstRow.set(bar, at);
     signature.set(
       bar,
-      `${signature.get(bar) ?? ""}${row.slot % perBar}${row.jump ? "j" : ""}${row.holdEnd !== undefined ? "h" : ""}${"-=+"[contour(at) + 1]!},`,
+      `${signature.get(bar) ?? ""}${row.slot % perBar}${row.jump ? "j" : ""},`,
     );
   });
   /** Arrows remembered for a bar signature within the current eight-bar phrase. */
@@ -608,7 +679,7 @@ function placeSteps(
       cost += 0.2 + (state.trill >= 3 ? 0.8 * (state.trill - 2) : 0);
     } else if (last >= 0 && second >= 0 && column - last === last - second) {
       // Carrying on in the same direction: a staircase.
-      cost -= 0.25;
+      cost -= 0.4;
     }
     // The melody: up moves right, down moves left.
     const direction = contour(at);
@@ -620,8 +691,8 @@ function placeSteps(
     const total = state.uses[0] + state.uses[1] + state.uses[2] + state.uses[3];
     cost += 2.2 * (state.uses[column]! / (total + 6) - 0.25);
     const wanted = remembered.get(at);
-    if (wanted && wanted.length === 1 && wanted[0] === column) cost -= 1.1;
-    cost += 0.45 * noise(seed, rows[at]!.slot, column, foot);
+    if (wanted && wanted.length === 1 && wanted[0] === column) cost -= 1.5;
+    cost += 0.35 * noise(seed, rows[at]!.slot, column, foot);
     return cost;
   };
 
@@ -635,6 +706,7 @@ function placeSteps(
     holding: -1,
     holdEnd: -1,
     uses: [0, 0, 0, 0],
+    lastJump: -1,
     cost: 0,
     columns: [],
     holdColumn: -1,
@@ -717,6 +789,7 @@ function placeSteps(
           holding: startsHold ? holdFoot : holding ? state.holding : -1,
           holdEnd: startsHold ? row.holdEnd! : holding ? state.holdEnd : -1,
           uses,
+          lastJump: single ? state.lastJump : columns[0]! * 4 + columns[1]!,
           cost: state.cost + cost,
           columns,
           holdColumn: startsHold ? (holdFoot === 0 ? left : right) : -1,
@@ -735,7 +808,10 @@ function placeSteps(
                   ]
                 : [[a, b]];
             for (const [left, right] of ways) {
-              let cost = a === 0 && b === 3 ? 0 : a === 1 && b === 2 ? 0.9 : 0.35;
+              let cost =
+                a === 0 && b === 3 ? 0 : a === 1 && b === 2 ? 0.9 : 0.35;
+              // Not the same jump as the one before, unless the bar is a repeat.
+              if (state.lastJump === a * 4 + b) cost += 0.45;
               if (difficulty === "Easy" && !(a === 0 && b === 3)) cost += 1.5;
               for (const [from, to] of [
                 [state.left, left],
@@ -750,8 +826,13 @@ function placeSteps(
               cost +=
                 2.2 * ((state.uses[a]! + state.uses[b]!) / (total + 6) - 0.5);
               const wanted = remembered.get(at);
-              if (wanted && wanted.length === 2 && wanted[0] === a && wanted[1] === b)
-                cost -= 1.1;
+              if (
+                wanted &&
+                wanted.length === 2 &&
+                wanted[0] === a &&
+                wanted[1] === b
+              )
+                cost -= 1.5;
               cost += 0.45 * noise(seed, row.slot, a * 4 + b, 9);
               // A jump counts as the step of the foot whose turn it was, so the feet go on alternating after it.
               const holdFoot = noise(seed, row.slot, 11) < 0.5 ? 0 : 1;
@@ -829,13 +910,17 @@ function addMines(song: Song, notes: Note[]): void {
   const holds = notes.filter((note) => note.kind === "hold");
   let placed = 0,
     lastMine = -Infinity;
-  for (let at = 0; at + 1 < rowSlots.length && placed < 8; at++) {
+  const half = slotsPerBeat % 2 === 0 ? slotsPerBeat / 2 : slotsPerBeat;
+  for (let at = 0; at + 1 < rowSlots.length && placed < 10; at++) {
     const from = rowSlots[at]!,
       to = rowSlots[at + 1]!;
-    if (to - from < 2 * slotsPerBeat) continue;
-    if (from - lastMine < 16 * slotsPerBeat) continue;
-    if (holds.some((hold) => hold.slot <= to && hold.endSlot! >= from)) continue;
-    const slot = from + slotsPerBeat * Math.floor((to - from) / slotsPerBeat / 2);
+    if (to - from < slotsPerBeat) continue;
+    if (from - lastMine < 8 * slotsPerBeat) continue;
+    if (holds.some((hold) => hold.slot <= to && hold.endSlot! >= from))
+      continue;
+    // In the middle of the rest, on a beat or an eighth.
+    const slot = from + half * Math.round((to - from) / (2 * half));
+    if (slot <= from || slot >= to) continue;
     // Not on the arrows of the rows either side: where the feet are, and where they are going.
     const busy = new Set(
       notes

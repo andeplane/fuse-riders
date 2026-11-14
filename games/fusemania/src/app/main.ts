@@ -430,8 +430,10 @@ function landing(): void {
     });
   };
   const select = el("section", "", "fm-landing-select");
-  select.append(picker.element, own);
+  select.append(picker.element);
   card.solo?.before(select);
+  card.solo?.classList.add("fui-button-primary", "fm-solo-play");
+  card.solo?.after(own);
   const settings = settingsPanel(() =>
     help.dispatchEvent(new Event("fm-refresh")),
   );
@@ -885,6 +887,31 @@ function room(solo: boolean, library: Library, first?: Choice): void {
     });
   };
   requestAnimationFrame(frame);
+  // For smokes and for a player's bug report: where the sound, the room and the picture are, read from the console.
+  Object.assign(window, {
+    fusemania: {
+      clock: () => ({
+        audible: songClock.audible,
+        driftMs: songClock.drift,
+        heardMs: songClock.songMs(),
+        roomMs: runtime.songMs(),
+        latencyMs: (audio.clock()?.latency() ?? 0) * 1000,
+        loaded: !!playing?.song,
+      }),
+      view: () => runtime.picture(songClock.songMs() - prefs.offsetMs),
+      /** This device's own notes in the song being played: `[ms, column, kind]`. */
+      notes: () => {
+        const world = runtime.roomState()?.world;
+        const mine = world?.players.find((each) => each.id === viewer.me);
+        const chart = world && mine && library.steps(world.song, mine.chart);
+        return (chart?.notes ?? []).map((note) => [
+          note.ms,
+          note.column,
+          note.kind,
+        ]);
+      },
+    },
+  });
 
   const rowNode = (row: Row) => {
     const node = el("li", "", row.you ? "you" : "");

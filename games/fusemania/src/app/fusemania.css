@@ -123,6 +123,18 @@ body.fusemania-page {
   margin: 0;
   accent-color: var(--fui-cyan);
 }
+/* The song select needs the width: its dialog is wider than a menu's, and the list keeps PLAY in view. */
+.fusemania-page .fui-menu-dialog:has(.fm-picker) {
+  width: min(68rem, calc(100vw - 1.5rem));
+}
+.fui-menu-dialog .fm-picker-list {
+  max-height: min(30rem, 58dvh);
+}
+.fui-app .fm-solo-play {
+  width: 100%;
+  min-height: 3.25rem;
+  font-size: 1rem;
+}
 .fm-landing-select {
   display: grid;
   gap: var(--fui-space-3);
@@ -252,6 +264,31 @@ body.fusemania-page {
 body.fm-display .fm-lobby {
   grid-template-columns: minmax(0, 46rem);
   justify-content: center;
+}
+
+/* The shared top bar floats over the page: the room starts under it, and a song has no use for the room's code. */
+body:has(.fui-top-bar) .fm-room {
+  padding-top: calc(68px + env(safe-area-inset-top));
+}
+body:has(.fui-top-bar) .fm-room:has(> .fui-room-layout:not([hidden])) {
+  padding-top: 0;
+}
+body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
+  .fm-code,
+body:has(.fm-room:is([data-screen="play"], [data-screen="controller"]))
+  .fm-status:not([data-tone="error"]) {
+  display: none !important;
+}
+/* A lobby shows the players beside the song select: the list stays a few songs tall. */
+.fui-room-modes .fm-picker-list {
+  max-height: min(19rem, 40dvh);
+}
+.fui-app .fui-menu-dialog .fm-solo-play {
+  color: var(--fui-ink);
+  background: var(--fui-cyan);
+  border-color: var(--fui-cyan);
+  box-shadow: var(--fui-glow-cyan);
+  font: 0.875rem/1 var(--fui-font-pixel);
 }
 
 /* The song */
