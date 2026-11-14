@@ -20,6 +20,7 @@ import {
   indexedDbPlaytestOutbox,
   type StoredRecording,
   type StoredSegment,
+  type PlaytestOutbox,
 } from "./playtest-outbox.js";
 
 export interface BrowserPlaytestOptions {
@@ -30,9 +31,25 @@ export interface BrowserPlaytestOptions {
   apiOrigin?: string;
   /** FuseOS owns the microphone, while each game's frame owns its report UI. */
   recordingOnly?: boolean;
+  /** Browser capabilities supplied by the composition root or typed test adapters. */
+  account?: PlaytestAccount;
+  outbox?: PlaytestOutbox;
+  startMicrophone?: typeof startPcmMicrophone;
+  fetch?: typeof fetch;
+}
+export type PlaytestAccount = Pick<
+  typeof account,
+  "signedInToken" | "watchAccount" | "accountReady" | "signIn" | "signInFailure"
+>;
+export interface PlaytestRecordingState {
+  available: boolean;
+  active: boolean;
+  busy: boolean;
 }
 export interface BrowserPlaytest {
   openReport(): void;
+  toggleRecording(): void;
+  watchRecording(changed: (state: PlaytestRecordingState) => void): () => void;
 }
 interface RecordingContext {
   recordingId: string;
@@ -117,6 +134,7 @@ export function installBrowserPlaytest(
   const { document: doc, window: win, gameId } = options;
   const previous = installed.get(doc);
   if (previous) return previous;
+  const identity = options.account ?? account;
   const node = <K extends keyof HTMLElementTagNameMap>(tag: K, text = "") => {
     const result = doc.createElement(tag);
     result.textContent = text;
@@ -152,9 +170,10 @@ export function installBrowserPlaytest(
     init: RequestInit = {},
     authorized = false,
   ): Promise<unknown> {
+    const requestGeneration = accessGeneration;
     const headers = new Headers(init.headers);
     if (authorized) {
-      const token = await account.signedInToken();
+      const token = await identity.signedInToken();
       if (!token)
         throw new Error(
           "Sign in with an approved developer account to record audio.",
@@ -164,12 +183,25 @@ export function installBrowserPlaytest(
     const controller = new AbortController();
     const cancel = schedule(() => controller.abort(), 20000);
     try {
-      const response = await win.fetch(endpoints.apiUrl(path), {
-        ...init,
-        headers,
-        signal: controller.signal,
-      });
+      const response = await (options.fetch ?? win.fetch.bind(win))(
+        endpoints.apiUrl(path),
+        {
+          ...init,
+          headers,
+          signal: controller.signal,
+        },
+      );
       if (!response.ok) {
+        if (
+          authorized &&
+          requestGeneration === accessGeneration &&
+          (response.status === 401 || response.status === 403)
+        ) {
+          accessGeneration++;
+          publishRecording({ available: false });
+          stoppedReason = "Developer access expired. Recording stopped.";
+          void endRecording?.();
+        }
         if (response.status === 401)
           throw new Error("Sign in again, then retry.");
         if (response.status === 403)
@@ -206,6 +238,25 @@ export function installBrowserPlaytest(
   let disposed = false;
   let recorderMounted = false;
   let recordingBar: HTMLElement | undefined;
+  let beginRecording: (() => Promise<void>) | undefined;
+  let endRecording: (() => Promise<void>) | undefined;
+  let accessGeneration = 0;
+  let recordingState: PlaytestRecordingState = {
+    available: false,
+    active: false,
+    busy: false,
+  };
+  const recordingListeners = new Set<(state: PlaytestRecordingState) => void>();
+  function publishRecording(change: Partial<PlaytestRecordingState>) {
+    recordingState = { ...recordingState, ...change };
+    for (const changed of recordingListeners) changed({ ...recordingState });
+    if (ownsMicrophone)
+      for (const frame of doc.querySelectorAll("iframe"))
+        frame.contentWindow?.postMessage(
+          { type: "fuse-playtest-recording-state", state: recordingState },
+          win.location.origin,
+        );
+  }
   const context = (): RecordingContext | undefined =>
     recording && microphone
       ? { recordingId: recording.id, offsetMs: microphone.offsetMs() }
@@ -238,6 +289,17 @@ export function installBrowserPlaytest(
         (frame) => frame.contentWindow === event.source,
       );
       if (!knownFrame) return;
+      if (data.type === "fuse-playtest-recording-state-request") {
+        (event.source as Window).postMessage(
+          { type: "fuse-playtest-recording-state", state: recordingState },
+          win.location.origin,
+        );
+        return;
+      }
+      if (data.type === "fuse-playtest-recording-toggle") {
+        toggleRecording();
+        return;
+      }
       if (data.type === "fuse-playtest-recording-request") {
         try {
           win.sessionStorage.setItem(INTENT, "1");
@@ -261,6 +323,24 @@ export function installBrowserPlaytest(
         },
         win.location.origin,
       );
+    });
+  else
+    win.addEventListener("message", (event: MessageEvent<unknown>) => {
+      if (event.origin !== win.location.origin || event.source !== win.top)
+        return;
+      const data = object(event.data);
+      const state = object(data.state);
+      if (
+        data.type === "fuse-playtest-recording-state" &&
+        typeof state.available === "boolean" &&
+        typeof state.active === "boolean" &&
+        typeof state.busy === "boolean"
+      )
+        publishRecording({
+          available: state.available,
+          active: state.active,
+          busy: state.busy,
+        });
     });
 
   // Reporting remains available even when microphone APIs, authentication or durable browser storage are absent.
@@ -491,9 +571,43 @@ export function installBrowserPlaytest(
     openReport: () => {
       void openReport();
     },
+    toggleRecording,
+    watchRecording(changed: (state: PlaytestRecordingState) => void) {
+      recordingListeners.add(changed);
+      changed({ ...recordingState });
+      return () => {
+        recordingListeners.delete(changed);
+      };
+    },
   };
   installed.set(doc, api);
   if (ownsMicrophone) {
+    // Guests never load the sign-in SDK or make a developer-access request.
+    // Every account transition invalidates outstanding checks and any active capture.
+    identity.watchAccount((user) => {
+      const generation = ++accessGeneration;
+      publishRecording({ available: false });
+      if (microphone || recordingState.busy) {
+        stoppedReason = "Account changed. Recording stopped.";
+        void endRecording?.();
+      }
+      if (!user) return;
+      void request("/api/dev/me", {}, true)
+        .then((value) => {
+          const principal = object(value);
+          if (disposed || generation !== accessGeneration) return;
+          publishRecording({
+            available:
+              typeof principal.uid === "string" &&
+              principal.uid.length > 0 &&
+              typeof principal.email === "string" &&
+              principal.email.length > 0,
+          });
+        })
+        .catch(() => {
+          // A denial or offline check leaves recording hidden; normal play continues.
+        });
+    });
     let stored: string | null = null;
     try {
       stored = win.sessionStorage.getItem(INTENT);
@@ -525,12 +639,31 @@ export function installBrowserPlaytest(
         })
         .catch(() => undefined);
     }
-  } else if (recordingRequested(win.location.search, null)) {
-    // An embedded game can request the visible prompt, but only its desktop may own the microphone.
+  } else {
     win.top?.postMessage(
-      { type: "fuse-playtest-recording-request" },
+      { type: "fuse-playtest-recording-state-request" },
       win.location.origin,
     );
+    if (recordingRequested(win.location.search, null)) {
+      // An embedded game can request the visible prompt, but only its desktop may own the microphone.
+      win.top?.postMessage(
+        { type: "fuse-playtest-recording-request" },
+        win.location.origin,
+      );
+    }
+  }
+  function toggleRecording() {
+    if (disposed || !recordingState.available || recordingState.busy) return;
+    if (!ownsMicrophone) {
+      win.top?.postMessage(
+        { type: "fuse-playtest-recording-toggle" },
+        win.location.origin,
+      );
+      return;
+    }
+    mountRecording();
+    if (microphone) void endRecording?.();
+    else void beginRecording?.();
   }
   function mountRecording() {
     if (disposed) return;
@@ -557,9 +690,9 @@ export function installBrowserPlaytest(
     const controls = node("div");
     controls.className = "fui-playtest-actions";
     const signIn = button("Sign in", () => {
-      void account.signIn().catch((error: unknown) => {
+      void identity.signIn().catch((error: unknown) => {
         status.textContent =
-          account.signInFailure(error) || "Sign-in cancelled.";
+          identity.signInFailure(error) || "Sign-in cancelled.";
       });
     });
     signIn.disabled = true;
@@ -585,7 +718,7 @@ export function installBrowserPlaytest(
     controls.append(signIn, start, stop, retry, dismiss);
     bar.append(title, status, detail, controls);
     overlays.append(bar);
-    void account
+    void identity
       .accountReady()
       .then(() => {
         signIn.disabled = false;
@@ -594,7 +727,7 @@ export function installBrowserPlaytest(
         status.textContent =
           "Sign-in could not load. Reload the page to retry.";
       });
-    account.watchAccount((user) => {
+    identity.watchAccount((user) => {
       signIn.textContent = user ? `Signed in: ${user.name}` : "Sign in";
       if (!user && microphone) {
         stoppedReason =
@@ -602,9 +735,9 @@ export function installBrowserPlaytest(
         void stopRecording();
       }
     });
-    const store = win.indexedDB
-      ? indexedDbPlaytestOutbox(win.indexedDB)
-      : undefined;
+    const store =
+      options.outbox ??
+      (win.indexedDB ? indexedDbPlaytestOutbox(win.indexedDB) : undefined);
     if (!store) {
       status.textContent =
         "Durable browser storage is unavailable. Recording is disabled.";
@@ -711,6 +844,8 @@ export function installBrowserPlaytest(
     }
     async function begin() {
       if (microphone || start.disabled || stopping) return;
+      const generation = accessGeneration;
+      publishRecording({ busy: true });
       captureStorageFailed = false;
       start.disabled = true;
       signIn.disabled = true;
@@ -740,11 +875,19 @@ export function installBrowserPlaytest(
           throw new Error(
             "The service did not authorize this recording. Retry before allowing the microphone.",
           );
+        if (disposed || generation !== accessGeneration)
+          throw new Error(
+            "Account changed. Start recording again after sign-in.",
+          );
         await store!.put(session);
         recording = session;
+        if (disposed || generation !== accessGeneration)
+          throw new Error(
+            "Account changed. Start recording again after sign-in.",
+          );
         stoppedReason = "Allow microphone access to begin.";
         render();
-        microphone = await startPcmMicrophone(
+        microphone = await (options.startMicrophone ?? startPcmMicrophone)(
           {
             getUserMedia: (constraints) =>
               win.navigator.mediaDevices.getUserMedia(constraints),
@@ -767,7 +910,7 @@ export function installBrowserPlaytest(
           },
           focus,
         );
-        if (disposed) {
+        if (disposed || generation !== accessGeneration) {
           await stopRecording();
           return;
         }
@@ -788,6 +931,7 @@ export function installBrowserPlaytest(
         start.disabled = false;
         signIn.disabled = false;
         dismiss.disabled = Boolean(microphone);
+        publishRecording({ active: Boolean(microphone), busy: false });
         render();
       }
     }
@@ -796,6 +940,7 @@ export function installBrowserPlaytest(
       const capture = microphone;
       if (!capture) return Promise.resolve();
       stop.disabled = true;
+      publishRecording({ busy: true });
       stopping = (async () => {
         await capture.stop();
         microphone = undefined;
@@ -818,10 +963,13 @@ export function installBrowserPlaytest(
         .finally(() => {
           stopping = undefined;
           stop.disabled = false;
+          publishRecording({ active: Boolean(microphone), busy: false });
           render();
         });
       return stopping;
     }
+    beginRecording = begin;
+    endRecording = stopRecording;
     const refresh = win.setInterval(render, 1000);
     win.addEventListener("online", () => {
       void uploader.kick();
