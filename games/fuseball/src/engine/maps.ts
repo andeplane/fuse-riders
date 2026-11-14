@@ -39,10 +39,35 @@ export const MAP_IDS = [
   "firewall",
   "cornercase",
   "coredump",
+  "bruteforce",
 ] as const;
 export type MapId = (typeof MAP_IDS)[number];
 export const isMapId = (value: unknown): value is MapId =>
   typeof value === "string" && (MAP_IDS as readonly string[]).includes(value);
+
+/**
+ * Gadgets: things in an arena that act on the ball and only on the ball. Riders fly through every one of them, as
+ * they do through goals and clouds, so a rider is only ever stopped by a solid or a hard bubble.
+ *
+ * A barrier is a wall the ball cannot pass while it is up:
+ * - a `field` is a force field, usually over a goal's mouth. It throws the ball back hard, and every strike wears
+ *   it down: after `hits` of them it is gone until the next point.
+ * - a `gate` is a trapdoor. A ball that strikes it hard enough knocks it open for a few seconds; then it shuts.
+ */
+export type Barrier = Rect &
+  ({ kind: "field"; hits: number } | { kind: "gate" });
+/** A round bumper fixed in place: it throws the ball away from its centre, like a bubble that never pops. */
+export type Bumper = Circle;
+/**
+ * A pair of portals of radius `r`: a ball flying into either end comes out of the other, at the same speed. `hue`
+ * picks which of the two portal colours the pair wears.
+ */
+export interface Portal {
+  a: Pt;
+  b: Pt;
+  r: number;
+  hue: 0 | 1;
+}
 
 export interface MapDef {
   id: MapId;
@@ -57,7 +82,20 @@ export interface MapDef {
   spawns: readonly [Pt, Pt];
   /** Where the ball's centre waits out the countdown. */
   ballAnchor: Pt;
+  /** The gadgets, in a fixed order: a barrier's state in the world is found by its place here. */
+  barriers: readonly Barrier[];
+  bumpers: readonly Bumper[];
+  portals: readonly Portal[];
 }
+/** A map as it is written down: the gadgets it does not have are left out. */
+type MapSpec = Omit<MapDef, "barriers" | "bumpers" | "portals"> &
+  Partial<Pick<MapDef, "barriers" | "bumpers" | "portals">>;
+const arena = (spec: MapSpec): MapDef => ({
+  barriers: [],
+  bumpers: [],
+  portals: [],
+  ...spec,
+});
 
 const rect = (x: number, y: number, w: number, h: number): Rect => ({
   x,
@@ -71,7 +109,7 @@ const rect = (x: number, y: number, w: number, h: number): Rect => ({
  * both goals back to back, so the ball leaving through the right side scores for slot 0 and through the left for
  * slot 1, while a rider just flies through and comes out on the other side.
  */
-const gridlock: MapDef = {
+const gridlock: MapDef = arena({
   id: "gridlock",
   name: "Gridlock",
   wrapX: true,
@@ -98,13 +136,13 @@ const gridlock: MapDef = {
     { x: 510, y: 335 },
   ],
   ballAnchor: { x: 320, y: 120 },
-};
+});
 
 /**
  * Downlink wraps top to bottom. Solid side walls, and one slab across the seam with two shafts through it: a shaft
  * is a goal along its whole length, so the ball dropped into a pit or knocked up through the roof above it scores.
  */
-const downlink: MapDef = {
+const downlink: MapDef = arena({
   id: "downlink",
   name: "Downlink",
   wrapX: false,
@@ -132,13 +170,13 @@ const downlink: MapDef = {
     { x: 574, y: 335 },
   ],
   ballAnchor: { x: 320, y: 120 },
-};
+});
 
 /**
  * Halo wraps both ways: no walls at all, four floating pads, the ball on a pedestal in the middle and a round goal
  * hanging high on each side.
  */
-const halo: MapDef = {
+const halo: MapDef = arena({
   id: "halo",
   name: "Halo",
   wrapX: true,
@@ -160,14 +198,14 @@ const halo: MapDef = {
     { x: 470, y: 241 },
   ],
   ballAnchor: { x: 320, y: 192 },
-};
+});
 
 /**
  * Overflow wraps both ways. The seam wall has the goals in its gap, as in Gridlock, but the floor has two holes that
  * are nobody's goal: whatever drops through one comes back in at the top, over the high ledges. The wall and the
  * floor slab each cross a seam, so the wall's two ends and the floor and ceiling are one rect apiece.
  */
-const overflow: MapDef = {
+const overflow: MapDef = arena({
   id: "overflow",
   name: "Overflow",
   wrapX: true,
@@ -194,14 +232,14 @@ const overflow: MapDef = {
     { x: 525, y: 253 },
   ],
   ballAnchor: { x: 320, y: 110 },
-};
+});
 
 /**
  * Firewall wraps both ways and has no floor or ceiling at all: whatever is not standing on a pad falls for ever,
  * out of the bottom and in at the top. The goals are the gaps in the seam wall, each behind a short wall of its own
  * that the ball has to be sent over or under. The ball starts in the open and lands on the high pad from above.
  */
-const firewall: MapDef = {
+const firewall: MapDef = arena({
   id: "firewall",
   name: "Firewall",
   wrapX: true,
@@ -227,7 +265,7 @@ const firewall: MapDef = {
     { x: 410, y: 271 },
   ],
   ballAnchor: { x: 320, y: 200 },
-};
+});
 
 /**
  * Corner Case wraps top to bottom. The goals are the four corners: a pocket between each side wall and the end of
@@ -235,7 +273,7 @@ const firewall: MapDef = {
  * (and hangs from the roof beside it), so a ball rolled along the floor stops short and has to be lifted in. The
  * ball starts on the anvil in the middle.
  */
-const cornercase: MapDef = {
+const cornercase: MapDef = arena({
   id: "cornercase",
   name: "Corner Case",
   wrapX: false,
@@ -264,7 +302,7 @@ const cornercase: MapDef = {
     { x: 480, y: 335 },
   ],
   ballAnchor: { x: 320, y: 120 },
-};
+});
 
 /**
  * Core Dump wraps top to bottom. Both goals are pits side by side in the middle of the floor, with a post between
@@ -272,7 +310,7 @@ const cornercase: MapDef = {
  * their own half of the floor has to go over the near pit, which is the other colour's. A roof hangs over both
  * pits; the ball starts on it.
  */
-const coredump: MapDef = {
+const coredump: MapDef = arena({
   id: "coredump",
   name: "Core Dump",
   wrapX: false,
@@ -299,7 +337,46 @@ const coredump: MapDef = {
     { x: 490, y: 335 },
   ],
   ballAnchor: { x: 320, y: 130 },
-};
+});
+
+/**
+ * Brute Force wraps sideways. The goals are the gap in the seam wall, as in Gridlock, but each has a force field
+ * across its mouth: the ball is thrown back off it, and the third strike breaks it for the rest of the point. A
+ * pillar splits the floor in two, and the ball starts on the bridge over it.
+ */
+const bruteforce: MapDef = arena({
+  id: "bruteforce",
+  name: "Brute Force",
+  wrapX: true,
+  wrapY: false,
+  solids: [
+    rect(0, 0, 640, 16),
+    rect(0, 344, 640, 16),
+    rect(628, 0, 24, 150),
+    rect(628, 250, 24, 110),
+    rect(314, 270, 12, 74),
+    rect(270, 160, 100, 10),
+    rect(120, 256, 90, 10),
+    rect(430, 256, 90, 10),
+  ],
+  goals: [
+    { team: 0, ...rect(628, 150, 12, 100) },
+    { team: 1, ...rect(0, 150, 12, 100) },
+  ],
+  clouds: [
+    { x: 70, y: 200, r: 40 },
+    { x: 570, y: 200, r: 40 },
+  ],
+  spawns: [
+    { x: 165, y: 335 },
+    { x: 475, y: 335 },
+  ],
+  ballAnchor: { x: 320, y: 120 },
+  barriers: [
+    { kind: "field", hits: 3, ...rect(616, 150, 8, 100) },
+    { kind: "field", hits: 3, ...rect(16, 150, 8, 100) },
+  ],
+});
 
 export const MAPS: Readonly<Record<MapId, MapDef>> = {
   gridlock,
@@ -309,6 +386,7 @@ export const MAPS: Readonly<Record<MapId, MapDef>> = {
   firewall,
   cornercase,
   coredump,
+  bruteforce,
 };
 export const mapOf = (id: MapId): MapDef => MAPS[id];
 
@@ -319,17 +397,21 @@ export interface Box {
   hw: number;
   hh: number;
 }
+const boxOf = (rect: Rect): Box => ({
+  // Every rect has even sides, so the centre is a whole number of sub-units.
+  cx: (rect.x * SUB * 2 + rect.w * SUB) / 2,
+  cy: (rect.y * SUB * 2 + rect.h * SUB) / 2,
+  hw: (rect.w * SUB) / 2,
+  hh: (rect.h * SUB) / 2,
+});
 const BOXES = new Map<MapId, readonly Box[]>(
-  MAP_IDS.map((id) => [
-    id,
-    MAPS[id].solids.map((solid) => ({
-      // Every rect has even sides, so the centre is a whole number of sub-units.
-      cx: (solid.x * SUB * 2 + solid.w * SUB) / 2,
-      cy: (solid.y * SUB * 2 + solid.h * SUB) / 2,
-      hw: (solid.w * SUB) / 2,
-      hh: (solid.h * SUB) / 2,
-    })),
-  ]),
+  MAP_IDS.map((id) => [id, MAPS[id].solids.map(boxOf)]),
 );
 /** The map's solids in sub-units; fixed data derived once from `MAPS`. */
 export const boxesOf = (id: MapId): readonly Box[] => BOXES.get(id) ?? [];
+const BARRIER_BOXES = new Map<MapId, readonly Box[]>(
+  MAP_IDS.map((id) => [id, MAPS[id].barriers.map(boxOf)]),
+);
+/** The map's barriers in sub-units, in the order of `MapDef.barriers`. */
+export const barrierBoxesOf = (id: MapId): readonly Box[] =>
+  BARRIER_BOXES.get(id) ?? [];

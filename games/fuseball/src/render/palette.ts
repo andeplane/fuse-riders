@@ -22,6 +22,11 @@ export const EDGE_DIM = "#4a3fa8";
 export const BALL = "#ffe46b";
 export const BALL_HOT = "#fff8d6";
 export const CLOUD = "#aab4ff";
+/** Gates: hazard amber, which is nobody's colour and not the ball's yellow. */
+export const GADGET = "#ff9d3c";
+export const GADGET_DARK = "#4a2408";
+/** The two portal pairs: lime and orange. */
+export const PORTAL = ["#8dff6a", "#ff9d3c"] as const;
 export const WHITE = "#ffffff";
 export const VISOR = "#061023";
 

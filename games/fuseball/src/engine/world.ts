@@ -1,5 +1,6 @@
 import { BTN } from "./input.js";
 import { SUB } from "./math.js";
+import { freshBarriers, type BarrierState } from "./gadgets.js";
 import { mapOf, type MapId } from "./maps.js";
 import { COUNTDOWN_STEPS, SPEED_FULL } from "./tuning.js";
 
@@ -85,6 +86,8 @@ export interface World {
   riders: [Rider, Rider];
   bubbles: [Bubble, Bubble];
   ball: Ball;
+  /** The state of the map's barriers (force fields and gates), in the map's order; every point starts them afresh. */
+  barriers: BarrierState[];
 }
 
 const rider = (id: string, slot: Slot): Rider => ({
@@ -139,6 +142,7 @@ export function resetPoint(world: World): void {
   ball.vy = 0;
   ball.live = true;
   ball.touch = -1;
+  world.barriers = freshBarriers(map);
   world.phase = "countdown";
   world.phaseSteps = COUNTDOWN_STEPS;
   world.speed = SPEED_FULL;
@@ -167,6 +171,7 @@ export function createWorld(
     riders: [rider(ids[0], 0), rider(ids[1], 1)],
     bubbles: [bubble(), bubble()],
     ball: { x: 0, y: 0, vx: 0, vy: 0, live: true, bounces: 0, touch: -1 },
+    barriers: [],
   };
   resetPoint(world);
   return world;
@@ -182,5 +187,6 @@ export function copyWorld(world: World): World {
     riders: [{ ...a }, { ...b }],
     bubbles: [{ ...p }, { ...q }],
     ball: { ...world.ball },
+    barriers: world.barriers.map((barrier) => ({ ...barrier })),
   };
 }

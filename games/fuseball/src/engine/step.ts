@@ -7,6 +7,7 @@ import {
   type Space,
   type Touch,
 } from "./collide.js";
+import { meetGadgets } from "./gadgets.js";
 import { BTN, DOWN, LEFT, RIGHT, isInput } from "./input.js";
 import { SUB, abs, clamp, div, isqrt, toward } from "./math.js";
 import { boxesOf, mapOf, type Box } from "./maps.js";
@@ -226,6 +227,9 @@ function moveBall(world: World, boxes: readonly Box[], space: Space): void {
     if (abs(ball.vy) < T.BALL_SCRUB) ball.vy = 0;
     if (touch.impact >= T.BOUNCE_FX) ball.bounces = count(ball.bounces);
   }
+  // The gadgets next: a field or a bumper throws it, a portal carries it, and the riders meet it where that left it.
+  if (meetGadgets(mapOf(world.mapId), world.barriers, ball) > 0)
+    ball.bounces = count(ball.bounces);
 
   let pushX = 0,
     pushY = 0,

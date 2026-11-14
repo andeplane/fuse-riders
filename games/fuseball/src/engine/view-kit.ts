@@ -15,6 +15,9 @@ export {
   type Rect,
   type Circle,
   type Pt,
+  type Barrier,
+  type Bumper,
+  type Portal,
 } from "./maps.js";
 export {
   VIEW_W,
@@ -26,6 +29,8 @@ export {
   STEPS_PER_TICK,
   COUNTDOWN_STEPS,
   ZAP_STEPS,
+  FIELD_COOL_STEPS,
+  GATE_OPEN_STEPS,
   ZAP_SPEED,
   GOAL_FREEZE_STEPS,
   SPEED_FULL,

@@ -1,3 +1,4 @@
+import { freshBarriers, type BarrierState } from "./gadgets.js";
 import { BTN, isInput } from "./input.js";
 import { MAP_IDS, mapOf, type MapDef } from "./maps.js";
 import * as T from "./tuning.js";
@@ -19,7 +20,7 @@ const VERSION = 2;
 const RIDER_FIELDS = 14,
   BUBBLE_FIELDS = 5,
   BALL_FIELDS = 7,
-  WORLD_FIELDS = 15,
+  WORLD_FIELDS = 16,
   PACE_FIELDS = 4;
 
 const int = (value: unknown, low: number, high: number): value is number =>
@@ -94,6 +95,7 @@ export function encodeWorld(world: World): unknown[] {
       ball.touch,
     ],
     [world.speed, world.budget, world.linger, world.freeze],
+    world.barriers.map((barrier) => [barrier.left, barrier.timer]),
   ];
 }
 
@@ -192,6 +194,32 @@ function decodeBall(raw: unknown, map: MapDef): Ball | undefined {
   };
 }
 
+/** One state per barrier of the map, in the map's order, each inside what its kind allows. */
+function decodeBarriers(raw: unknown, map: MapDef): BarrierState[] | undefined {
+  if (!tuple(raw, map.barriers.length)) return;
+  const states: BarrierState[] = [];
+  for (let i = 0; i < map.barriers.length; i++) {
+    const barrier = map.barriers[i]!,
+      each = raw[i];
+    if (!tuple(each, 2)) return;
+    const [left, timer] = each;
+    if (
+      !int(left, 0, barrier.kind === "field" ? barrier.hits : 0) ||
+      !int(
+        timer,
+        0,
+        barrier.kind === "field" ? T.FIELD_COOL_STEPS : T.GATE_OPEN_STEPS,
+      )
+    )
+      return;
+    // A field that has never been struck is not cooling off.
+    if (barrier.kind === "field" && left === barrier.hits && timer !== 0)
+      return;
+    states.push({ left, timer });
+  }
+  return states;
+}
+
 /** The checks that tie fields together: a world no sequence of steps could reach is refused. */
 function consistent(world: World): boolean {
   const { phase, phaseSteps, score, lastScorer, riders, bubbles, ball } = world,
@@ -213,6 +241,16 @@ function consistent(world: World): boolean {
     return false;
   if (phase === "play" && speed < T.CLOUD_SPEED_CORE) return false;
   if (freeze > 0 && budget !== 0) return false;
+  // Every point starts its barriers afresh: in a countdown no field is worn and no gate is open.
+  if (phase === "countdown") {
+    const fresh = freshBarriers(mapOf(world.mapId));
+    if (
+      world.barriers.some(
+        (barrier, i) => barrier.timer !== 0 || barrier.left !== fresh[i]?.left,
+      )
+    )
+      return false;
+  }
   // Timers: a countdown or a zap is always running down, and nothing else has one.
   if (phase === "countdown" && !int(phaseSteps, 1, T.COUNTDOWN_STEPS))
     return false;
@@ -266,6 +304,7 @@ export function decodeWorld(raw: unknown): World | undefined {
     bubbleB,
     rawBall,
     rawPace,
+    rawBarriers,
   ] = raw;
   if (
     version !== VERSION ||
@@ -296,8 +335,9 @@ export function decodeWorld(raw: unknown): World | undefined {
     b = decodeRider(riderB, 1, map),
     bubble0 = decodeBubble(bubbleA),
     bubble1 = decodeBubble(bubbleB),
-    ball = decodeBall(rawBall, map);
-  if (!a || !b || !bubble0 || !bubble1 || !ball) return;
+    ball = decodeBall(rawBall, map),
+    barriers = decodeBarriers(rawBarriers, map);
+  if (!a || !b || !bubble0 || !bubble1 || !ball || !barriers) return;
   const world: World = {
     mapId,
     step,
@@ -313,6 +353,7 @@ export function decodeWorld(raw: unknown): World | undefined {
     riders: [a, b],
     bubbles: [bubble0, bubble1],
     ball,
+    barriers,
   };
   return consistent(world) ? world : undefined;
 }

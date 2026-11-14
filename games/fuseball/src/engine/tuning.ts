@@ -115,6 +115,16 @@ export const BUMP = 8704;
 export const PIN_SLACK = SUB / 2,
   SQUIRT = 5120;
 
+/**
+ * Gadgets. A force field throws the ball back at `FIELD_KICK` at least, and after a strike the next one counts only
+ * `FIELD_COOL_STEPS` later (half a second). A gate opens for `GATE_OPEN_STEPS` (three seconds) when the ball
+ * strikes it at `GATE_KNOCK` or faster: a dropped or lifted ball does, a rolling one does not.
+ */
+export const FIELD_KICK = 8704,
+  FIELD_COOL_STEPS = 60,
+  GATE_KNOCK = 3072,
+  GATE_OPEN_STEPS = 360;
+
 /** Cosmetic counters wrap here, so they stay small integers for ever. */
 export const COUNTER = 0x10000;
 /** The last step a world may reach: 207 days of play. */

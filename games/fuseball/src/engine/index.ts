@@ -17,6 +17,9 @@ export {
   type Rect,
   type Circle,
   type Pt,
+  type Barrier,
+  type Bumper,
+  type Portal,
 } from "./maps.js";
 export { stepWorld, stepsPerTick, paceTick, slowed, winnerOf } from "./step.js";
 export { botInput } from "./bot.js";
@@ -26,6 +29,7 @@ export {
   type RiderView,
   type BubbleView,
   type BallView,
+  type BarrierView,
 } from "./view.js";
 export { encodeWorld, decodeWorld, riderId } from "./codec.js";
 export {
@@ -35,6 +39,10 @@ export {
   STEPS_PER_TICK,
   COUNTDOWN_STEPS,
   ZAP_STEPS,
+  FIELD_KICK,
+  FIELD_COOL_STEPS,
+  GATE_KNOCK,
+  GATE_OPEN_STEPS,
   ZAP_SPEED,
   GOAL_FREEZE_STEPS,
   GOAL_STEPS,
@@ -48,3 +56,4 @@ export {
   SLOW_HOLD_TICKS,
   TICKS_PER_SECOND,
 } from "./tuning.js";
+export { freshBarriers, barrierUp, type BarrierState } from "./gadgets.js";

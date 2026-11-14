@@ -63,7 +63,7 @@ const sorted = (circles: readonly Circle[]) =>
     .map(({ x, y, r }) => ({ x, y, r }))
     .sort((a, b) => a.x - b.x || a.y - b.y);
 
-test("there are seven maps, each with its own id and name, and a new one is only ever added at the end", () => {
+test("every map has its own id and name, and a new one is only ever added at the end", () => {
   // A checkpoint carries the map as its place in this list, so the order is part of the wire format.
   assert.deepEqual(
     [...MAP_IDS],
@@ -75,13 +75,14 @@ test("there are seven maps, each with its own id and name, and a new one is only
       "firewall",
       "cornercase",
       "coredump",
+      "bruteforce",
     ],
   );
   for (const id of MAP_IDS) {
     assert.equal(MAPS[id].id, id);
     assert.ok(isMapId(id));
   }
-  assert.equal(new Set(maps.map((map) => map.name)).size, 7);
+  assert.equal(new Set(maps.map((map) => map.name)).size, MAP_IDS.length);
   assert.ok(!isMapId("arena"));
   assert.ok(!isMapId(0));
 });

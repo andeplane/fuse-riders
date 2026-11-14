@@ -1,4 +1,5 @@
 import { apart, inShape, resolveSolids, settle } from "./collide.js";
+import { meetGadgets, type BarrierState } from "./gadgets.js";
 import { BTN, DOWN, LEFT, RIGHT } from "./input.js";
 import { SUB, abs, clamp, delta, div, isqrt } from "./math.js";
 import { boxesOf, isCircle, mapOf, type Box, type MapDef } from "./maps.js";
@@ -92,11 +93,15 @@ interface Flight {
   into: -1 | Slot;
 }
 
-/** One micro-step of a ball nobody touches: gravity and the solids, as `step.ts` moves it. */
+/**
+ * One micro-step of a ball nobody touches: gravity, the solids and the gadgets, as `step.ts` moves it. `barriers`
+ * is the flight's own copy of the fields and gates, which it wears down and opens as the real ones would be.
+ */
 function drift(
   ball: { x: number; y: number; vx: number; vy: number },
   boxes: readonly Box[],
   map: MapDef,
+  barriers: BarrierState[],
 ): void {
   ball.vy += T.BALL_GRAVITY;
   ball.vx = clamp(ball.vx, -T.BALL_MAX, T.BALL_MAX);
@@ -115,6 +120,7 @@ function drift(
     ball.vx -= div(ball.vx, T.BALL_SCRUB);
     ball.vy -= div(ball.vy, T.BALL_SCRUB);
   }
+  meetGadgets(map, barriers, ball);
   settle(ball, T.BALL_R, map);
 }
 
@@ -131,10 +137,11 @@ function flight(
   rider?: Rider,
 ): Flight {
   const boxes = boxesOf(world.mapId);
-  const ball = { x: from.x, y: from.y, vx: from.vx, vy: from.vy };
+  const ball = { x: from.x, y: from.y, vx: from.vx, vy: from.vy },
+    barriers = world.barriers.map((barrier) => ({ ...barrier }));
   let meet: { x: number; y: number } | undefined;
   for (let step = 1; step <= steps; step++) {
-    drift(ball, boxes, map);
+    drift(ball, boxes, map, barriers);
     const goal = map.goals.find((each) => inShape(ball.x, ball.y, each, map));
     if (goal) return { ...(meet ?? ball), into: goal.team };
     if (rider && !meet && step % STRIDE === 0) {

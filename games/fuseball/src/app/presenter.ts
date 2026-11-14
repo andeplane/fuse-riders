@@ -29,6 +29,7 @@ export const MAP_BLURBS: Readonly<Record<MapId, string>> = {
   firewall: "No floor at all. The goals hide behind two short walls.",
   cornercase: "Wraps top to bottom. The goals are the corner pockets.",
   coredump: "Wraps top to bottom. Both goals are pits in the middle.",
+  bruteforce: "A force field guards each goal. Three hits break it.",
 };
 
 export interface Side {
