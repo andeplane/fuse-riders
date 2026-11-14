@@ -122,7 +122,8 @@ export function meetGadgets(
   }
 
   // A ball flying into a portal comes out of the pair's other end; one flying out of an end is left alone, so
-  // what has just come through goes on its way. One portal a step.
+  // what has just come through goes on its way. The trip costs it half its speed: a portal that lifts the ball
+  // gives it height for nothing, and without a price a ball could go round and round for ever. One portal a step.
   portals: for (const portal of map.portals)
     for (const [from, to] of [
       [portal.a, portal.b],
@@ -134,6 +135,8 @@ export function meetGadgets(
       if (ball.vx * dx + ball.vy * dy >= 0) continue;
       ball.x = to.x * SUB;
       ball.y = to.y * SUB;
+      ball.vx = div(ball.vx * T.PORTAL_KEEP_NUM, T.PORTAL_KEEP_DEN);
+      ball.vy = div(ball.vy * T.PORTAL_KEEP_NUM, T.PORTAL_KEEP_DEN);
       struck++;
       break portals;
     }

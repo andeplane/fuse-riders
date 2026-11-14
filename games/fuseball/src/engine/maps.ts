@@ -41,6 +41,7 @@ export const MAP_IDS = [
   "coredump",
   "bruteforce",
   "bouncerate",
+  "portforward",
 ] as const;
 export type MapId = (typeof MAP_IDS)[number];
 export const isMapId = (value: unknown): value is MapId =>
@@ -60,7 +61,7 @@ export type Barrier = Rect &
 /** A round bumper fixed in place: it throws the ball away from its centre, like a bubble that never pops. */
 export type Bumper = Circle;
 /**
- * A pair of portals of radius `r`: a ball flying into either end comes out of the other, at the same speed. `hue`
+ * A pair of portals of radius `r`: a ball flying into either end comes out of the other, at half its speed. `hue`
  * picks which of the two portal colours the pair wears.
  */
 export interface Portal {
@@ -424,6 +425,49 @@ const bouncerate: MapDef = arena({
   ],
 });
 
+/**
+ * Port Forward is a closed box with two pits in its floor, each under a roof of its own; a rider's pit is the far
+ * one. Low in each corner is a portal whose other end hangs high over the far side: a ball knocked back into a
+ * rider's own corner comes out above the roof of the pit it scores in. Only the ball goes through.
+ */
+const portforward: MapDef = arena({
+  id: "portforward",
+  name: "Port Forward",
+  wrapX: false,
+  wrapY: false,
+  solids: [
+    rect(0, 0, 640, 12),
+    rect(0, 12, 12, 348),
+    rect(628, 12, 12, 348),
+    rect(12, 340, 88, 20),
+    rect(160, 340, 320, 20),
+    rect(540, 340, 88, 20),
+    // The pits have a bottom, so a rider who drops into one stands in it and can jump out.
+    rect(100, 356, 60, 4),
+    rect(480, 356, 60, 4),
+    rect(90, 262, 80, 10),
+    rect(470, 262, 80, 10),
+    rect(270, 180, 100, 10),
+  ],
+  goals: [
+    { team: 0, ...rect(480, 340, 60, 16) },
+    { team: 1, ...rect(100, 340, 60, 16) },
+  ],
+  clouds: [
+    { x: 130, y: 306, r: 36 },
+    { x: 510, y: 306, r: 36 },
+  ],
+  spawns: [
+    { x: 220, y: 331 },
+    { x: 420, y: 331 },
+  ],
+  ballAnchor: { x: 320, y: 140 },
+  portals: [
+    { hue: 0, r: 14, a: { x: 36, y: 326 }, b: { x: 530, y: 90 } },
+    { hue: 1, r: 14, a: { x: 604, y: 326 }, b: { x: 110, y: 90 } },
+  ],
+});
+
 export const MAPS: Readonly<Record<MapId, MapDef>> = {
   gridlock,
   downlink,
@@ -434,6 +478,7 @@ export const MAPS: Readonly<Record<MapId, MapDef>> = {
   coredump,
   bruteforce,
   bouncerate,
+  portforward,
 };
 export const mapOf = (id: MapId): MapDef => MAPS[id];
 

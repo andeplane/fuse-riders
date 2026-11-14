@@ -86,8 +86,8 @@ test("the bot seldom scores for the other colour: against a rider who stays home
       const shove = scripted(7919 + MAP_IDS.indexOf(mapId) * 2 + slot);
       const { world, seconds } =
         slot === 0
-          ? match(mapId, botInput, idle, 240, shove)
-          : match(mapId, idle, botInput, 240, shove);
+          ? match(mapId, botInput, idle, 300, shove)
+          : match(mapId, idle, botInput, 300, shove);
       assert.equal(world.phase, "over", `${mapId}: finished in ${seconds}s`);
       assert.equal(world.score[slot], 3, `${mapId}: slot ${slot}'s bot won`);
       assert.equal(
@@ -102,8 +102,10 @@ test("the bot seldom scores for the other colour: against a rider who stays home
 });
 
 test("two bots finish a match on every map, and neither side of the arena is the bot's favourite for ever", () => {
+  // Two riders who both look before they touch give little away, and every point now ends in six seconds of
+  // freeze and slow zap: a match of theirs runs to four or five minutes on the arenas with gadgets.
   for (const mapId of MAP_IDS) {
-    const { world, seconds, points } = match(mapId, botInput, botInput, 300);
+    const { world, seconds, points } = match(mapId, botInput, botInput, 480);
     assert.equal(world.phase, "over", `${mapId}: finished in ${seconds}s`);
     assert.ok(points.length >= 3);
   }

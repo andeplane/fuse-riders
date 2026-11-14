@@ -394,3 +394,72 @@ test("on Bounce Rate a straight shot at a goal comes back off its guard, and one
     assert.equal(over.lastScorer, team);
   }
 });
+
+// ---- portals ----
+
+test("a ball flying into a portal comes out of the pair's other end at half its speed, either way round", () => {
+  for (const portal of MAPS.portforward.portals)
+    for (const [from, to] of [
+      [portal.a, portal.b],
+      [portal.b, portal.a],
+    ] as const) {
+      const world = empty("portforward");
+      // Dropped in from just above the rim.
+      ballAt(world, from.x, from.y - portal.r - 2, 0, 2);
+      const before = world.ball.bounces;
+      until(world, () => world.ball.bounces !== before, new Map(), 20);
+      assert.deepEqual(
+        [at(world.ball.x), at(world.ball.y)],
+        [to.x, to.y],
+        "at the other end's centre",
+      );
+      assert.equal(world.ball.vx, 0);
+      assert.ok(world.ball.vy > 0 && world.ball.vy <= SUB + 200, "and slower");
+      // It goes on its way out of that end without being sent back.
+      stepWorld(world, new Map());
+      stepWorld(world, new Map());
+      assert.ok(Math.abs(at(world.ball.x) - to.x) < 1);
+      assert.ok(at(world.ball.y) > to.y);
+      assert.equal(world.phase, "play");
+    }
+});
+
+test("a ball rolled into its corner on Port Forward comes out high on the far side and lands on the roof there", () => {
+  for (const team of [0, 1] as const) {
+    const world = empty("portforward"),
+      side = team === 0 ? -1 : 1,
+      roof = MAPS.portforward.solids[team === 0 ? 9 : 8]!;
+    // Rolling along the floor into the corner on this rider's own side.
+    ballAt(world, 320 + side * 240, 332, side * 0.75, 0);
+    let warped = false,
+      landed = false;
+    for (let step = 0; step < 400; step++) {
+      const before = world.ball.x;
+      stepWorld(world, new Map());
+      if (Math.abs(world.ball.x - before) > 100 * SUB) warped = true;
+      if (
+        warped &&
+        at(world.ball.x) > roof.x &&
+        at(world.ball.x) < roof.x + roof.w &&
+        at(world.ball.y) === roof.y - BALL
+      )
+        landed = true;
+    }
+    assert.ok(warped, "it went through");
+    assert.ok(landed, "and came down on the far roof");
+    assert.equal(world.phase, "play");
+    assert.ok((at(world.ball.x) - 320) * side < 0, "it stays on the far side");
+  }
+});
+
+test("a rider flies through a portal and stays where it is: only the ball is carried", () => {
+  const world = playing("portforward"),
+    portal = MAPS.portforward.portals[0]!;
+  world.riders[1].zapped = true;
+  ballAt(world, 320, 100);
+  place(world, 0, portal.b.x - 40, portal.b.y);
+  world.riders[0].vx = 3 * SUB;
+  steps(world, 20, held(RIGHT));
+  assert.ok(at(world.riders[0].x) > portal.b.x, "through it");
+  assert.ok(at(world.riders[0].x) < portal.b.x + 60, "and still on this side");
+});

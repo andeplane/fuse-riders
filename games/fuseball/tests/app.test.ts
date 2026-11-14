@@ -113,6 +113,7 @@ test("the lobby: the host picks the arena, adds a bot and starts; a guest waits;
       ["coredump", "Core Dump", false],
       ["bruteforce", "Brute Force", false],
       ["bouncerate", "Bounce Rate", false],
+      ["portforward", "Port Forward", false],
     ],
   );
   assert.equal(two.lobby.maps[2]!.blurb, MAP_BLURBS.halo);

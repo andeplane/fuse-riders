@@ -123,7 +123,10 @@ export const PIN_SLACK = SUB / 2,
 export const FIELD_KICK = 8704,
   FIELD_COOL_STEPS = 60,
   GATE_KNOCK = 3072,
-  GATE_OPEN_STEPS = 360;
+  GATE_OPEN_STEPS = 360,
+  /** What a ball keeps of its speed through a portal. */
+  PORTAL_KEEP_NUM = 1,
+  PORTAL_KEEP_DEN = 2;
 
 /** Cosmetic counters wrap here, so they stay small integers for ever. */
 export const COUNTER = 0x10000;
