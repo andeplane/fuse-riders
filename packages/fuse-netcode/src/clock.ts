@@ -1,6 +1,14 @@
 export const TICK_MS = 50;
 export const SAMPLE_WINDOW_MS = 2000;
 export const SLEW_TICKS_PER_SECOND = 1;
+/**
+ * Below the cap the slew is proportional to the error, closing it with this time constant. A jittery link moves the
+ * best sample by a few milliseconds every time the window turns over, and correcting each of those at the full rate
+ * made a follower's game run visibly fast and slow (up to 5%) for a fraction of a second.
+ */
+export const SLEW_SETTLE_MS = 2000;
+/** The slowest slew, in milliseconds of game time per second, so a small error closes in finite time. */
+export const SLEW_FLOOR_MS_PER_SECOND = 1;
 /** An offset this far out means the local clock was never close: snap instead of slewing for minutes. */
 export const SNAP_TICKS = 200;
 interface Sample {
@@ -13,7 +21,7 @@ interface Sample {
  * Fractional log time from an injected monotonic clock: `tick = base + (now − t0) / TICK_MS` plus a slewed offset. It
  * has one rate: a game that runs faster runs more simulation steps per tick (`driveGameTick`), not a faster clock.
  * The time authority starts it and never adjusts it; followers feed lowest-RTT samples and slew at most one tick per
- * second. It never steps backwards, and a follower with no fresh sample free-runs rather than pausing.
+ * second, and more gently the closer they already are. It never steps backwards, and a follower with no fresh sample free-runs rather than pausing.
  */
 export class TickClock {
   private t0?: number;
@@ -45,8 +53,14 @@ export class TickClock {
     if (this.t0 === undefined) return 0;
     const now = this.pausedAt ?? this.now();
     if (this.offset !== this.target) {
-      const budget =
-        (Math.max(0, now - this.lastAdjust) / 1000) * SLEW_TICKS_PER_SECOND;
+      const rate = Math.min(
+          SLEW_TICKS_PER_SECOND,
+          Math.max(
+            SLEW_FLOOR_MS_PER_SECOND / TICK_MS,
+            (Math.abs(this.target - this.offset) * 1000) / SLEW_SETTLE_MS,
+          ),
+        ),
+        budget = (Math.max(0, now - this.lastAdjust) / 1000) * rate;
       this.offset += Math.max(
         -budget,
         Math.min(budget, this.target - this.offset),

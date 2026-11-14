@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SAMPLE_WINDOW_MS, SNAP_TICKS, TICK_MS, TickClock } from "fuse-netcode";
+import {
+  SAMPLE_WINDOW_MS,
+  SLEW_SETTLE_MS,
+  SNAP_TICKS,
+  TICK_MS,
+  TickClock,
+} from "fuse-netcode";
 
 function fixture() {
   let now = 1000;
@@ -134,4 +140,33 @@ test("the clock has one rate: a tick per TICK_MS, and half a round trip is that 
   const g = fixture();
   g.clock.sample(500, 100);
   assert.equal(g.clock.tick(), 500 + 50 / TICK_MS);
+});
+
+test("a small correction is slewed gently so a jittery link does not change a follower's pace", () => {
+  const f = fixture();
+  f.clock.sample(100, 0);
+  // The best sample moves by 10 ms (0.2 ticks), as it does whenever a jittery window turns over.
+  f.advance(SAMPLE_WINDOW_MS + 1);
+  f.clock.sample(f.clock.tick() + 0.2, 0);
+  let previous = f.clock.tick(),
+    fastest = 0;
+  for (let step = 0; step < 1500; step++) {
+    f.advance(10);
+    const tick = f.clock.tick();
+    fastest = Math.max(fastest, ((tick - previous) * TICK_MS) / 10);
+    previous = tick;
+  }
+  assert.ok(
+    fastest <= 1 + (0.2 * TICK_MS) / SLEW_SETTLE_MS + 1e-9,
+    `ran at most half a percent fast: ${fastest}`,
+  );
+  assert.ok(
+    Math.abs(f.clock.diagnostics().offset - 0.2) < 1e-9,
+    `and still closed the whole error: ${f.clock.diagnostics().offset}`,
+  );
+  // A large error is still corrected at the full rate, so a follower that starts far out converges as before.
+  f.clock.sample(f.clock.tick() + 20, 0);
+  const before = f.clock.tick();
+  f.advance(1000);
+  assert.ok(Math.abs(f.clock.tick() - before - 21) < 1e-9);
 });
