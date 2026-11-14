@@ -12,6 +12,7 @@ import {
   elastoFuseGame,
   encode,
   firstStepBits,
+  stepBits,
   hash,
   isEntry,
   levelsOf,
@@ -65,6 +66,10 @@ test("entries: play names a match and carries six held bits; management uses the
   assert.ok(isEntry([1, 1, PLAY, "m1", GAS | TURN]));
   assert.ok(isEntry([1, 1, PLAY, "m1", 63]));
   assert.ok(!isEntry([1, 1, PLAY, "m1", 64]));
+  assert.ok(isEntry([1, 1, PLAY, "m1", GAS, 3]), "from a step of the tick");
+  assert.ok(!isEntry([1, 1, PLAY, "m1", GAS, 4]));
+  assert.ok(!isEntry([1, 1, PLAY, "m1", GAS, 1.5]));
+  assert.ok(!isEntry([1, 1, PLAY, "m1", GAS, 0, 0]));
   assert.ok(!isEntry([1, 1, PLAY, "", GAS]));
   assert.ok(!isEntry([0, 1, PLAY, "m1", GAS]));
   assert.ok(isEntry([1, 1, JOIN, "a", "Ada", 0, "robot", 1]));
@@ -82,6 +87,46 @@ test("the first step of a tick sees a tap, and sees a bit let go and pressed aga
     firstStepBits(GAS | TURN, [GAS, GAS | TURN], GAS | TURN),
     GAS,
     "released and pressed again: up for the first step, so it goes down on the second",
+  );
+});
+
+test("each step of a tick sees what was held on it: a key acts on the step it went down", () => {
+  assert.deepEqual(stepBits(GAS, []), [GAS, GAS, GAS, GAS]);
+  assert.deepEqual(stepBits(0, [[GAS, 2]]), [0, 0, GAS, GAS]);
+  assert.deepEqual(
+    stepBits(0, [
+      [TURN, 1],
+      [0, 1],
+    ]),
+    [0, TURN, 0, 0],
+    "a tap",
+  );
+  assert.deepEqual(
+    stepBits(0, [
+      [GAS, 3],
+      [0, 1],
+    ]),
+    [0, 0, 0, GAS],
+    "in order",
+  );
+  assert.deepEqual(
+    stepBits(GAS, [
+      [0, 0],
+      [GAS, 3],
+    ]),
+    [0, 0, 0, GAS],
+  );
+  // A press on a later step moves the bike later than the same press on the tick's first.
+  const early = started(single),
+    late = started(single);
+  for (const room of [early, late])
+    while (room.world!.phase === "countdown") fold(room);
+  fold(early, { a: [[PLAY, early.matchId, GAS, 0]] });
+  fold(late, { a: [[PLAY, late.matchId, GAS, 3]] });
+  assert.equal(late.held["a"], GAS);
+  assert.notDeepEqual(
+    late.world!.riders[0]!.bike,
+    early.world!.riders[0]!.bike,
   );
 });
 

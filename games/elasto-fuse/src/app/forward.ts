@@ -21,8 +21,8 @@ import type { Room } from "../online/game.js";
  * moves the bikes every frame.
  */
 export interface ForwardInputs {
-  /** What the rider in `slot` is taken to hold: its last logged bits, or this device's own, live. */
-  held(world: World, slot: number): number;
+  /** What the rider in `slot` is taken to hold `step` steps past the folded world: its last logged bits, or this device's own. */
+  held(world: World, slot: number, step?: number): number;
   /** Whether somebody is steering the rider in `slot`: a rider who is away coasts, as in the fold. */
   present(world: World, slot: number): boolean;
 }
@@ -109,12 +109,13 @@ export function forward(
   const whole = Math.floor(steps),
     part = steps - whole;
   const copy = copyWorld(world);
-  const held = world.riders.map((_, slot) => inputs.held(world, slot)),
+  const held = (step: number) =>
+      world.riders.map((_, slot) => inputs.held(world, slot, step)),
     present = world.riders.map((_, slot) => inputs.present(world, slot));
-  for (let i = 0; i < whole; i++) stepWorld(copy, held, present);
+  for (let i = 0; i < whole; i++) stepWorld(copy, held(i), present);
   const a = toView(copy);
   if (part <= 0.001 || copy.phase === "over") return a;
-  stepWorld(copy, held, present);
+  stepWorld(copy, held(whole), present);
   return blendViews(a, toView(copy), part);
 }
 
@@ -137,25 +138,25 @@ export function stepsAhead(
 
 /**
  * The bits the forward run plays for each rider: a seated, connected rider holds what it last logged, and this
- * device's own bike holds what its rider holds right now, logged or not. Riders never touch each other, so leading
- * the local bike with live keys cannot disturb anyone else's picture. Turn, the volts and restart act on the step
- * they go down, which the fold has already played for a logged press; a press not yet logged is played here once
- * and again by the fold, from the same world, so the picture and the room agree.
+ * device's own bike holds, step by step, what this device has logged for the steps the room has not folded yet
+ * (`live` as a function of the step) — the same bits on the same steps the fold will play, so the picture is the
+ * bike the room is about to compute and nothing snaps back when it does.
  */
 export function forwardInputs(
   room: Room,
   me: string,
-  live: number,
+  live: number | ((step: number) => number),
 ): ForwardInputs {
   const seated = (world: World, slot: number) => {
     const seat = room.seats.get(world.riders[slot]?.id ?? "");
     return seat && !seat.bot && seat.connected ? seat : undefined;
   };
   return {
-    held(world, slot) {
+    held(world, slot, step = 0) {
       const seat = seated(world, slot);
       if (!seat) return 0;
-      return seat.id === me ? live : (room.held[seat.id] ?? 0);
+      if (seat.id !== me) return room.held[seat.id] ?? 0;
+      return typeof live === "number" ? live : live(step);
     },
     present: (world, slot) => seated(world, slot) !== undefined,
   };

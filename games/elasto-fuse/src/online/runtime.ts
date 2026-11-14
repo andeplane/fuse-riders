@@ -1,5 +1,5 @@
 import { RoomRuntime, type Callbacks, type RuntimeOptions } from "fuse-netcode";
-import { INPUT_MASK } from "../engine/index.js";
+import { INPUT_MASK, STEPS_PER_TICK } from "../engine/index.js";
 import {
   PLAY,
   elastoFuseGame,
@@ -29,6 +29,8 @@ export class ElastoFuseRuntime extends RoomRuntime<
 > {
   private bits = 0;
   private sent = { matchId: "", bits: 0 };
+  /** What this device logged lately and the room may not have folded yet: the step each took hold on, oldest first. */
+  private logged: { tick: number; step: number; bits: number }[] = [];
   constructor(
     code: string,
     settings: Settings,
@@ -56,8 +58,42 @@ export class ElastoFuseRuntime extends RoomRuntime<
     if (this.sent.matchId === room.matchId && this.sent.bits === this.bits)
       return;
     this.sent = { matchId: room.matchId, bits: this.bits };
-    this.append(PLAY, room.matchId, this.bits);
+    // The key acts on the step the clock is in, not at the next tick: the stamp is the tick being played now, and
+    // the step is how far into it the clock has run.
+    const clock = this.clock.tick(),
+      tick = this.recorder.next(),
+      last = this.logged[this.logged.length - 1];
+    let step =
+      tick === Math.floor(clock) + 1
+        ? Math.min(
+            STEPS_PER_TICK - 1,
+            Math.floor((clock - Math.floor(clock)) * STEPS_PER_TICK),
+          )
+        : 0;
+    if (last?.tick === tick) step = Math.max(step, last.step);
+    this.logged = this.logged.filter((entry) => entry.tick > room.tick);
+    this.logged.push({ tick, step, bits: this.bits });
+    this.recorder.at(tick, [PLAY, room.matchId, this.bits, step]);
     this.sendPackets(this.deps.now());
+  }
+  /**
+   * The bits this device's bike has `steps` steps past the newest folded room: what the fold will play there, from
+   * the entries logged and not folded yet, and what the room holds before them. The forward run draws with these, so
+   * the picture is the bike the room is about to compute.
+   */
+  heldAhead(steps: number): number {
+    const room = this.world?.state;
+    if (!room) return 0;
+    const tick = room.tick + 1 + Math.floor(steps / STEPS_PER_TICK),
+      step = steps % STEPS_PER_TICK;
+    let bits = room.held[this.id] ?? 0;
+    for (const entry of this.logged) {
+      if (entry.tick <= room.tick) continue;
+      if (entry.tick > tick || (entry.tick === tick && entry.step > step))
+        break;
+      bits = entry.bits;
+    }
+    return bits;
   }
   /** The newest simulated room, for reports, the forward run and tests. */
   roomState(): Room | undefined {
@@ -74,6 +110,7 @@ export class ElastoFuseRuntime extends RoomRuntime<
   /** The log was reset (a resync): forget what was logged, not what is held, so `flush` logs the keys still down. */
   protected resetControls(): void {
     this.sent = { matchId: "", bits: 0 };
+    this.logged = [];
   }
   protected releaseControls(): void {
     this.input(0);

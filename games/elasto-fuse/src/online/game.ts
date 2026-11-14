@@ -80,13 +80,17 @@ export const levelsOf = (settings: Settings): number[] =>
     : [settings.level];
 
 export const PLAY = 0;
-/** A seat's held control bits from this tick on, for the match it names. A new race keeps what is held. */
+/**
+ * A seat's held control bits, for the match it names, from step `step` of this tick on (its first when absent): a
+ * key acts on the step it went down, not on the next tick. A new race keeps what is held.
+ */
 export type PlayEntry = [
   seq: number,
   tick: number,
   kind: typeof PLAY,
   matchId: string,
   bits: number,
+  step?: number,
 ];
 export type Entry = ManagementEntry<Settings> | PlayEntry;
 
@@ -200,7 +204,11 @@ export function isEntry(raw: unknown): raw is Entry {
   }
   return (
     Array.isArray(raw) &&
-    raw.length === 5 &&
+    (raw.length === 5 ||
+      (raw.length === 6 &&
+        Number.isInteger(raw[5]) &&
+        raw[5] >= 0 &&
+        raw[5] < STEPS_PER_TICK)) &&
     uint32(raw[0]) &&
     raw[0] > 0 &&
     uint32(raw[1]) &&
@@ -340,6 +348,33 @@ export function firstStepBits(
   return (held | tapped) & ~(released & before & held);
 }
 
+/**
+ * What each step of a tick sees, given what was held before the tick and every state the seat logged in it, in the
+ * order written, each with the step it took hold on. A state never takes hold before one written ahead of it.
+ */
+export function stepBits(
+  before: number,
+  entries: readonly (readonly [bits: number, step: number])[],
+): number[] {
+  const out: number[] = [];
+  let current = before,
+    next = 0,
+    floor = 0;
+  for (let step = 0; step < STEPS_PER_TICK; step++) {
+    const states: number[] = [];
+    while (next < entries.length) {
+      const at = Math.max(floor, entries[next]![1]);
+      if (at > step) break;
+      floor = at;
+      states.push(entries[next++]![0]);
+    }
+    const held = states[states.length - 1] ?? current;
+    out.push(firstStepBits(current, states, held));
+    current = held;
+  }
+  return out;
+}
+
 export const MAX_STEPS_PER_TICK = STEPS_PER_TICK;
 export const steps = (_room: Room): number => STEPS_PER_TICK;
 
@@ -420,30 +455,31 @@ export function foldTick(
       beginRace(room);
     }
   } else if (room.stage === "running" && world) {
-    const held = world.riders.map(() => 0),
-      first = world.riders.map(() => 0),
+    const bySteps = Array.from({ length: STEPS_PER_TICK }, () =>
+        world.riders.map(() => 0),
+      ),
       present = world.riders.map(() => false);
     for (const [slot, rider] of world.riders.entries()) {
       const seat = room.seats.get(rider.id);
       const before = room.held[rider.id] ?? 0;
       let bits = 0;
-      const states: number[] = [];
+      const states: [number, number][] = [];
       // A bot's seat rides nothing: its bike coasts and the race does not wait for it.
       if (seat && !seat.bot && seat.connected) {
         present[slot] = true;
         bits = before;
         for (const entry of playEntries(room, seat, streams, tick)) {
           bits = entry[4] & INPUT_MASK;
-          states.push(bits);
+          states.push([bits, entry[5] ?? 0]);
         }
+        for (const [step, at] of stepBits(before, states).entries())
+          bySteps[step]![slot] = at;
       }
       if (bits) room.held[rider.id] = bits;
       else delete room.held[rider.id];
-      held[slot] = bits;
-      first[slot] = firstStepBits(before, states, bits);
     }
     for (let step = 0; step < STEPS_PER_TICK; step++)
-      stepWorld(world, step === 0 ? first : held, present);
+      stepWorld(world, bySteps[step]!, present);
     if (world.phase === "over")
       closeRace(room, world, room.simulationTick + STEPS_PER_TICK);
   }

@@ -5,10 +5,13 @@ import {
   BRAKE,
   GAS,
   RESTART,
+  STEPS_PER_TICK,
   TURN,
   VOLT_LEFT,
   VOLT_RIGHT,
+  toView,
 } from "../src/engine/index.js";
+import { forward, forwardInputs } from "../src/app/forward.js";
 import { DEFAULT_SETTINGS, hash, type Settings } from "../src/online/game.js";
 import { ElastoFuseRuntime, heldBits } from "../src/online/runtime.js";
 import { Mesh, type TestRuntime } from "./fixtures/mesh.js";
@@ -168,4 +171,61 @@ test("a device that joins mid-race recovers the world from a peer and watches on
     undefined,
     "a watcher steers nobody",
   );
+});
+
+test("a key acts on the step it goes down, and the picture drawn ahead is the bike the room then computes", () => {
+  let now = 0,
+    pass: (() => void) | undefined;
+  const dependencies: RuntimeDependencies = {
+    now: () => now,
+    hidden: () => false,
+    token: () => "match",
+    generation: () => 1,
+    schedule: (callback) => {
+      pass = callback;
+      return () => {};
+    },
+    onVisibilityChange: () => () => {},
+  };
+  const runtime = new ElastoFuseRuntime(
+    "SOLO",
+    { display: false, level: 0 },
+    { state: () => {}, event: () => {}, status: () => {}, ready: () => {} },
+    { humanName: "Ada", humanAvatar: "fox", dependencies },
+  );
+  runtime.start();
+  const wait = (ms: number) => {
+    for (let t = 0; t < ms; t += 5) {
+      now += 5;
+      pass?.();
+    }
+  };
+  while (runtime.roomState()!.world!.phase === "countdown") wait(50);
+  // Onto a tick boundary, then most of the way through the tick: the key goes down on its third step.
+  const tick = runtime.roomState()!.tick;
+  while (runtime.roomState()!.tick === tick) wait(5);
+  wait(30);
+  const before = runtime.roomState()!.tick;
+  const drawn = (steps: number, own: (step: number) => number) =>
+    forward(
+      runtime.roomState()!.world!,
+      steps,
+      forwardInputs(runtime.roomState()!, "solo", own),
+    );
+  const logged = (step: number) => runtime.heldAhead(step);
+  const idle = drawn(STEPS_PER_TICK, () => 0);
+  runtime.input(GAS);
+  assert.equal(runtime.heldAhead(0), 0, "not before it was pressed");
+  assert.equal(runtime.heldAhead(1), 0);
+  assert.equal(runtime.heldAhead(2), GAS, "from the step it went down");
+  assert.equal(runtime.heldAhead(STEPS_PER_TICK + 1), GAS);
+  assert.deepEqual(
+    drawn(2, logged),
+    drawn(2, () => 0),
+  );
+  const ahead = drawn(STEPS_PER_TICK, logged);
+  assert.notDeepEqual(ahead, idle);
+  while (runtime.roomState()!.tick === before) wait(5);
+  assert.deepEqual(toView(runtime.roomState()!.world!), ahead);
+  runtime.stop();
 });

@@ -570,7 +570,7 @@ function room(solo: boolean): void {
       view = forward(
         state.world,
         ahead,
-        forwardInputs(state, viewer.me, runtime.heldNow),
+        forwardInputs(state, viewer.me, (step) => runtime.heldAhead(step)),
       );
     } else {
       const older = timing.older?.world;
