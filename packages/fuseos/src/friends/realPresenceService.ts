@@ -76,13 +76,27 @@ export function apiUrlFor(
   };
 }
 
-/** The four desktop states from what the view says: in a room is playing; "away" is not reported yet. */
+/**
+ * Whether the service says this friend is away. `away` is one of the presence fields the room service adds
+ * beside `online` and `room` (docs/fuseos/friends-design.md); a service without them never sends it, so the
+ * field is looked for rather than assumed, and the buddy list works against either.
+ */
+function reportsAway(friend: object): boolean {
+  return "away" in friend && friend.away === true;
+}
+
+/** The four desktop states from what the view says: in a room is playing, away only when the service reports it. */
 export function buddyFrom(friend: FriendsView["friends"][number]): Buddy {
+  const present = friend.room
+    ? "playing"
+    : reportsAway(friend)
+      ? "away"
+      : "online";
   return {
     publicId: friend.publicId,
     name: friend.name,
     ...(friend.avatarId ? { avatarId: friend.avatarId } : {}),
-    status: friend.online ? (friend.room ? "playing" : "online") : "offline",
+    status: friend.online ? present : "offline",
     ...(friend.online && friend.room
       ? { room: { code: friend.room.code, gameId: friend.room.gameId } }
       : {}),

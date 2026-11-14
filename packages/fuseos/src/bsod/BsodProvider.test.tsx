@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 
 import {
   createTestGames,
@@ -11,12 +12,22 @@ import { FuseGamesContext } from "../fusegames/registry";
 import { useBsod } from "./bsodContext";
 import { BsodProvider } from "./BsodProvider";
 
+/** Raises the screen and counts the times it has been dismissed since, as a caller waiting on it sees them. */
 function RunBsod() {
   const { showBsod } = useBsod();
+  const [dismissed, setDismissed] = useState(0);
   return (
-    <button type="button" onClick={showBsod}>
-      Run bsod
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() =>
+          void showBsod().then(() => setDismissed((count) => count + 1))
+        }
+      >
+        Run bsod
+      </button>
+      <output aria-label="Dismissed">{dismissed}</output>
+    </>
   );
 }
 
@@ -143,6 +154,22 @@ describe("BsodProvider", () => {
     await user.click(screen.getByRole("button", { name: "Run bsod" }));
     await user.click(screen.getByRole("alertdialog"));
     expect(bsod()).toBeNull();
+  });
+
+  it("tells whoever raised it when it has gone, every caller of the same screen at once", async () => {
+    const user = userEvent.setup();
+    renderBsod();
+    const dismissed = () => screen.getByLabelText("Dismissed").textContent;
+    const run = screen.getByRole("button", { name: "Run bsod" });
+    // Twice, as a click would: the screen is up once and both callers wait on it.
+    fireEvent.click(run);
+    fireEvent.click(run);
+    expect(bsod()).not.toBeNull();
+    expect(dismissed()).toBe("0");
+    await user.keyboard("x");
+    expect(bsod()).toBeNull();
+    await screen.findByText("2");
+    expect(dismissed()).toBe("2");
   });
 
   it("can be raised again after returning", async () => {
