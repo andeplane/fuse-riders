@@ -112,6 +112,9 @@ jobs:
       # the time; a `full-ci` pull request does too. suite.yml, a dispatch and the local release suite leave
       # this at 1 and check every tick. See games/fuse-riders/tests/fixtures/replay-budget.ts.
       FUSE_REPLAY_STRIDE: ${{ (inputs.release || github.event_name == 'workflow_dispatch') && '1' || '10' }}
+      # The gate leaves the files that take minutes each to the release jobs' runs (SUITE_ONLY in
+      # scripts/lib/test-shards.ts): a shard is never faster than its slowest file.
+      TEST_GATE: ${{ (inputs.release || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')) && '0' || '1' }}
     steps:
       - uses: actions/checkout@v4
         with:
