@@ -8,13 +8,15 @@ import {
   createRoomLayout,
   createRoster,
   button,
+  requestedRoomSlot,
 } from "fuse-ui";
 import QRCode from "qrcode";
 
 /** Presentation of replicated facts. All actions reuse the room's existing controls. */
 export function createMatchShell(actions: {
-  join(name: string): void;
-  addAI(): void;
+  join(name: string, slot?: number): void;
+  addAI(slot?: number): void;
+  playerName?(): string | undefined;
 }) {
   const get = <T extends HTMLElement>(id: string) =>
     document.getElementById(id) as T;
@@ -58,26 +60,30 @@ export function createMatchShell(actions: {
   const inviteHolder = document.createElement("div");
   const players = createRoster();
   const join = createNameEntry({
-    initial: get<HTMLInputElement>("keeper-name").value,
+    initial: actions.playerName?.() ?? "",
     normalize: (value) => value.trim().slice(0, 24),
-    onSubmit: actions.join,
+    onSubmit: (name) => actions.join(name, requestedRoomSlot(join.form)),
   });
   const addAI = button("Add AI");
-  addAI.onclick = actions.addAI;
+  addAI.onclick = () => actions.addAI(requestedRoomSlot(addAI));
   const settingsParts = [...content.children].filter(
     (node) => node.id !== "invitation",
   );
-  createRoomLayout({
+  const roomLayout = createRoomLayout({
+    background: async (host, signal) =>
+      (await import("./attract.js")).createAttract(host, signal),
     element: content as HTMLElement,
     invite: inviteHolder,
     roster: players,
     capacity: 5,
     join: join.form,
+    playerName: actions.playerName,
     addAI,
     settings: settingsParts,
     actions: [get("invitation")],
   });
   let inviteCode = "";
+  lounge.addEventListener("toggle", () => roomLayout.setActive(lounge.open));
   const hud = document.createElement("section");
   hud.id = "match-hud";
   hud.setAttribute("aria-label", "Match scoreboard");
@@ -169,6 +175,7 @@ export function createMatchShell(actions: {
       players.update(
         view.keepers.map((keeper) => ({
           id: keeper.id,
+          slot: keeper.slot,
           name: keeper.name,
           status: keeper.bot ? "AI" : keeper.id === selfId ? "You" : "Ready",
         })),

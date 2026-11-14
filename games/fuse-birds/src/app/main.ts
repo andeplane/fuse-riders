@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -273,7 +274,12 @@ function room(code: string, display: boolean, practice = false): void {
     buttonText: "JOIN BATTLE",
     onSubmit(name) {
       store.set(storageKeys.name, name);
-      runtime.command({ type: "join", name, avatarId: "owl" });
+      runtime.command({
+        type: "join",
+        slot: requestedRoomSlot(nameEntry.form),
+        name,
+        avatarId: "owl",
+      });
     },
   });
   nameEntry.form.hidden = true;
@@ -369,6 +375,9 @@ function room(code: string, display: boolean, practice = false): void {
     document.createTextNode("Shared TV + phone controllers"),
   );
   const roomLayout = createRoomLayout({
+    playerName: () => social.playerName(undefined) ?? undefined,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     element: lobby,
     invite: invite.element,
     roster: members,
@@ -611,7 +620,11 @@ function room(code: string, display: boolean, practice = false): void {
       lobby.hidden = !inLobby;
       board.hidden = inLobby;
       nameEntry.form.hidden = display || seated || !inLobby;
-      roomLayout.update(frame.seats.filter((s) => !s.watcher).length);
+      roomLayout.update(
+        frame.seats.filter((s) => !s.watcher).length,
+        5,
+        frame.seats.filter((s) => !s.watcher).map((s) => s.slot),
+      );
       members.replaceChildren(
         ...frame.seats
           .filter((s) => !s.watcher)
@@ -621,6 +634,7 @@ function room(code: string, display: boolean, practice = false): void {
               `${s.name}${s.id === me ? " · YOU" : ""}${s.connected ? "" : " · away"}`,
             );
             li.style.color = COLORS[s.slot]!;
+            li.dataset.slot = String(s.slot);
             return li;
           }),
       );

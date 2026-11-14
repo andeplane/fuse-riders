@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import { AVATAR_ATLAS } from "fuse-ui/assets";
 import { pilotPosition } from "../render/pilots.js";
@@ -417,7 +418,12 @@ function room(solo: boolean): void {
     buttonText: "JOIN",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name, avatarId: chosenAvatar() });
+      runtime.command({
+        type: "join",
+        slot: requestedRoomSlot(nameEntry.form),
+        name,
+        avatarId: chosenAvatar(),
+      });
     },
   });
   lobbyMain.append(
@@ -425,7 +431,12 @@ function room(solo: boolean): void {
     roster.element,
     addBot,
   );
-  addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
+  addBot.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addBot),
+    });
   start.onclick = () => runtime.command({ type: "action", action: "start" });
   tvLink.onclick = () =>
     window.open(
@@ -636,6 +647,9 @@ function room(solo: boolean): void {
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
   createRoomLayout({
+    playerName: () => social.playerName(undefined) ?? undefined,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     element: lobby,
     roster,
     capacity: 5,
@@ -768,6 +782,7 @@ function room(solo: boolean): void {
     roster.update(
       next.lobby.members.map((member) => ({
         id: member.id,
+        slot: member.slot,
         name: member.you ? `${member.name} (you)` : member.name,
         color: seatColor(member.slot),
         status: member.bot

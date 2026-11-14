@@ -15,7 +15,7 @@ import {
   TERRITORY,
 } from "../engine/index.js";
 import { updateContent } from "./dom-update.js";
-import { createMainMenu, roomLayoutMarkup } from "fuse-ui";
+import { createMainMenu, roomLayoutMarkup, mountAttract } from "fuse-ui";
 import { planNeuronPlacement } from "./neuron-placement.js";
 import { minimapMarkup, minimapCell } from "../render/minimap.js";
 import { battleFocusCell } from "../render/battle-focus.js";
@@ -282,6 +282,8 @@ export function mountFuseCraft(
   let roomError: string | null = null;
   let creatingRoom = false;
   let playerName = dependencies.online?.savedName() ?? "";
+  let roomJoinSlot: number | undefined;
+  let roomBackground: { root: HTMLElement; stop(): void } | undefined;
   let roomQr: { code: string; url: string } | null = null;
   let lightRenderer: LightRenderer | undefined;
   let launchError: string | null = null;
@@ -1281,21 +1283,28 @@ export function mountFuseCraft(
     const capacity = ROOM_MAPS.find((map) => map.id === room.mapId)?.seats ?? 2;
     const ready = players.filter((seat) => seat.connected).length;
     const canStart = room.manager && ready >= 2 && ready <= capacity;
-    const seats = players
-      .map(
-        (seat) =>
-          `<li class="room-seat${seat.connected ? "" : " away"}" style="--team:${TEAM_COLORS[players.indexOf(seat)] ?? "#63cfff"}"><span class="seat-dot"></span><strong>${escape(seat.name)}</strong>${seat.id === room.self ? "<em>you</em>" : ""}${seat.bot ? "<em>bot</em>" : ""}${seat.connected ? "" : "<em>away</em>"}${room.manager && seat.bot && room.stage === "lobby" ? `<button data-action="remove-bot" data-bot-id="${escape(seat.id)}" class="secondary small" aria-label="Remove ${escape(seat.name)}">✕</button>` : ""}</li>`,
-      )
-      .join("");
+    const seatRows = players.map(
+      (seat) =>
+        `<li class="room-seat${seat.connected ? "" : " away"}" style="--team:${TEAM_COLORS[seat.slot] ?? "#63cfff"}"><span class="seat-dot"></span><strong>${escape(seat.name)}</strong>${seat.id === room.self ? "<em>you</em>" : ""}${seat.bot ? "<em>bot</em>" : ""}${seat.connected ? "" : "<em>away</em>"}${room.manager && seat.bot && room.stage === "lobby" ? `<button data-action="remove-bot" data-bot-id="${escape(seat.id)}" class="secondary small" aria-label="Remove ${escape(seat.name)}">✕</button>` : ""}</li>`,
+    );
     const disabled = room.manager && room.stage === "lobby" ? "" : "disabled";
     return (
       header("Versus room", room.code) +
       roomLayoutMarkup({
         occupied: players.length,
+        occupiedSlots: players.map((seat) => seat.slot),
+        slotPlayers: players.map((seat, index) => ({
+          slot: seat.slot,
+          html: seatRows[index]!,
+        })),
+        canJoin: !seated,
+        canAddAI:
+          room.manager && room.stage === "lobby" && players.length < capacity,
+        slotColors: TEAM_COLORS,
         capacity,
         invite: `<div class="fui-invite"><strong class="fui-room-code">${escape(room.code)}</strong>${roomQr?.code === room.code ? `<img class="fui-invite-qr" src="${escape(roomQr.url)}" alt="Scan to join this room">` : ""}<button data-action="copy-room-link">Copy link</button></div>`,
-        players: `<ul class="room-seats fui-roster">${seats}</ul>`,
-        join: `${seated ? "" : `<div class="join-row"><label for="player-name">Your name</label><input id="player-name" data-field="player-name" maxlength="32" autocomplete="nickname" value="${escape(playerName)}" placeholder="Name"><button data-action="join-seat" class="primary">Join</button></div>`}${room.manager && room.stage === "lobby" && players.length < capacity ? '<button data-action="add-bot">Add AI</button>' : ""}`,
+        players: `<ul class="room-seats fui-roster"></ul>`,
+        join: `${seated ? "" : `<div class="join-row"><label for="player-name">Your name</label><input id="player-name" data-field="player-name" maxlength="32" autocomplete="nickname" value="${escape(playerName)}" placeholder="Name"><button data-action="join-seat" class="primary">Join</button></div>`}`,
         settings: `<label for="room-map">Map</label><select id="room-map" data-field="room-map" ${disabled}>${ROOM_MAPS.map((map) => `<option value="${map.id}" ${map.id === room.mapId ? "selected" : ""}>${escape(map.title)} · ${map.seats} players</option>`).join("")}</select><label for="room-strategy">Bot opening</label><select id="room-strategy" data-field="room-strategy" ${disabled}>${openingOptions(room.aiStrategy)}</select><label class="toggle-field"><input type="checkbox" data-field="room-powerups" ${room.powerups ? "checked" : ""} ${disabled}> Random powerups</label>`,
         actions: `<p class="room-status" role="status">${escape(room.stage === "connecting" ? "Connecting to the room…" : players.length > capacity ? `Too many players for this map: it seats ${capacity}. Pick a larger map or ask someone to leave.` : room.status)}</p><button data-action="leave-room">Leave</button>${room.manager ? `<button data-action="start-room" class="primary" ${canStart ? "" : "disabled"}>Start match</button>` : "<span>Waiting for the host to start…</span>"}`,
       })
@@ -1352,11 +1361,23 @@ export function mountFuseCraft(
       return;
     }
     if (screen === "room") {
+      const nameOpen =
+        root.querySelector<HTMLDialogElement>("[data-room-name]")?.open;
+      const backgroundNodes = [
+        ...(roomBackground?.root.querySelectorAll(
+          ":scope > .fui-attract, :scope > .fui-attract-toggle",
+        ) ?? []),
+      ];
+      backgroundNodes.forEach((node) => node.remove());
       const settingsOpen = root.querySelector<HTMLDialogElement>(
         "[data-room-settings]",
       )?.open;
       updateContent(root, roomMarkup());
+      if (roomBackground?.root.isConnected)
+        roomBackground.root.append(...backgroundNodes);
       decorate();
+      if (nameOpen)
+        root.querySelector<HTMLDialogElement>("[data-room-name]")?.showModal();
       if (settingsOpen)
         root
           .querySelector<HTMLDialogElement>("[data-room-settings]")
@@ -1416,6 +1437,8 @@ export function mountFuseCraft(
     camera?.dispose();
     camera = null;
     root.className = `fui-app nd-app screen-${screen}`;
+    roomBackground?.stop();
+    roomBackground = undefined;
     root.innerHTML =
       screen === "menu"
         ? menuMarkup()
@@ -1483,6 +1506,19 @@ export function mountFuseCraft(
 
   /** Fuse styling and the app portal, after the page markup is replaced or reconciled. */
   function decorate() {
+    const roomRoot =
+      screen === "room"
+        ? root.querySelector<HTMLElement>(".fui-room-layout")
+        : null;
+    if (roomRoot && roomBackground?.root !== roomRoot) {
+      roomBackground?.stop();
+      roomBackground = {
+        root: roomRoot,
+        stop: mountAttract(roomRoot, async (host) =>
+          (await import("./attract.js")).createAttract(host),
+        ),
+      };
+    }
     root
       .querySelectorAll<HTMLElement>(".primary")
       .forEach((button) => button.classList.add("fui-button-primary"));
@@ -1685,13 +1721,31 @@ export function mountFuseCraft(
         render();
       } else if (action === "create-room") void createRoom();
       else if (action === "join-room") joinRoom();
+      else if (action === "take-slot" && online) {
+        playerName = dependencies.online?.savedName() || playerName;
+        roomJoinSlot = Number(
+          target.closest<HTMLElement>("[data-slot]")?.dataset.slot,
+        );
+        if (playerName.trim()) online.join(playerName.trim(), roomJoinSlot);
+        else {
+          root
+            .querySelector<HTMLDialogElement>("[data-room-name]")
+            ?.showModal();
+          root.querySelector<HTMLInputElement>("#player-name")?.focus();
+        }
+      } else if (action === "close-room-name")
+        root.querySelector<HTMLDialogElement>("[data-room-name]")?.close();
       else if (action === "join-seat" && online) {
         const name = playerName.trim();
         if (name) {
           dependencies.online?.saveName(name);
-          online.join(name);
+          online.join(name, roomJoinSlot);
+          root.querySelector<HTMLDialogElement>("[data-room-name]")?.close();
         }
-      } else if (action === "add-bot") online?.addBot();
+      } else if (action === "add-bot")
+        online?.addBot(
+          Number(target.closest<HTMLElement>("[data-slot]")?.dataset.slot),
+        );
       else if (action === "remove-bot") {
         const id = target.closest<HTMLElement>("[data-bot-id]")?.dataset.botId;
         if (id) online?.removeBot(id);
@@ -2175,6 +2229,7 @@ export function mountFuseCraft(
     dispose() {
       if (disposed) return;
       disposed = true;
+      roomBackground?.stop();
       cancelLoads();
       disposeSession();
       gameMenu.dispose();

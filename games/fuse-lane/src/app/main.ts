@@ -1,4 +1,5 @@
 import { createGameSocial } from "fuse-ui/social";
+import { requestedRoomSlot } from "fuse-ui";
 import "fuse-ui/social.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "@fontsource-variable/nunito";
@@ -518,7 +519,8 @@ function room(): void {
     tv: sharedHost || display,
     extra: [tvLink],
     actions: {
-      addBot: () => runtime.command({ type: "bot", action: "add" }),
+      playerName: () => social.playerName(undefined) ?? undefined,
+      addBot: (slot) => runtime.command({ type: "bot", action: "add", slot }),
       removeBot: (id) => runtime.command({ type: "bot", action: "remove", id }),
       start: () => runtime.command({ type: "action", action: "start" }),
       goal: (goal) => runtime.setGoals([goal, goal, goal, goal]),
@@ -546,9 +548,10 @@ function room(): void {
     drawFace();
   };
   drawFace();
-  const join = (name: string) =>
+  const join = (name: string, slot?: number) =>
     runtime.command({
       type: "join",
+      slot,
       name,
       avatarId: face,
     });
@@ -560,7 +563,7 @@ function room(): void {
     placeholder: "Your name",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      join(name);
+      join(name, requestedRoomSlot(nameEntry.form));
     },
   });
   nameEntry.input.before(faceButton);

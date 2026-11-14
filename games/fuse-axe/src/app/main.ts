@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
@@ -365,7 +366,12 @@ function room(solo: boolean): void {
       "_blank",
     );
   // The host seats bot companions (solo too), each playing its seat's hero, and removes them before setting out.
-  addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
+  addBot.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addBot),
+    });
   lobbyMain.append(
     el("h2", "HEROES", "fui-lobby-title"),
     roster.element,
@@ -487,7 +493,12 @@ function room(solo: boolean): void {
     buttonText: "JOIN",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name, avatarId: storedHero() });
+      runtime.command({
+        type: "join",
+        slot: requestedRoomSlot(nameEntry.form),
+        name,
+        avatarId: storedHero(),
+      });
     },
   });
   const main = el("main", "", "fa-room");
@@ -495,6 +506,9 @@ function room(solo: boolean): void {
   main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main, roundControls.element);
   createRoomLayout({
+    playerName: () => social.playerName(undefined) ?? undefined,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     element: lobby,
     roster,
     capacity: 5,
@@ -654,6 +668,7 @@ function room(solo: boolean): void {
     roster.update(
       next.members.map((member) => ({
         id: member.id,
+        slot: member.slot,
         name: member.name,
         color: member.color,
         status: member.status,

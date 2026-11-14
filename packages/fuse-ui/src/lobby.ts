@@ -109,6 +109,7 @@ const ROSTER_CLASSES: Record<RosterPart, string> = {
 
 export interface RosterMember {
   id: string;
+  slot?: number;
   name: string;
   /** A short state under the name, e.g. READY or OFFLINE. */
   status?: string;

@@ -1,4 +1,10 @@
-import { button, createInviteCard, createRoomLayout, el } from "fuse-ui";
+import {
+  button,
+  createInviteCard,
+  createRoomLayout,
+  el,
+  requestedRoomSlot,
+} from "fuse-ui";
 import { LEVELS, WEEK_SECONDS } from "../game/index.js";
 import type { Art } from "./art.js";
 import { GOAL_PRESETS } from "./menu.js";
@@ -11,7 +17,8 @@ import { text } from "./screen.js";
  * command through `actions`; what shows is always the last frame's model.
  */
 export interface LobbyActions {
-  addBot(): void;
+  playerName?(): string | undefined;
+  addBot(slot?: number): void;
   removeBot(id: string): void;
   start(): void;
   /** One goal for all four, as the menu's presets do. */
@@ -143,7 +150,7 @@ export function createRoomLobby(options: RoomLobbyOptions) {
   note.setAttribute("role", "status");
   const addBot = button("+ ADD AI", "fl-add-bot"),
     start = button("START MATCH", "fui-button-primary fl-start");
-  addBot.onclick = () => actions.addBot();
+  addBot.onclick = () => actions.addBot(requestedRoomSlot(addBot));
   start.onclick = () => actions.start();
   const buttons = el("div", "", "fl-actions");
   buttons.append(...(options.extra ?? []), addBot, start);
@@ -156,6 +163,9 @@ export function createRoomLobby(options: RoomLobbyOptions) {
   body.append(who, goalsBlock, levelBlock, weekBlock, note, buttons);
   element.append(side, body);
   const layout = createRoomLayout({
+    playerName: actions.playerName,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     element,
     invite: invite.element,
     roster,
@@ -169,7 +179,13 @@ export function createRoomLobby(options: RoomLobbyOptions) {
     element,
     attachJoin: layout.attachJoin,
     render(model: LobbyModel, tvHost: boolean): void {
-      layout.update(model.members.length);
+      layout.update(
+        model.members.length,
+        5,
+        model.members.flatMap((member) =>
+          member.slot === undefined ? [] : [member.slot],
+        ),
+      );
       for (const [id, row] of rows)
         if (!model.members.some((member) => member.id === id)) {
           row.root.remove();
@@ -193,6 +209,8 @@ export function createRoomLobby(options: RoomLobbyOptions) {
         if (roster.children[index] !== row.root)
           roster.insertBefore(row.root, roster.children[index] ?? null);
         row.root.style.setProperty("--player", member.color ?? "#8d99ae");
+        if (member.slot !== undefined)
+          row.root.dataset.slot = String(member.slot);
         const avatar = member.avatar ?? "robot";
         if (row.face.dataset.avatar !== avatar) {
           row.face.dataset.avatar = avatar;

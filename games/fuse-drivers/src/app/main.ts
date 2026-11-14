@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import "@fontsource/press-start-2p/latin.css";
@@ -191,7 +192,12 @@ function room(solo: boolean): void {
   const roster = createRoster({ emptyText: "Nobody has joined yet" });
   const start = button("START RACE", "fui-button-primary");
   const addAI = button("Add AI");
-  addAI.onclick = () => runtime.command({ type: "bot", action: "add" });
+  addAI.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addAI),
+    });
   const track = el("select");
   track.setAttribute("aria-label", "Track");
   for (const id of TRACK_NAMES) {
@@ -229,7 +235,11 @@ function room(solo: boolean): void {
     buttonText: "JOIN THE GRID",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name });
+      runtime.command({
+        type: "join",
+        name,
+        slot: requestedRoomSlot(nameEntry.form),
+      });
     },
   });
 
@@ -289,6 +299,9 @@ function room(solo: boolean): void {
   main.append(nameEntry.form, lobby, race, results);
   app.replaceChildren(header(), status.element, main);
   createRoomLayout({
+    playerName: () => social.playerName(undefined) ?? undefined,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     element: lobby,
     roster,
     capacity: 5,

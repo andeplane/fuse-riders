@@ -9,13 +9,17 @@ export async function openPlayOptions(page: Page): Promise<void> {
 
 /** Room creation leaves the host unseated until the explicit Join action. */
 export async function takeHostSeat(page: Page, name: string): Promise<void> {
-  const join = page.locator(".fui-room-join");
+  await page
+    .locator(".fui-room-open-slot")
+    .getByRole("button", { name: "Join", exact: true })
+    .first()
+    .click();
+  const join = page.locator(".fui-slot-admission[open]");
+  if (!(await join.count())) return;
   await join
     .locator('input:not([type="radio"]):not([type="checkbox"])')
     .first()
     .fill(name);
   await join.getByRole("button", { name: /^Join(?: as player)?$/i }).click();
-  await join
-    .getByRole("button", { name: /^Join(?: as player)?$/i })
-    .waitFor({ state: "hidden" });
+  await join.waitFor({ state: "hidden" });
 }

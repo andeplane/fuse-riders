@@ -90,6 +90,11 @@ try {
       step = "empty room and QR";
       const room = page.locator(".fui-room-layout");
       await room.waitFor();
+      await page.waitForFunction(
+        () =>
+          document.querySelector<HTMLElement>(".fui-room-layout")?.dataset
+            .attractState === "running",
+      );
       await room
         .locator(".fui-room-count")
         .filter({ hasText: /^0\s*\/\s*\d/ })
@@ -102,15 +107,19 @@ try {
           ),
         ].some((img) => img.complete && img.naturalWidth > 0),
       );
+      await room
+        .locator('.fui-room-open-slot[data-slot="1"]')
+        .getByRole("button", { name: "Join", exact: true })
+        .click();
       const name = room
         .locator(
-          '.fui-room-join input:not([type="checkbox"]):not([type="radio"])',
+          'dialog[open] input:not([type="checkbox"]):not([type="radio"])',
         )
         .first();
       await name.fill("Menu Tester");
       step = "host admission";
       await room
-        .locator(".fui-room-join")
+        .locator("dialog[open]")
         .getByRole("button", { name: /^Join(?: as player)?$/i })
         .click();
       await page.waitForFunction(() =>
@@ -118,6 +127,9 @@ try {
           document.querySelector(".fui-room-count")?.textContent ?? "",
         ),
       );
+      await room
+        .locator('.fui-room-open-slot[data-slot="1"].fui-slot-occupied')
+        .waitFor();
       const settings = room.getByRole("button", {
         name: "Game settings",
         exact: true,
@@ -138,7 +150,10 @@ try {
         }
         await page.keyboard.press("Escape");
       }
-      const ai = room.getByRole("button", { name: /^Add AI$/i });
+      const ai = room
+        .locator('.fui-room-open-slot[data-slot="0"]')
+        .getByRole("button", { name: /^Add AI$/i })
+        .first();
       step = "AI admission";
       const hasAI =
         (await ai.count()) > 0 &&
@@ -151,6 +166,9 @@ try {
             document.querySelector(".fui-room-count")?.textContent ?? "",
           ),
         );
+        await room
+          .locator('.fui-room-open-slot[data-slot="0"].fui-slot-occupied')
+          .waitFor();
       }
       await page.setViewportSize({ width: 390, height: 844 });
       assert.ok(

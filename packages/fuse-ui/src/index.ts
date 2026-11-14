@@ -151,6 +151,7 @@ export {
 } from "./attract.js";
 export {
   createRoomLayout,
+  requestedRoomSlot,
   createRoomAppearance,
   roomLayoutMarkup,
   type RoomLayoutOptions,

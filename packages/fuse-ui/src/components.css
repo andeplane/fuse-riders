@@ -894,6 +894,78 @@
   margin-top: 10px;
 }
 .fui-room-open-slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-color: var(--slot-color, #294158);
+  background: #0e1e31;
+}
+.fui-slot-label {
+  color: color-mix(in srgb, var(--slot-color, #b9d0e1) 75%, white);
+}
+.fui-slot-occupant {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+.fui-slot-occupant:empty {
+  display: none;
+}
+.fui-slot-occupied {
+  flex-wrap: wrap;
+}
+.fui-room-layout .fui-slot-occupant .fui-roster-row {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  min-height: 0;
+}
+.fui-room-players > .fui-roster {
+  display: none;
+}
+.fui-slot-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.fui-room-layout .fui-slot-controls button {
+  min-width: 82px;
+  padding: 10px 16px;
+}
+.fui-room-layout:has(> .fui-attract) {
+  position: relative;
+  isolation: isolate;
+  background: #07111ddd;
+  overflow: hidden;
+}
+.fui-room-layout > .fui-attract {
+  z-index: -1;
+  opacity: 0.22;
+}
+.fui-room-layout > .fui-attract-toggle {
+  position: static;
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.fui-slot-admission form {
+  display: grid;
+  gap: 16px;
+}
+@media (max-width: 600px) {
+  .fui-room-open-slot {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .fui-slot-controls {
+    width: 100%;
+  }
+  .fui-slot-controls button {
+    flex: 1;
+  }
+}
+.fui-room-open-slot {
   color: #a9c2d9;
   border-style: dashed;
   display: flex;

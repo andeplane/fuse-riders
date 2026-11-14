@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import "@fontsource/press-start-2p/latin.css";
@@ -248,7 +249,12 @@ function room() {
     tv = button("OPEN TV"),
     help = button("HOW TO PLAY");
   help.onclick = handbook;
-  add.onclick = () => runtime?.command({ type: "bot", action: "add" });
+  add.onclick = () =>
+    runtime?.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(add),
+    });
   ready.onclick = () => runtime?.readyUp();
   tv.onclick = () => window.open(url(`?room=${code}&display=1`), "_blank");
   if (!solo) {
@@ -260,8 +266,12 @@ function room() {
     lobby.append(invite.element);
   }
   const rememberedName = social.playerName(store.getItem(names.name)) ?? null;
-  const admission = createSeatAdmission(rememberedName, (name) =>
-    runtime?.command({ type: "join", name }),
+  const admission = createSeatAdmission(rememberedName, (playerName) =>
+    runtime?.command({
+      type: "join",
+      name: playerName,
+      slot: requestedRoomSlot(name.form),
+    }),
   );
   const name = createNameEntry({
     initial: rememberedName ?? "",
@@ -419,6 +429,9 @@ function room() {
   name.form.hidden = true;
   app.append(main);
   createRoomLayout({
+    playerName: () => social.playerName(undefined) ?? undefined,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     element: lobby,
     roster,
     capacity: 5,
@@ -479,6 +492,7 @@ function room() {
             .filter((s) => !s.watcher)
             .map((s) => ({
               id: s.id,
+              slot: s.slot,
               name:
                 s.name +
                 (s.bot ? " / BOT" : frame.ready[s.id] ? " / READY" : ""),

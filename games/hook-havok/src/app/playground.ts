@@ -1250,13 +1250,17 @@ window.addEventListener("pageshow", (e) => {
   if (e.persisted) location.reload();
 });
 const matchShell = createMatchShell({
-  join(name) {
+  playerName: () => social.playerName(undefined) ?? undefined,
+  join(name, slot) {
     el<HTMLInputElement>("keeper-name").value = name;
-    runtime?.command({ type: "join", name: social.playerName(name) || name });
+    runtime?.command({
+      type: "join",
+      name: social.playerName(name) || name,
+      slot,
+    });
   },
-  addAI() {
-    botCount.value = String(Math.min(4, Number(botCount.value) + 1));
-    botCount.dispatchEvent(new Event("change"));
+  addAI(slot) {
+    runtime?.command({ type: "bot", action: "add", slot });
   },
 });
 const knockoutFeed = createKnockoutFeed(document.querySelector(".stage")!);

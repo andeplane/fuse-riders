@@ -129,6 +129,8 @@ export interface RollbackGame<
 export interface Seating<Room, Settings> {
   /** Seats per room; slots are 0 to capacity − 1. */
   capacity: number;
+  /** Active map/team mode may expose fewer seats than the game's maximum. */
+  capacityFor?(room: Room): number;
   /** Minimum connected seats to start/rematch; defaults to two. */
   minPlayers?: number;
   /** Places in the watching list beside the seats. */

@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import "fuse-ui/components.css";
@@ -177,7 +178,12 @@ export function showRoom(
     initial: social.playerName(store.getItem(names.name)) ?? "",
     onInput: (value) => store.setItem(names.name, value),
     buttonText: "JOIN",
-    onSubmit: (name) => runtime.command({ type: "join", name }),
+    onSubmit: (name) =>
+      runtime.command({
+        type: "join",
+        name,
+        slot: requestedRoomSlot(nameEntry.form),
+      }),
   });
   // The host cycles the settings as in the local lobby: rounds to win 1–9; bots easy, normal, hard.
   const lobby = el("section", "", "fb-lobby"),
@@ -194,7 +200,12 @@ export function showRoom(
         type: "settings",
         settings: { ...settings, ...change },
       });
-  addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
+  addBot.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addBot),
+    });
   start.onclick = () => runtime.command({ type: "action", action: "start" });
   wins.onclick = () => set({ wins: (settings.wins % MAX_WINS) + 1 });
   level.onclick = () => set({ difficulty: after(LEVELS, settings.difficulty) });
@@ -214,6 +225,9 @@ export function showRoom(
   pilots.append(el("h2", "PILOTS", "fui-lobby-title"), roster.element, addBot);
   lobby.append(pilots, match);
   ui.createRoomLayout({
+    playerName: () => social.playerName(undefined) ?? undefined,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     element: lobby,
     roster,
     capacity: 5,

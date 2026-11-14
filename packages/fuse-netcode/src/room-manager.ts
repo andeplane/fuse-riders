@@ -124,6 +124,7 @@ export class RoomManager<
     from: string,
     rawName: string,
     avatarId: string | undefined,
+    requestedSlot?: unknown,
   ): string | undefined {
     if (!this.room.world) return this.room.text.stillLoading;
     // The one normaliser: what is logged is a valid name every replica's log guard accepts (never half an emoji).
@@ -169,7 +170,7 @@ export class RoomManager<
     }
     // Before the pair, so a switch that cannot be seated writes nothing and the member stays where it is. A watcher
     // holds no seat, so nothing here reads the `SPECTATOR leave` that follows.
-    const slot = this.claimSlot();
+    const slot = this.claimSlot(requestedSlot);
     if (slot < 0) return this.room.text.full;
     const tick = this.room.recorder.next();
     // Ordered, at one tick, in the manager's own stream: `applyManagement` runs them in succession then entry order on
@@ -338,9 +339,12 @@ export class RoomManager<
     return { slots, freed, ids, seats, watchers };
   }
   /** A free seat, freeing a disconnected member's seat between rounds first. */
-  claimSlot(): number {
+  claimSlot(requestedSlot?: unknown): number {
     const room = this.room.world!.state,
       pending = this.pending();
+    const capacity =
+      this.room.game.seating.capacityFor?.(room) ??
+      this.room.game.seating.capacity;
     const seats = [...this.room.game.members(room)].filter(
       (player) => !player.watcher,
     );
@@ -350,16 +354,26 @@ export class RoomManager<
         .map((player) => player.slot),
       ...pending.slots,
     ]);
-    const free = Array.from(
-      { length: this.room.game.seating.capacity },
-      (_, slot) => slot,
-    ).find((slot) => !taken.has(slot));
+    if (requestedSlot !== undefined) {
+      if (
+        typeof requestedSlot !== "number" ||
+        !Number.isInteger(requestedSlot) ||
+        requestedSlot < 0 ||
+        requestedSlot >= capacity ||
+        taken.has(requestedSlot)
+      )
+        return -1;
+      return requestedSlot;
+    }
+    const free = Array.from({ length: capacity }, (_, slot) => slot).find(
+      (slot) => !taken.has(slot),
+    );
     if (free !== undefined || this.room.game.stage(room) === "running")
       return free ?? -1;
     // An absent seat first, then an away one: a hidden page keeps its seat unless the room is full and a joiner asks
     // for it outside a running round (§12), which bounds how long one can hold a seat.
     const reclaimable = (player: Seat) =>
-      !player.connected && !pending.freed.has(player.id);
+      player.slot < capacity && !player.connected && !pending.freed.has(player.id);
     const seat =
       seats.find((player) => reclaimable(player) && !player.away) ??
       seats.find(reclaimable);

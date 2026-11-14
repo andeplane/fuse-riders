@@ -1,7 +1,91 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createRoomLayout, createRoster, roomLayoutMarkup } from "fuse-ui";
+import {
+  createRoomLayout,
+  createRoster,
+  roomLayoutMarkup,
+  requestedRoomSlot,
+} from "fuse-ui";
 import { page } from "./dom-fixture.js";
+
+test("capacity changes keep occupied overflow slots visible and removable", () => {
+  const { document } = page(),
+    root = document.createElement("section"),
+    roster = createRoster({ document });
+  document.body.append(root);
+  const layout = createRoomLayout({ element: root, roster, capacity: 2 });
+  roster.update([
+    { id: "host", name: "Ada", slot: 0 },
+    { id: "bot", name: "AI", slot: 3 },
+  ]);
+  const remove = document.createElement("button");
+  remove.textContent = "Remove AI";
+  roster.row("bot")!.append(remove);
+  layout.update(2, 2);
+  const overflow = root.querySelector<HTMLElement>(
+    '.fui-room-open-slot[data-slot="3"]',
+  )!;
+  assert.equal(overflow.hidden, false);
+  assert.ok(overflow.contains(remove));
+  assert.equal(root.querySelector(".fui-room-count")?.textContent, "2 / 2");
+  assert.equal(
+    root.querySelector<HTMLElement>('.fui-room-open-slot[data-slot="2"]')!
+      .hidden,
+    true,
+  );
+});
+
+test("slot buttons prompt only for missing names, use the signed-in name and preserve AI slot choice", () => {
+  const { document } = page(),
+    root = document.createElement("section"),
+    form = document.createElement("form"),
+    input = document.createElement("input"),
+    submit = document.createElement("button"),
+    ai = document.createElement("button");
+  submit.type = "submit";
+  input.value = "";
+  form.append(input, submit);
+  document.body.append(root);
+  let account: string | undefined,
+    joined: number | undefined,
+    bot: number | undefined;
+  form.requestSubmit = () => {
+    joined = requestedRoomSlot(form);
+  };
+  ai.onclick = () => {
+    bot = requestedRoomSlot(ai);
+  };
+  createRoomLayout({
+    element: root,
+    roster: createRoster({ document }),
+    capacity: 3,
+    join: form,
+    addAI: ai,
+    playerName: () => account,
+    slotColor: () => "#16e7ff",
+  });
+  const dialog = root.querySelector<HTMLDialogElement>(".fui-slot-admission")!;
+  dialog.showModal = () => {
+    dialog.open = true;
+  };
+  root
+    .querySelector<HTMLButtonElement>('[data-slot="2"] .fui-slot-join')!
+    .click();
+  assert.equal(dialog.open, true);
+  assert.equal(joined, undefined);
+  dialog.open = false;
+  account = "Anders";
+  root
+    .querySelector<HTMLButtonElement>('[data-slot="1"] .fui-slot-join')!
+    .click();
+  assert.equal(joined, 1);
+  assert.equal(input.value, "Anders");
+  assert.equal(dialog.open, false);
+  root
+    .querySelector<HTMLButtonElement>('[data-slot="0"] .fui-slot-ai')!
+    .click();
+  assert.equal(bot, 0);
+});
 
 test("room layout: stable occupied slots, explicit admission and game-owned AI actions", () => {
   const { document } = page();
@@ -35,7 +119,7 @@ test("room layout: stable occupied slots, explicit admission and game-owned AI a
     actions: [start],
   });
   assert.equal(invite.parentElement?.className, "fui-room-invitation");
-  assert.equal(form.parentElement?.className, "fui-room-join");
+  assert.equal(form.parentElement?.className, "fui-dialog-body");
   assert.equal(submit.textContent, "Join");
   assert.equal(ai.textContent, "Add AI");
   ai.click();
@@ -51,7 +135,7 @@ test("room layout: stable occupied slots, explicit admission and game-owned AI a
   assert.equal(root.querySelector(".fui-room-count")?.textContent, "2 / 3");
   assert.equal(
     [...root.querySelectorAll<HTMLElement>(".fui-room-open-slot")].filter(
-      (n) => !n.hidden,
+      (n) => !n.hidden && !n.classList.contains("fui-slot-occupied"),
     ).length,
     1,
   );
@@ -64,7 +148,7 @@ test("room layout: stable occupied slots, explicit admission and game-owned AI a
   );
   root.hidden = false;
   roster.update([]);
-  assert.equal(form.parentElement?.className, "fui-room-join");
+  assert.equal(form.parentElement?.className, "fui-dialog-body");
   layout.settings.showModal = () => {
     layout.settings.open = true;
   };
@@ -100,20 +184,20 @@ test("room layout: custom rosters can attach admission after mounting and omit s
   layout.attachJoin(second);
   root.hidden = false;
   layout.update(2);
-  assert.equal(second.parentElement?.className, "fui-room-join");
+  assert.equal(second.parentElement?.className, "fui-dialog-body");
   assert.equal(root.querySelector(".fui-room-count")?.textContent, "2 / 2");
   layout.update(2, 4);
   assert.equal(root.querySelector(".fui-room-count")?.textContent, "2 / 4");
   assert.equal(
     [...root.querySelectorAll<HTMLElement>(".fui-room-open-slot")].filter(
-      (slot) => !slot.hidden,
+      (slot) => !slot.hidden && !slot.classList.contains("fui-slot-occupied"),
     ).length,
     2,
   );
   layout.update(2, 2);
   assert.ok(
     [...root.querySelectorAll<HTMLElement>(".fui-room-open-slot")].every(
-      (slot) => slot.hidden,
+      (slot) => slot.hidden || slot.classList.contains("fui-slot-occupied"),
     ),
   );
 });
@@ -130,7 +214,7 @@ test("HTML room renderer shares the layout and respects map-dependent capacity",
     occupied: 1,
     capacity: 4,
   });
-  assert.equal(root.querySelectorAll(".fui-room-open-slot").length, 3);
+  assert.equal(root.querySelectorAll(".fui-room-open-slot").length, 4);
   assert.equal(root.querySelector(".fui-room-count")?.textContent, "1 / 4");
   assert.equal(
     root.querySelector("[data-room-settings]")?.getAttribute("aria-label"),

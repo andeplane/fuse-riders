@@ -14,6 +14,7 @@ import { createFriendsPanel } from "./friends-panel.js";
 import { isRiderAvatarId } from "../engine/avatar-id.js";
 import { validRiderName } from "../engine/rider-name.js";
 import { createTopMenuToggle } from "./top-menu-toggle.js";
+import { requestedRoomSlot } from "fuse-ui";
 import {
   accountUsername,
   fetchUsername,
@@ -388,6 +389,7 @@ export async function startOnline(): Promise<void> {
       // recolour a seat this device might take minutes later for another reason.
       const sent = runtime.command({
         type: "join",
+        slot: requestedRoomSlot(joinForm.element),
         name: playerName,
         avatarId,
       });
@@ -984,7 +986,7 @@ export async function startOnline(): Promise<void> {
   const placeElements = (screen: RoomScreen) => {
     // Keep the creator's seat invitation beside the riders while the lobby is
     // visible. Outside the lobby it must remain reachable for mid-game joins.
-    if (role !== "joiner") {
+    if (role !== "joiner" && !screen.lobbyCard) {
       const joinParent = screen.lobbyCard
         ? (sharedLobby.querySelector<HTMLElement>(".fui-room-join") ??
           lobbyRiders)
@@ -1456,6 +1458,7 @@ export async function startOnline(): Promise<void> {
         heldMotion: runtime.heldControls(id),
         players: state.players.map((p) => ({
           id: p.id,
+          slot: p.slot,
           alive: p.alive,
           x: p.x,
           y: p.y,
@@ -1542,6 +1545,7 @@ export async function startOnline(): Promise<void> {
       });
       // Every write below goes through setIfChanged: the view is rewritten each frame, and an unchanged value must not touch the DOM.
       setIfChanged(joinPanel, "hidden", view.joinPanelHidden);
+      setIfChanged(joinForm.element, "hidden", view.joinPanelHidden);
       // Name, head and colour are one choice in three parts: all three are offered while this rider is in the lobby
       // and not yet ready, all three leave together, and a picker left open closes when the round starts. They are
       // one element now, so the group goes rather than three buttons agreeing to.
@@ -1605,6 +1609,7 @@ export async function startOnline(): Promise<void> {
       lobbyRoster.update(
         view.lobby.riders.map((p) => ({
           id: p.id,
+          slot: p.slot,
           name: p.name,
           status: p.status,
           color: p.color,
@@ -1949,7 +1954,12 @@ export async function startOnline(): Promise<void> {
     });
   };
   announceAction.onclick = () => (solo ? start.click() : readyButton.click());
-  addAI.onclick = () => runtime.command({ type: "bot", action: "add" });
+  addAI.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addAI),
+    });
   // Link quality for the player: hidden unless asked for (?stats=1 or the menu), so a bad Wi-Fi is a fact, not a guess.
   const statsPanel = node("pre", "", "net-stats");
   statsPanel.hidden = solo || !url.searchParams.has("stats");
@@ -2101,10 +2111,14 @@ export async function startOnline(): Promise<void> {
   settingsButton.onclick = () => openSettings();
   settingsButton.textContent = "Game settings";
   createRoomLayout({
+    background: async (host) =>
+      (await import("./menu-attract.js")).createAttract(host),
     element: sharedLobby,
     invite: qrCard,
     roster: lobbyRoster,
     capacity: 5,
+    join: joinForm.element,
+    addAI,
     settingsTrigger: settingsButton,
     onSettings: () => openSettings(),
     actions: [lobbyFooter],

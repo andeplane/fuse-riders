@@ -1,3 +1,7 @@
+import { requestedRoomSlot } from "fuse-ui";
+import { createGameSocial } from "fuse-ui/social";
+import { startGameAnalytics } from "fuse-ui/play-metrics";
+import "fuse-ui/social.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
@@ -68,6 +72,16 @@ import { createAudio } from "./audio/index.js";
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const base = import.meta.env.BASE_URL;
+const analytics = startGameAnalytics(GAME_ID);
+const social = createGameSocial({
+  gameId: GAME_ID,
+  base,
+  apiOrigin: import.meta.env.VITE_API_ORIGIN,
+  document,
+  window,
+  fetch: (input, init) => fetch(input, init),
+  track: analytics.track,
+});
 const endpoints = createEndpoints(
   {
     basePath: `${base}${GAME_ID}/`,
@@ -128,6 +142,7 @@ function header(): HTMLElement {
       search: location.search,
     }).element,
     brand,
+    social.element(),
     el("span", "", "ff-top-gap"),
     ...sound.toggles(),
   );
@@ -442,6 +457,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
           chip.append(cycle);
         }
         seats.append(chip);
+        chip.dataset.slot = String(slot.slot);
       }
       teams.append(column);
     }
@@ -472,7 +488,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
     lobby.replaceChildren(shell.element);
     const join = el("form");
     const playerName = el("input");
-    playerName.value = name();
+    playerName.value = social.playerName(store.getItem(keys.name)) ?? "";
     playerName.setAttribute("aria-label", "Your name");
     const joinButton = el("button", "Join");
     joinButton.type = "submit";
@@ -481,16 +497,30 @@ function room(code: string, token: string | undefined, display: boolean): void {
     join.onsubmit = (event) => {
       event.preventDefault();
       store.setItem(keys.name, playerName.value);
-      runtime.command({ type: "join", name: playerName.value || "Commander" });
+      runtime.command({
+        type: "join",
+        name: playerName.value,
+        slot: requestedRoomSlot(join),
+      });
     };
     const addAI = el("button", "Add AI");
     addAI.hidden = !host || view.seats.length >= 2 * view.settings.size;
-    addAI.onclick = () => runtime.command({ type: "bot", action: "add" });
+    addAI.onclick = () =>
+      runtime.command({
+        type: "bot",
+        action: "add",
+        slot: requestedRoomSlot(addAI),
+      });
     const layout = createRoomLayout({
+      slotColor: (slot) => (slot % 2 ? "#3a6ae0" : "#d8402a"),
+      slotLabel: (slot) => `${slot % 2 ? "Blue" : "Red"} · Slot ${slot + 1}`,
+      background: async (host) =>
+        (await import("./attract.js")).createAttract(host),
       element: shell.element,
       roster,
       capacity: 2 * view.settings.size,
       join,
+      playerName: () => social.playerName(undefined) ?? undefined,
       addAI,
       settings: [
         sizes,
@@ -500,7 +530,11 @@ function room(code: string, token: string | undefined, display: boolean): void {
       ],
       actions: [host ? start : el("p", "Waiting for the host to start…")],
     });
-    layout.update(view.seats.length);
+    layout.update(
+      view.seats.filter((seat) => !seat.watcher).length,
+      2 * view.settings.size,
+      view.seats.filter((seat) => !seat.watcher).map((seat) => seat.slot),
+    );
     currentLobby = layout;
     if (settingsWereOpen) {
       layout.settings.showModal();
