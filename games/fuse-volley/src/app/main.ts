@@ -144,10 +144,9 @@ const audio = createGameAudio(
   browserAudioDependencies(safeStorage(() => localStorage)),
   { forceMute: muted },
 );
-audio.setSongs(VOLLEY_SONGS, import.meta.env.BASE_URL);
-audio.startMusic();
+// Music is supplied by the shared header; this bus owns the game effects.
 bindAudioInput(audio, document, window);
-const audioControl = createAudioControl(document, audio);
+const audioControl = createAudioControl(document, audio, { music: false });
 const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 /** For smokes and demos: `?autopilot` plays this device's blob with the bot's answers, through the same held controls. */
@@ -258,6 +257,7 @@ function header(
     ...extra,
   );
   return createTopBar({
+    music: VOLLEY_SONGS,
     element: bar,
     gameId: GAME,
     onOpenChange,

@@ -275,7 +275,7 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     search: location.search,
   });
   bar.append(portal.element, logo(), social.element(), radioButton(), ...extra);
-  return createTopBar({ element: bar, gameId: GAME, sound });
+  return createTopBar({ element: bar, gameId: GAME, sound, music: false });
 }
 
 function keyHelp(): HTMLElement {
@@ -410,6 +410,7 @@ function room(solo: boolean): void {
     menu.element,
   ]);
   createTopBar({
+    music: false,
     element: top,
     onOpenChange: (open) => {
       if (open) {

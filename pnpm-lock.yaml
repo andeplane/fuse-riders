@@ -59,6 +59,9 @@ importers:
       fuse-lane:
         specifier: workspace:*
         version: link:games/fuse-lane
+      fuse-music:
+        specifier: workspace:*
+        version: link:packages/fuse-music
       fuse-network-be:
         specifier: workspace:*
         version: link:packages/fuse-network-be
@@ -563,6 +566,8 @@ importers:
         specifier: ^1.5.4
         version: 1.5.4
 
+  packages/fuse-music: {}
+
   packages/fuse-netcode:
     dependencies:
       '@msgpack/msgpack':
@@ -615,6 +620,9 @@ importers:
       firebase:
         specifier: ^12.19.0
         version: 12.19.0
+      fuse-music:
+        specifier: workspace:*
+        version: link:../fuse-music
       fuse-network-fe:
         specifier: workspace:*
         version: link:../fuse-network-fe

@@ -1,26 +1,40 @@
-import { MUSIC_TRACKS } from "./assets.js";
-export type MusicPlayer = Pick<
-  HTMLAudioElement,
-  "src" | "volume" | "play" | "pause" | "load" | "onended" | "onerror"
->;
-/** Shared opt-in player, adapted from Ball Bros' radio in 06b5fc2d. No stored preferences. */
+import {
+  ALL_SONGS,
+  MusicPlayer as createMusicPlayer,
+  type Song,
+  type MusicMedia,
+} from "fuse-music";
+export type MusicPlayer = MusicMedia;
+/** Shared radio controls; the music library owns playback, games choose the catalogue. */
 export function createRadio(
   document: Document,
   baseUrl: string,
-  player: MusicPlayer,
+  media: MusicMedia | (() => MusicMedia),
   muted = false,
+  songs: readonly Song[] = ALL_SONGS,
 ) {
+  const player = createMusicPlayer(songs, {
+    base: baseUrl,
+    muted,
+    createMedia: typeof media === "function" ? media : () => media,
+  });
   const element = document.createElement("div"),
     button = document.createElement("button"),
     next = document.createElement("button"),
     title = document.createElement("span"),
     volume = document.createElement("input"),
-    label = document.createElement("label");
-  element.className = "controls radio";
+    label = document.createElement("label"),
+    select = document.createElement("select");
+  element.className = "controls radio fui-radio";
   button.type = next.type = "button";
-  button.textContent = "Play radio";
   next.textContent = "Next track";
-  title.textContent = MUSIC_TRACKS[0].title;
+  select.setAttribute("aria-label", "Radio song");
+  for (const song of songs) {
+    const option = document.createElement("option");
+    option.value = song.id;
+    option.textContent = song.title;
+    select.append(option);
+  }
   title.setAttribute("aria-live", "polite");
   volume.type = "range";
   volume.min = "0";
@@ -29,81 +43,37 @@ export function createRadio(
   volume.setAttribute("aria-label", "Music volume");
   label.textContent = "Music ";
   label.append(volume);
-  element.append(button, next, title, label);
-  let index = 0,
-    playing = false,
-    masterMuted = muted,
-    disposed = false,
-    attempt = 0;
-  player.volume = 0.18;
-  const stop = () => {
-    attempt++;
-    playing = false;
-    player.pause();
-    button.textContent = "Play radio";
-    button.setAttribute("aria-pressed", "false");
+  element.append(button, next, title, select, label);
+  const render = () => {
+    button.textContent = player.playing ? "Pause radio" : "Play radio";
+    button.setAttribute("aria-pressed", String(player.playing));
+    title.textContent = muted
+      ? "Audio muted by preview URL"
+      : player.error || player.song?.title || "No songs available";
+    for (const option of select.querySelectorAll("option"))
+      option.selected = option.value === player.song?.id;
   };
-  const select = () => {
-    player.src = baseUrl + MUSIC_TRACKS[index]!.path.slice(1);
-    title.textContent = MUSIC_TRACKS[index]!.title;
-  };
-  const play = () => {
-    if (masterMuted || disposed) return;
-    if (!player.src) select();
-    const token = ++attempt;
-    playing = true;
-    button.textContent = "Pause radio";
-    button.setAttribute("aria-pressed", "true");
-    void player.play().catch(() => {
-      if (disposed || token !== attempt) return;
-      stop();
-      title.textContent = "Playback unavailable · retry or next";
-    });
-  };
-  button.onclick = () => (playing ? stop() : play());
+  button.onclick = () => (player.playing ? player.pause() : player.play());
   next.onclick = () => {
-    if (masterMuted || disposed) return;
-    const resume = playing;
-    stop();
-    index = (index + 1) % MUSIC_TRACKS.length;
-    select();
-    if (resume) play();
+    if (!songs.length) return;
+    const index = songs.findIndex((song) => song.id === player.song?.id);
+    player.select(songs[(index + 1) % songs.length]!.id);
   };
-  volume.oninput = () => {
-    player.volume = Number(volume.value) / 100;
-  };
-  player.onended = () => {
-    if (playing && !disposed) next.click();
-  };
-  player.onerror = () => {
-    if (!disposed) {
-      stop();
-      title.textContent = "Track unavailable · try next";
-    }
-  };
-  if (muted) {
-    button.disabled = next.disabled = volume.disabled = true;
-    title.textContent = "Audio muted by preview URL";
-  }
+  select.onchange = () => player.play(select.value);
+  volume.oninput = () => player.setVolume(Number(volume.value) / 100);
+  for (const control of [button, next, select, volume])
+    control.disabled = muted || songs.length === 0;
+  const unsubscribe = player.subscribe(render);
+  render();
   return {
     element,
-    pause: stop,
-    setMuted(value: boolean) {
-      if (muted || disposed) return;
-      masterMuted = value;
-      if (value) {
-        attempt++;
-        player.pause();
-      } else if (playing) play();
-    },
+    player,
+    pause: () => player.pause(),
+    setMuted: (value: boolean) => player.setMuted(value),
     destroy() {
-      if (disposed) return;
-      disposed = true;
-      stop();
-      player.onended = player.onerror = null;
-      button.onclick = next.onclick = volume.oninput = null;
-      player.src = "";
-      player.load();
+      unsubscribe();
+      player.destroy();
+      button.onclick = next.onclick = volume.oninput = select.onchange = null;
     },
   };
 }

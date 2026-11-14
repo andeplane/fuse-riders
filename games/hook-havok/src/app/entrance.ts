@@ -65,6 +65,7 @@ export function createEntrance(o: EntranceOptions) {
   );
   home.textContent = "HOOK HAVOK";
   createTopBar({
+    music: false,
     element: bar,
     brand: home,
     gameId: "hook-havok",
@@ -175,6 +176,7 @@ export function createEntrance(o: EntranceOptions) {
     menu.startBackground();
     bar.append(social.element());
     createTopBar({
+      music: false,
       element: bar,
       brand: home,
       gameId: "hook-havok",
@@ -218,6 +220,7 @@ export function createEntrance(o: EntranceOptions) {
       const roomBar = roomSocialParent?.closest<HTMLElement>(".fui-top-bar");
       if (roomBar)
         createTopBar({
+          music: false,
           element: roomBar,
           gameId: "hook-havok",
           sound: o.sound,

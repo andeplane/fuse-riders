@@ -702,7 +702,10 @@ test("a muted page never opens the browser's audio; the hum follows the gas and 
   audio.setMuted(true);
   sfx.play({ kind: "go" });
   assert.equal(rig.log.oscillators, 3, "the header's mute rules the effects");
-  assert.deepEqual(ELASTO_SONGS, []);
+  assert.ok(
+    ELASTO_SONGS.length >= 18,
+    "the default radio includes every shipped song",
+  );
 
   assert.ok(humPitch(1, false) > humPitch(0, false));
   assert.ok(humPitch(0.5, true) > humPitch(0.5, false));

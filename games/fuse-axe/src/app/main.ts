@@ -282,7 +282,7 @@ function room(solo: boolean): void {
   });
   // Sound: this browser's MUSIC and EFFECTS choices, kept; `?mute` silences the page and leaves them alone.
   const muted = query.has("mute"),
-    audio = new AxeAudio(new WebAudioBackend(), store, names, muted);
+    audio = new AxeAudio(new WebAudioBackend(true), store, names, muted);
   // Browsers hold audio until a gesture; every gesture retries, since a phone can suspend it again later.
   for (const type of ["pointerdown", "keydown", "touchend"] as const)
     window.addEventListener(type, () => audio.unlock(), {
