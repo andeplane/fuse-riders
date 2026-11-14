@@ -455,7 +455,9 @@ for (const { name, kind } of BOTH_ENGINES) {
     await display.locator(".shared-lobby").waitFor({ state: "hidden" });
     await display.locator(".online-arena").waitFor({ state: "visible" });
     await display.waitForFunction(() =>
-      document.querySelector("canvas")?.dataset.renderer?.startsWith("phaser-"),
+      document
+        .querySelector<HTMLCanvasElement>("canvas.online-arena")
+        ?.dataset.renderer?.startsWith("phaser-"),
     );
     await guest.waitForFunction(() => {
       const states = Reflect.get(window, "__sharedStates") as {

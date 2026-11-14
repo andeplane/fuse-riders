@@ -59,8 +59,8 @@ async function waitForPlayControls(
       return (
         !document.hidden &&
         room.dataset.phase === "aiming" &&
-        document.querySelector<HTMLElement>("canvas")?.dataset.ready ===
-          "true" &&
+        document.querySelector<HTMLElement>("canvas[data-ready]")?.dataset
+          .ready === "true" &&
         !!pass &&
         !pass.disabled
       );
@@ -193,7 +193,7 @@ try {
       .getByRole("button", { name: "Scatter Bomb, 3 shots remaining" })
       .click();
     await first.getByRole("button", { name: "FULL MAP", exact: true }).click();
-    const box = await first.locator("canvas").boundingBox();
+    const box = await first.locator("canvas[data-ready]").boundingBox();
     assert.ok(box);
     const scale = Math.min(box.width / 1536, box.height / 768),
       x = box.x + box.width / 2 + (70 - 768) * scale,
@@ -211,7 +211,7 @@ try {
         .isVisible(),
     );
     await waitForOwnTurn(first, 10);
-    await first.locator("canvas").focus();
+    await first.locator("canvas[data-ready]").focus();
     await first.keyboard.press("i");
     await first.locator('canvas[data-gesture="keyboard-aim"]').waitFor();
     await first.screenshot({ path: `${output}/keyboard-aim.png` });
@@ -223,7 +223,7 @@ try {
         .isVisible(),
     );
     await waitForOwnTurn(first, 8);
-    await first.locator("canvas").focus();
+    await first.locator("canvas[data-ready]").focus();
     await first.keyboard.press("j");
     await first.locator('canvas[data-gesture="keyboard-aim"]').waitFor();
     const shot = await first.evaluate(() => {
@@ -364,8 +364,8 @@ try {
               seconds: Number(label.match(/(\d+)s/)?.[1] ?? 0),
               playable:
                 !document.hidden &&
-                document.querySelector<HTMLElement>("canvas")?.dataset.ready ===
-                  "true" &&
+                document.querySelector<HTMLElement>("canvas[data-ready]")
+                  ?.dataset.ready === "true" &&
                 !!pass &&
                 !pass.disabled,
             };
@@ -503,7 +503,9 @@ try {
         "Control readiness",
         await page.evaluate(() => ({
           visibility: document.visibilityState,
-          ready: document.querySelector<HTMLElement>("canvas")?.dataset.ready,
+          ready:
+            document.querySelector<HTMLElement>("canvas[data-ready]")?.dataset
+              .ready,
           turn: document.querySelector<HTMLElement>(".birds-room")?.dataset
             .turn,
           phase:

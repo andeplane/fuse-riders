@@ -72,9 +72,12 @@ try {
   await openPlayOptions(host);
   await host.getByRole("button", { name: "Host room", exact: true }).click();
   await host.waitForURL(/room=/);
-  await takeHostSeat(host, "Hosty");
   const code = new URL(host.url()).searchParams.get("room")!;
-  const roomUrl = `${base}?room=${code}&mute=1&benchmark=1`;
+  // Three arenas on software GL starve the page until the links between them stop passing their health probes, and a
+  // side switch is a message over one of those links. Phaser Canvas keeps the room responsive, as in online-smoke.ts.
+  const roomUrl = `${base}?room=${code}&mute=1&benchmark=1&renderer=phaser-canvas`;
+  await host.goto(roomUrl);
+  await takeHostSeat(host, "Hosty");
   await host.locator(".fui-slot-occupant > .room-rider").first().waitFor();
 
   // An invited device is seated by the room itself (`docs/design/room-is-the-join-screen.md`).
@@ -321,7 +324,7 @@ try {
     "a watcher never gets the controls, not even mid-race",
   );
   assert.equal(
-    await watcher.locator("canvas").isVisible(),
+    await watcher.locator("canvas.online-arena").isVisible(),
     true,
     "but it does get the arena",
   );

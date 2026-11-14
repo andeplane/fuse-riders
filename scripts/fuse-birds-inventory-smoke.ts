@@ -91,7 +91,7 @@ try {
       })
       .click();
     await page.getByRole("button", { name: "FULL MAP", exact: true }).click();
-    const box = await page.locator("canvas").boundingBox();
+    const box = await page.locator("canvas[data-ready]").boundingBox();
     assert.ok(box);
     const scale = Math.min(box.width / 1536, box.height / 768),
       pull = Math.max(
