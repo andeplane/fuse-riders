@@ -98,9 +98,8 @@ try {
   // Settings > Games: launching in a tab goes through window.open, never a window on the desktop.
   const controlPanel = await controlPanelTab(page, "Games");
   await shots.save(page, "control-panel-games");
-  await controlPanel
-    .getByRole("radio", { name: "Always a new browser tab" })
-    .click();
+  // 98.css hides the radio input itself; its label takes the click.
+  await controlPanel.getByText("Always a new browser tab").click();
   {
     await closeWindow(controlPanel);
     const before = (await recordedOpens(page)).length;
@@ -127,7 +126,7 @@ try {
     console.log(`PASS tab launch -> ${launch.url}`);
     // Back to windows so the rest of the smoke, and a reused profile, see the default.
     const again = await controlPanelTab(page, "Games");
-    await again.getByRole("radio", { name: "A window inside FuseOS" }).click();
+    await again.getByText("A window inside FuseOS").click();
     await closeWindow(again);
   }
 
