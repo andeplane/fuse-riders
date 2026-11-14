@@ -194,13 +194,14 @@ test("explicit numeric references validate enabled state without provisioning or
 test("invalid configuration and mutable references fail before cloud mutation", () => {
   const fake = harness({ secrets: {} });
   try {
-    for (const env of [
+    const cases: Record<string, string>[] = [
       { TELEMETRY_ENABLED: "0" },
       { INSIGHTS_SECRET_PROJECT_ID: "invalid;project" },
       { RUNTIME_SERVICE_ACCOUNT: "other@external.example" },
       { OPENAI_API_KEY_SECRET: "custom:latest" },
       { TELEMETRY_RATE_LIMIT_KEY_SECRET: "limiter:latest" },
-    ]) {
+    ];
+    for (const env of cases) {
       const result = fake.run(env);
       assert.notEqual(result.status, 0);
       assert.equal(result.stdout, "");

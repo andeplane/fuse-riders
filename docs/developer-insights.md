@@ -140,6 +140,15 @@ provisioned by this document. The release requires:
 - Pinned numeric Secret Manager versions through workflow variables
   `OPENAI_API_KEY_SECRET` and `TELEMETRY_RATE_LIMIT_KEY_SECRET` (`name:version`),
   consumed by `scripts/deploy-cloud.sh`. Avoid mutable `latest` references.
+  When these overrides are absent, the guarded deployment calls
+  `scripts/insights-secret-refs.sh` after its source-verification gate. It reuses
+  the latest enabled numeric version of the managed secrets, bootstraps missing
+  secrets from the repository key / fresh randomness, and grants the runtime
+  service account access. The deployer needs secret discovery, creation, version
+  and IAM-management permissions for this first setup. Explicit custom references
+  require their accessor IAM to be set separately. Rotating the repository key
+  does not silently rotate an existing managed secret: add a new Secret Manager
+  version and select it deliberately.
 - Private GCS object access for the runtime service account, Secret Manager
   accessor rights, and Firestore access. Keep bucket public access prevention
   enabled; readers fetch media through authenticated server routes.
@@ -149,6 +158,10 @@ provisioned by this document. The release requires:
   `TRANSCRIPTION_PUSH_SERVICE_ACCOUNT` to match the signed OIDC token, authorize
   its minting/delivery and Cloud Run invocation, and restrict this identity to
   the worker path. No detached post-response processing on request-based CPU.
+  Use a 600-second delivery acknowledgement deadline, bounded delivery concurrency
+  and a dead-letter topic. A failed or missing predecessor transcript blocks
+  subsequent action extraction until repaired; it does not silently turn later
+  speech into tasks without its context. Review failed segments and dead letters.
 - Raw events: 90 days. Audio/screenshots: 30 days. Report text, transcripts,
   action records and metric aggregates: 365 days. Configure Firestore TTL and
   bucket lifecycle cleanup; server-side expiry checks must independently deny

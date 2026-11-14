@@ -185,6 +185,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: `${root}index.html`,
+        dev: `${root}dev/index.html`,
         ...Object.fromEntries(
           games.map((id) => [id, `${root}games/${id}/index.html`]),
         ),

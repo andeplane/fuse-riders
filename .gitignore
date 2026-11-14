@@ -5,5 +5,7 @@ artifacts/
 coverage/
 # Sessions a ?debugtiming page wrote through the local dev server (service/timing-log.ts).
 timing-logs/
+# Local private playtest audio, screenshots, transcript and report data.
+.fuse-insights/
 
 firebase-debug.log

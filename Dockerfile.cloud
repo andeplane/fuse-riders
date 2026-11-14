@@ -18,6 +18,7 @@ COPY packages/fuse-network-fe/package.json ./packages/fuse-network-fe/
 COPY packages/fuse-network-be/package.json ./packages/fuse-network-be/
 COPY packages/fuse-netcode/package.json ./packages/fuse-netcode/
 COPY packages/fuse-platform/package.json ./packages/fuse-platform/
+COPY packages/fuse-telemetry/package.json ./packages/fuse-telemetry/
 COPY packages/fuse-ui/package.json ./packages/fuse-ui/
 COPY packages/fuseos/package.json ./packages/fuseos/
 COPY packages/fuse-music/package.json ./packages/fuse-music/

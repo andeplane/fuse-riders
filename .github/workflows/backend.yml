@@ -33,6 +33,15 @@ jobs:
       BUILD_SOURCE_BUCKET: andershaf-87-fuse-riders-build
       RUNTIME_SERVICE_ACCOUNT: fuse-riders-runtime@andershaf-87.iam.gserviceaccount.com
       BUILD_SERVICE_ACCOUNT: fuse-riders-build@andershaf-87.iam.gserviceaccount.com
+      # Disabled until the private bucket, durable delivery and pinned Secret Manager versions are configured.
+      TELEMETRY_ENABLED: ${{ vars.TELEMETRY_ENABLED }}
+      TELEMETRY_BUCKET: ${{ vars.TELEMETRY_BUCKET }}
+      TRANSCRIPTION_PUSH_AUDIENCE: ${{ vars.TRANSCRIPTION_PUSH_AUDIENCE }}
+      TRANSCRIPTION_PUSH_SERVICE_ACCOUNT: ${{ vars.TRANSCRIPTION_PUSH_SERVICE_ACCOUNT }}
+      OPENAI_TRANSCRIPTION_MODEL: ${{ vars.OPENAI_TRANSCRIPTION_MODEL }}
+      OPENAI_ACTION_MODEL: ${{ vars.OPENAI_ACTION_MODEL }}
+      OPENAI_API_KEY_SECRET: ${{ vars.OPENAI_API_KEY_SECRET }}
+      TELEMETRY_RATE_LIMIT_KEY_SECRET: ${{ vars.TELEMETRY_RATE_LIMIT_KEY_SECRET }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
@@ -75,6 +84,9 @@ jobs:
       # this revision's CD gate to pass and only then deploys the resulting immutable digest.
       - if: steps.changes.outputs.deploy == 'true'
         run: ./scripts/deploy-cloud.sh
+        env:
+          # Existing repository secret; only the guarded deployment step receives it.
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       - uses: actions/upload-artifact@v4
         if: always() && steps.changes.outputs.deploy == 'true'
         with:

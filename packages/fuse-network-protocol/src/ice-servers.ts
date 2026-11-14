@@ -18,7 +18,7 @@ export function parseIceServers(raw: unknown): IceServer[] | undefined {
   const servers: IceServer[] = [];
   for (const item of Array.isArray(list) ? list : []) {
     if (!item || typeof item !== "object") continue;
-    const { urls, username, credential } = item as Record<string, unknown>;
+    const { urls } = item as Record<string, unknown>;
     const entries =
       typeof urls === "string"
         ? [urls]

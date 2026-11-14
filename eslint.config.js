@@ -31,6 +31,7 @@ export default defineConfig(
     files: [
       "service/**/*.ts",
       "site/**/*.ts",
+      "dev/**/*.ts",
       "tests/**/*.ts",
       "scripts/**/*.ts",
       "packages/*/src/**/*.ts",

@@ -162,9 +162,17 @@ adapter and existing session cache; `fuse-ui/social` composes account history, r
 for the other games, while Riders keeps its detailed stats renderers. Cross-game invites preserve the destination
 game ID. No game imports another game's client to use accounts. See [shared social](design/shared-social.md).
 
-Product analytics lives in `packages/fuse-ui/src/analytics.ts` (guarded Mixpanel adapter, `fuse.*` names and `gameId`)
-and `play-metrics.ts` (observed seat/match lifecycle). Every game supplies its own view adapter at the application
-boundary; no simulation or transport code sends analytics. Fuse Riders retains its detailed funnel and match/weapon
-properties in `games/fuse-riders/src/online/`. See [product analytics](ANALYTICS.md).
+Product analytics lives in `packages/fuse-ui/src/analytics.ts` (guarded first-party transport, `fuse.*` names and `gameId`)
+and `play-metrics.ts` (observed seat/match/round lifecycle). Every game supplies its own view adapter at the application
+boundary; no simulation or transport code sends analytics. Completed rounds come from confirmed outcomes. Fuse Riders
+retains its detailed funnel and match/weapon properties in `games/fuse-riders/src/online/`. See [product analytics](ANALYTICS.md).
+
+`packages/fuse-telemetry` owns bounded event ingestion, period rollups, private reports, recordings and proposed
+developer actions. `service/telemetry.ts` composes Firestore metadata, private GCS media and an authenticated
+Pub/Sub transcription worker. Verified allowlisted Google accounts can record and read `/dev`; anonymous players
+can send screenshot reports without gaining read access. Browser audio is saved in independent WAV segments through
+an IndexedDB outbox. Scoped agent tokens grant only action-queue access. See the [design and epic ledger](design/developer-insights.md)
+and [developer operations guide](developer-insights.md) for API, retention and deployment configuration. Production
+telemetry stays disabled until its dependencies are configured.
 
 [Verification guidance](verification.md) maps unit, browser and release checks to their scope. Tests use typed injected clocks, schedulers, transports and randomness; browser checks exercise the actual presentation and transport seams. Coverage applies only to `.c8rc.json`'s included modules. Neither a passing PR verify job nor desktop browser emulation proves physical-phone or WAN acceptance. Claims about releases require the exact source revision and live external evidence.

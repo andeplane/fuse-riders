@@ -7,12 +7,14 @@ import {
   HistoryStore,
   createPlatformHttp,
   createIdentityVerifier,
+  composeHttp,
 } from "fuse-platform";
 import {
   FirestoreFriendsDatabase,
   FirestoreHistoryDatabase,
 } from "fuse-platform/firestore";
 import { platform } from "./history.js";
+import { createProductionTelemetry } from "./telemetry.js";
 
 /**
  * The one deployed service: every registered game's rooms and its shared history, accounts and ratings
@@ -27,7 +29,7 @@ export function startService(authClient?: AuthClient): void {
     ...(authClient ? { authClient } : {}),
     httpExtension: ({ store, firestore, prefix, projectId }) => {
       const history = new FirestoreHistoryDatabase(platform, firestore, prefix);
-      return createPlatformHttp({
+      const platformHttp = createPlatformHttp({
         history: new HistoryStore(platform, history, store, Date.now),
         friends: new FriendsStore(
           platform,
@@ -40,6 +42,16 @@ export function startService(authClient?: AuthClient): void {
           process.env.FIREBASE_PROJECT_ID ?? projectId,
         ),
       });
+      return composeHttp(
+        createProductionTelemetry({
+          firestore,
+          prefix,
+          projectId,
+          gameIds: platform.gameIds,
+          environment: process.env,
+        }),
+        platformHttp,
+      );
     },
   });
 }
