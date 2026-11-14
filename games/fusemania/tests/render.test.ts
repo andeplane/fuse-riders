@@ -59,6 +59,13 @@ import {
   type DrawOptions,
   type SceneOptions,
 } from "../src/render/scene.js";
+import {
+  OWN_MARKER,
+  RIVAL_MARKER,
+  paceAt,
+  raceShare,
+  raceTrack,
+} from "../src/render/race.js";
 import { PLAIN, SCRAMBLES, scrambleFor } from "../src/render/scramble.js";
 import { spriteName } from "../src/render/sprites.js";
 
@@ -1885,5 +1892,108 @@ test("a new match on the same scene starts clean", () => {
       "burst:1",
     ).length,
     2,
+  );
+});
+
+// ---- the race line ----
+
+test("the pace is the share of the full score that could be had by now", () => {
+  const steps = stream(4, 1000, 1000);
+  assert.equal(paceAt(steps, 0), 0);
+  assert.equal(paceAt(steps, 999), 0);
+  assert.equal(paceAt(steps, 1000), 0.25);
+  assert.equal(paceAt(steps, 2500), 0.5);
+  assert.equal(paceAt(steps, 99_000), 1);
+  // A hold's points come at its tail.
+  const held: Steps = {
+    ...chart([
+      [1000, 0, HOLD, 3000],
+      [2000, 1],
+    ]),
+    full: 25,
+  };
+  assert.equal(paceAt(held, 1500), 10 / 25);
+  assert.equal(paceAt(held, 2000), 20 / 25);
+  assert.equal(paceAt(held, 3000), 1);
+  assert.equal(raceShare(-5), 0);
+  assert.equal(raceShare(250_000), 0.25);
+  assert.equal(raceShare(1_400_000), 1, "a doubled stretch stops at the flag");
+});
+
+/** The markers on the race line of a frame: where each path starts (its tip), its size and its colour. */
+function markers(calls: readonly Call[], top: number) {
+  const found: { x: number; half: number; fill: string }[] = [];
+  for (const [i, call] of calls.entries()) {
+    if (call.op !== "moveTo" || call.y < top) continue;
+    const back = calls[i + 1]!;
+    const fill = calls.slice(i).find((next) => next.op === "fill")!;
+    found.push({ x: call.x, half: call.y - back.y, fill: fill.fill });
+  }
+  return found;
+}
+
+test("the race line puts every rider at its share of the full score, the local rider's marker biggest and under the others'", () => {
+  const steps = stream(8, 1000, 1000);
+  const r = rig();
+  const view = world([
+    rider(0, { rating: 250_000, place: 2 }),
+    rider(1, { rating: 500_000, place: 1 }),
+    rider(2, { rating: 0, place: 3 }),
+  ]);
+  const calls = r.frame(view, shot(steps, 4500, { local: 0 }));
+  const race = layoutFor(1366, 768, 3, 0).race!;
+  const track = raceTrack(race, 1, { left: 0, width: 0 });
+  const found = markers(calls, race.y);
+  assert.deepEqual(
+    found.map((marker) => marker.fill),
+    [CYAN, GOLD, PINK],
+    "the local rider's big marker, then last place and the leader over it",
+  );
+  assert.deepEqual(
+    found.map((marker) => marker.half),
+    [OWN_MARKER, RIVAL_MARKER, RIVAL_MARKER],
+  );
+  const centre = (marker: { x: number; half: number }): number =>
+    marker.x - marker.half;
+  assert.equal(centre(found[0]!), track.left + track.width * 0.25);
+  assert.equal(centre(found[1]!), track.left);
+  assert.equal(centre(found[2]!), track.left + track.width * 0.5);
+  // The track is filled up to the pace: four of the eight notes are behind.
+  const y = race.y + race.height / 2;
+  const fills = calls.filter(
+    (call) => call.op === "fillRect" && call.y === y && call.height === 4,
+  );
+  assert.deepEqual(
+    fills.map((call) => call.width),
+    [track.width, Math.round(track.width * 0.5)],
+  );
+  // Everything of it is inside its band.
+  for (const marker of found) {
+    assert.ok(centre(marker) - marker.half >= race.x);
+    assert.ok(centre(marker) + marker.half <= race.x + race.width);
+  }
+});
+
+test("a rider alone has a race line too, and the shared screen draws every marker the same size", () => {
+  const steps = stream(8, 1000, 1000);
+  const solo = rig();
+  const race = layoutFor(1366, 768, 1, 0).race!;
+  const alone = markers(
+    solo.frame(world([rider(0, { rating: 1_000_000 })]), shot(steps, 9000)),
+    race.y,
+  );
+  assert.equal(alone.length, 1);
+  assert.equal(alone[0]!.half, OWN_MARKER);
+  const track = raceTrack(race, 1, { left: 0, width: 0 });
+  assert.equal(alone[0]!.x - OWN_MARKER, track.left + track.width);
+
+  const tv = rig(1920, 1080);
+  const shared = markers(
+    tv.frame(world([rider(0), rider(1)]), shot(steps, 2000, { local: -1 })),
+    layoutFor(1920, 1080, 2, -1).race!.y,
+  );
+  assert.deepEqual(
+    shared.map((marker) => marker.half),
+    [RIVAL_MARKER, RIVAL_MARKER],
   );
 });
