@@ -15,28 +15,23 @@ export function RndWindowFrame({
   onRectChange,
   children,
 }: WindowFrameProps) {
+  // One element for both states: swapping the frame for another on maximize would remount everything inside it,
+  // and a game's page (an iframe) would load again from its front door, out of the room it was in.
   // The host already stops above the taskbar (Desktop.tsx, `bottom-7`), so a maximized window fills it.
-  if (maximized) {
-    return (
-      <div
-        data-window-id={id}
-        className="pointer-events-auto absolute left-0 top-0 h-full w-full"
-        style={{ zIndex }}
-        onMouseDown={onFocus}
-      >
-        {children}
-      </div>
-    );
-  }
   return (
     <Rnd
       data-window-id={id}
       className="pointer-events-auto"
-      position={{ x: rect.x, y: rect.y }}
-      size={{ width: rect.width, height: rect.height }}
+      position={maximized ? { x: 0, y: 0 } : { x: rect.x, y: rect.y }}
+      size={
+        maximized
+          ? { width: "100%", height: "100%" }
+          : { width: rect.width, height: rect.height }
+      }
       minWidth={MIN_WINDOW_WIDTH}
       minHeight={MIN_WINDOW_HEIGHT}
-      enableResizing={resizable}
+      enableResizing={resizable && !maximized}
+      disableDragging={maximized}
       bounds="parent"
       scale={scale}
       dragHandleClassName="title-bar"
