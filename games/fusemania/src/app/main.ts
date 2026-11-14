@@ -1554,7 +1554,10 @@ function room(solo: boolean, library: Library, first?: Choice): void {
             const row = el("div", "", "fm-count-row"),
               bar = el("i", "", "fm-count-bar"),
               kind = `fm-count-${label.toLowerCase().split(" ")[0]}`;
-            const share = index < 6 && steps ? (Number(value) || 0) / steps : 0;
+            // A judgment's bar is its share of the steps; the holds' bar is how many were kept.
+            const [kept = 0, all = 0] = value.split(" / ").map(Number);
+            const share =
+              index < 6 ? (steps ? kept / steps : 0) : all ? kept / all : 0;
             bar.style.setProperty("--share", share.toFixed(4));
             bar.classList.add(kind);
             row.append(el("dt", label, kind), bar, el("dd", value));

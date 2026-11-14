@@ -858,7 +858,7 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
   justify-items: center;
   gap: var(--fui-space-3);
   padding: var(--fui-space-4);
-  background: #050e25d9;
+  background: #050e25f0;
   text-align: center;
   touch-action: manipulation;
 }
