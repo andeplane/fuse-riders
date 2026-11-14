@@ -34,15 +34,37 @@ def timing(meta) -> Timing:
     return Timing(meta["offset"], [tuple(x) for x in meta["bpms"]], [tuple(x) for x in meta.get("stops", [])])
 
 
-def place(prob: np.ndarray, tm: Timing, diff: str, thr: float, n_target: int | None = None, swing: bool = False):
-    """Peaks of the step probability → snapped beats (respecting the difficulty's grid and minimum gap)."""
+def only_24th(b: float) -> bool:
+    """A beat position on the 24th grid that is neither an 8th, a 12th nor a 16th: k + 1/6 or k + 5/6."""
+    six = b * 6
+    return abs(six - round(six)) < 1e-6 and round(six) % 6 in (1, 5)
+
+
+def keep_24th_runs(beats: list[float], need: int = 5) -> list[float]:
+    """24ths only as bursts: a 1/6 or 5/6 step stays when its beat carries at least `need` of its six 24ths."""
+    have = set(round(b * 6) for b in beats if abs(b * 6 - round(b * 6)) < 1e-6)
+    out = []
+    for b in beats:
+        if only_24th(b):
+            k = math.floor(b + 1e-6)
+            if sum((k * 6 + j) in have for j in range(6)) < need:
+                continue
+        out.append(b)
+    return out
+
+
+def place(prob: np.ndarray, tm: Timing, diff: str, thr: float, n_target: int | None = None, swing: bool = False,
+          snap24: bool = False):
+    """Peaks of the step probability → snapped beats (respecting the difficulty's grid and minimum gap).
+    `snap24` lets steps land on the 24th grid too; isolated ones are dropped again (`keep_24th_runs`)."""
     cand = peaks(prob, thr if n_target is None else 0.0)
     cand = cand[np.argsort(-prob[cand])]
     chosen: dict[float, float] = {}
     times: list[float] = []
     for f in cand:
         b = tm.time_to_beat(f / FPS)
-        best = min((round(b * s) / s for s in SNAP[diff] + ([3] if swing and diff in ("Medium", "Hard", "Challenge") else [])), key=lambda x: abs(x - b))
+        subs = SNAP[diff] + ([3] if swing and diff in ("Medium", "Hard", "Challenge") else []) + ([6] if snap24 else [])
+        best = min((round(b * s) / s for s in subs), key=lambda x: abs(x - b))
         if abs(best - b) > 0.2 or best in chosen or best < 0:
             continue
         t = tm.beat_to_time(best)
@@ -52,7 +74,7 @@ def place(prob: np.ndarray, tm: Timing, diff: str, thr: float, n_target: int | N
         times.append(t)
         if n_target is not None and len(chosen) >= n_target:
             break
-    return sorted(chosen)
+    return keep_24th_runs(sorted(chosen)) if snap24 else sorted(chosen)
 
 
 @torch.no_grad()

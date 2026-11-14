@@ -15,6 +15,7 @@ import numpy as np
 import torch
 
 from arrows import ArrowNet, generate
+import data
 from data import load, split
 from features import FPS
 from bursts import burst_beats
@@ -32,6 +33,23 @@ THR = float(os.environ.get("PLACE_THR", "0"))
 _COVERS_FILE = Path(__file__).resolve().parents[2] / "games/fusemania/charts/covers-challenge.json"
 COVERS = {k: v for k, v in json.loads(_COVERS_FILE.read_text()).items() if k != "about"} if _COVERS_FILE.exists() else {}
 METERS = {"Easy": 3, "Medium": 6, "Hard": 9, "Challenge": 13}
+# 24th bursts on Challenge: "learned" lets the placement model put steps on the 24th grid (kept only as runs),
+# "rule" is the onset test in bursts.py, "both" and "off" as they say.
+BURSTS = os.environ.get("CHARTNET_BURSTS", "learned")
+WEIGHTS = (os.environ.get("CHARTNET_ONSET", "onset_dens"), os.environ.get("CHARTNET_ARROWS", "arrows"))
+
+
+def window_variety(toks: list[str], win: int = 64) -> float:
+    """Share of distinct four-row patterns inside each window of `win` rows, averaged. Unlike the whole-chart share
+    it does not fall just because a chart has more rows."""
+    if len(toks) < 8:
+        return 1.0
+    vals = []
+    for st in range(0, max(len(toks) - win, 0) + 1, win // 2):
+        w = toks[st:st + win]
+        grams = [tuple(w[i:i + 4]) for i in range(len(w) - 3)]
+        vals.append(len(set(grams)) / max(len(grams), 1))
+    return float(np.mean(vals))
 
 
 def crossovers_best_parity(rows) -> float:
@@ -92,6 +110,10 @@ def stats2(rows) -> dict:
         s[f"feet_{k}"] = round(v / max(singles, 1), 3)
     s["crossover_best_parity"] = crossovers_best_parity(rows)
     s["stream16_share"] = round(sum(1 for a, b in zip(beats, beats[1:]) if b - a <= 0.25 + 1e-6) / max(len(beats) - 1, 1), 3)
+    s["stream24_share"] = round(sum(1 for a, b in zip(beats, beats[1:]) if b - a <= 1 / 6 + 1e-6) / max(len(beats) - 1, 1), 4)
+    s["variety_w64"] = round(window_variety([r for _, _, r in rows if any(c in "124" for c in r)]), 3)
+    times = np.array([t for _, t, r in rows if any(c in "124" for c in r)])
+    s["peak_nps_2s"] = round(max(int(np.searchsorted(times, t + 2.0) - i) for i, t in enumerate(times)) / 2, 2)
     return s
 
 
@@ -104,19 +126,54 @@ def with_bursts(beats: list[float], burst: list[int]) -> tuple[list[float], int]
     return sorted(set(keep) | set(added)), len(burst)
 
 
+def placement_model():
+    cfg_path = ROOT / f"{WEIGHTS[0]}.json"
+    cfg = json.loads(cfg_path.read_text()) if cfg_path.exists() else {"n_in": 192, "wide": False}
+    data.BANDS = cfg["n_in"] > 192  # the features the weights were trained on
+    stats_path = ROOT / f"feat_stats_{cfg['n_in']}.npz"
+    st = np.load(stats_path if stats_path.exists() else ROOT / "feat_stats.npz")
+    om = OnsetNet(cfg["n_in"], True, use_density=True, wide=cfg["wide"]).to("mps")
+    om.load_state_dict(torch.load(ROOT / f"{WEIGHTS[0]}.pt", map_location="cpu"))
+    return (st["mean"], st["std"]), om, cfg
+
+
+def place_eval(keys_file="test_keys.json"):
+    """Step-timing F1 of the placement model alone on held-out songs, told each human chart's density and count."""
+    stats_, om, _ = placement_model()
+    te, _ = load("cache", stats_, only=set(json.loads((ROOT / keys_file).read_text())))
+    tot: dict = {}
+    for s in te:
+        tm = timing(s.meta)
+        for c in s.meta["charts"]:
+            d = c["difficulty"]
+            true = np.array([int(round(t * FPS)) for _, t, r in c["rows"] if any(x in "124" for x in r)])
+            beats = place(predict(om, s, d, chart_nps(c)), tm, d, 0.0, n_target=len(true),
+                          snap24=d == "Challenge" and BURSTS in ("learned", "both"))
+            got = f1(np.array([int(round(tm.beat_to_time(b) * FPS)) for b in beats]), true)
+            for k in (d, "all"):
+                t = tot.setdefault(k, [0, 0, 0])
+                t[:] = [x + y for x, y in zip(t, got)]
+    out = {}
+    for k, (tp, npred, ntrue) in tot.items():
+        p, r = tp / max(npred, 1), tp / max(ntrue, 1)
+        out[k] = round(2 * p * r / max(p + r, 1e-9), 3)
+    print(WEIGHTS[0], keys_file, " ".join(f"{k}={out[k]}" for k in ["all"] + [d for d in DIFFS if d in out]))
+    return out
+
+
 def models():
-    st = np.load(ROOT / "feat_stats.npz")
-    om = OnsetNet(192, True, use_density=True).to("mps")
-    om.load_state_dict(torch.load(ROOT / "onset_dens.pt"))
-    am = ArrowNet().to("mps")
-    am.load_state_dict(torch.load(ROOT / "arrows.pt"))
-    return (st["mean"], st["std"]), om, am
+    stats_, om, cfg = placement_model()
+    sd = torch.load(ROOT / f"{WEIGHTS[1]}.pt", map_location="cpu")
+    am = ArrowNet(sd["au.0.weight"].shape[1], sd["tok.weight"].shape[1],
+                  len({k.split(".")[2] for k in sd if k.startswith("tr.layers.")})).to("mps")
+    am.load_state_dict(sd)
+    assert sd["au.0.weight"].shape[1] == cfg["n_in"], "placement and arrow models were trained on different features"
+    return stats_, om, am
 
 
-def eval_packs(only=None):
+def eval_packs(only=None, keys_file="test_keys.json", out_name="eval2_results.json"):
     stats_, om, am = models()
-    songs, _ = load("cache", stats_)
-    _, _, te = split(songs)
+    te, _ = load("cache", stats_, only=set(json.loads((ROOT / keys_file).read_text())))
     rd = ROOT / "rulegen"
     rule = json.loads((rd / "out.json").read_text())
     hyb = json.loads((rd / "out_hybrid.json").read_text())
@@ -132,7 +189,8 @@ def eval_packs(only=None):
             nps = chart_nps(c)
             true = np.array([int(round(t * FPS)) for _, t, r in true_rows if any(x in "124" for x in r)])
             prob = predict(om, s, d, nps)
-            beats = place(prob, tm, d, THR, n_target=None if THR > 0 else len(true))
+            beats = place(prob, tm, d, THR, n_target=None if THR > 0 else len(true),
+                          snap24=d == "Challenge" and BURSTS in ("learned", "both"))
             rows = generate(am, s, beats, tm, d, nps, seed=zlib.crc32((s.key + d).encode()))
             r = res.setdefault(d, {"human": [], "v2": [], "hybrid": [], "rule": []})
             r["human"].append(stats2(true_rows))
@@ -154,7 +212,7 @@ def eval_packs(only=None):
         tp, npred, ntrue = f1s[d]["v2"]
         p, rr = tp / max(npred, 1), tp / max(ntrue, 1)
         out[d]["v2_f1_at_human_density"] = round(2 * p * rr / max(p + rr, 1e-9), 3)
-    (ROOT / "eval2_results.json").write_text(json.dumps(out, indent=1))
+    (ROOT / out_name).write_text(json.dumps(out, indent=1))
     for d, v in out.items():
         print(d, "F1", v["v2_f1_at_human_density"])
         for k, st in v["stats"].items():
@@ -164,7 +222,7 @@ def eval_packs(only=None):
 def fuse():
     stats_, om, am = models()
     songs, _ = load("cache_fuse", stats_)
-    outdir = ROOT / "out_fuse2"
+    outdir = ROOT / os.environ.get("CHARTNET_OUT", "out_fuse2")
     outdir.mkdir(exist_ok=True)
     agg: dict = {}
     bursts_: dict = {}
@@ -192,10 +250,13 @@ def fuse():
         for d in FUSE_DIFFS:
             prob = predict(om, s, d, target[d])
             n_target = None if THR > 0 else int(target[d] * 0.9 * len(s.feats) / FPS)
-            beats = place(prob, tm, d, THR, n_target=n_target, swing=swing)
-            if d == "Challenge":  # 24th bursts where the music itself moves at 24th speed
+            beats = place(prob, tm, d, THR, n_target=n_target, swing=swing,
+                          snap24=d == "Challenge" and BURSTS in ("learned", "both"))
+            if d == "Challenge" and BURSTS in ("rule", "both"):  # where the music itself moves at 24th speed
                 beats, n_burst = with_bursts(beats, burst_beats(s.onset, tm, beats[0], beats[-1]))
                 bursts_[s.key] = n_burst
+            if d == "Challenge" and BURSTS == "learned":
+                bursts_[s.key] = len({int(b) for b in beats if abs(b * 6 - round(b * 6)) < 1e-6 and round(b * 6) % 6 in (1, 5)})
             rows = generate(am, s, beats, tm, d, target[d], seed=zlib.crc32((s.key + d).encode()))
             charts.append((d, meters[d], rows))
             agg.setdefault(d, []).append(stats2(rows))
@@ -211,5 +272,9 @@ def fuse():
 if __name__ == "__main__":
     if sys.argv[1] == "eval":
         eval_packs(sys.argv[2].split(",") if len(sys.argv) > 2 else None)
+    elif sys.argv[1] == "place-eval":
+        place_eval(sys.argv[2] if len(sys.argv) > 2 else "test_keys.json")
+    elif sys.argv[1] == "eval2":  # the held-out community songs (stream and stamina packs)
+        eval_packs(sys.argv[2].split(",") if len(sys.argv) > 2 else None, "test2_keys.json", "eval2_community.json")
     else:
         fuse()

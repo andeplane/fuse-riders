@@ -11,13 +11,14 @@ from pathlib import Path
 
 import numpy as np
 
-from features import features_from_audio
-from simfile import parse
+from features import FPS, features_from_audio
+from simfile import DIFFS, parse
 
 ROOT = Path(os.environ.get("CHARTNET_WORK", Path.home() / "projects/personal/fusemania-songs/chartnet"))
 PACKS = ROOT.parent / "packs"
 CACHE = ROOT / "cache"
 AUDIO_EXT = (".ogg", ".mp3", ".wav")
+MAX_SECONDS = 420  # marathons are skipped
 
 
 def songs_in_zip(zpath: Path) -> list[tuple[str, str, str]]:
@@ -50,10 +51,15 @@ def process(args: tuple[str, str, str, str]) -> str:
             audio_bytes = z.read(audio_name)
         if any(b <= 0 for _, b in sim.timing.bpms) or any(s < 0 for _, s in sim.timing.stops):
             return f"badtiming {key}"
-        charts = [c for c in sim.charts if len(c.rows) > 20]
+        charts = [c for c in sim.charts if len(c.rows) > 20 and c.difficulty in DIFFS]
         if not charts:
             return f"nocharts {key}"
         feats, onset = features_from_audio(io.BytesIO(audio_bytes), suffix=audio_name.rsplit(".", 1)[-1])
+        if len(feats) > MAX_SECONDS * FPS:
+            return f"toolong {key}"
+        last = max(sim.timing.beat_to_time(c.rows[-1][0]) for c in charts)
+        if last > len(feats) / FPS + 2:
+            return f"badsync {key}"
         meta = {
             "key": key, "title": sim.title, "zip": Path(zpath).name,
             "offset": sim.timing.offset, "bpms": sim.timing.bpms, "stops": sim.timing.stops,
