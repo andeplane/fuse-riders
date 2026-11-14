@@ -10,7 +10,7 @@ the text files on either; what it saves stays in the browser.
   `vite.config.ts`. At build time it runs `git ls-tree -r -l HEAD`, `git rev-parse HEAD` and
   `git log -1 --format=%cI` and writes `fuseos/repo-tree.json` into `dist/`: every committed
   file with its size, the commit sha, its date, the repository slug (`GITHUB_REPOSITORY`, else the
-  `origin` remote, else `andeplane/fuse-riders`) and the fallback branch (`main`). The dev server
+  `origin` remote, else `andeplane/fuse-games`) and the fallback branch (`main`). The dev server
   serves the same JSON, rebuilt on each request, so a new commit shows up without a restart.
 - **Zero API calls.** The manifest is fetched once, lazily, when the first Explorer, Notepad++ or
   Paint opens a picture (`src/disk/useDisk.ts`), and shared by every window. File contents
@@ -34,7 +34,7 @@ the text files on either; what it saves stays in the browser.
 | Text up to 512 KB                 | Notepad++ (a new tab in the open window)                            |
 | Text over 512 KB                  | "Notepad++" dialog: too large, read it on GitHub                    |
 | Image (png, jpg, gif, webp, svg…) | Paint, read-only: fetched from GitHub by URL; Save downloads a copy |
-| Anything else (zip, mp3, wasm…)   | Win95 "Open With" dialog: Windows cannot open this file             |
+| Anything else (zip, mp3, wasm…)   | Win98 "Open With" dialog: Windows cannot open this file             |
 
 **Images and Paint.** A picture opens in Paint through its `sourceUrl` (`DiskSource.imageUrl`
 names the raw URL at the build's commit, or on the fallback branch after one HEAD request finds

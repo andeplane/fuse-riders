@@ -28,8 +28,11 @@ describe(AboutDialog.name, () => {
       screen.getByText(`Copyright © ${new Date().getFullYear()} ${MADE_BY}`),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "github.com/andeplane/fuse-riders" }),
-    ).toHaveAttribute("href", "https://github.com/andeplane/fuse-riders");
+      screen.getByRole("link", { name: "github.com/andeplane/fuse-games" }),
+    ).toHaveAttribute("href", "https://github.com/andeplane/fuse-games");
+    expect(
+      screen.getByText(/A Windows 98 desktop for the Fuse games/),
+    ).toBeInTheDocument();
   });
 
   it("lists each credit, linking the ones with a home page", () => {

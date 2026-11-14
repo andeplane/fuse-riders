@@ -91,7 +91,7 @@ describe("Explorer", () => {
       "README.md1 KBMarkdown Document11/14/26, 1:39 PM",
     ]);
     expect(
-      screen.getByText(`andeplane/fuse-riders @ ${FIXTURE_SHA.slice(0, 7)}`),
+      screen.getByText(`andeplane/fuse-games @ ${FIXTURE_SHA.slice(0, 7)}`),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("dialog", { name: "Exploring - C:\\" }),
@@ -195,7 +195,7 @@ describe("Explorer", () => {
     await user.clear(address);
     await user.type(address, "C:\\public\\gallery{Enter}");
     // A picture opens in Paint, fetched from the commit's raw URL.
-    const url = `memory://andeplane/fuse-riders/${FIXTURE_SHA}/${FIXTURE_IMAGE}`;
+    const url = `memory://andeplane/fuse-games/${FIXTURE_SHA}/${FIXTURE_IMAGE}`;
     paintFiles.images.set(url, new Blob(["jpg"], { type: "image/jpeg" }));
     await user.dblClick(row(/fuseball\.jpg/));
     expect(
