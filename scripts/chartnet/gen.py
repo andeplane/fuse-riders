@@ -134,6 +134,78 @@ def mean_stats(lst):
     return {k: round(float(np.mean([s[k] for s in lst if k in s])), 3) for k in keys}
 
 
+# ---------------------------------------------------------------- playability fix-ups
+LEAD_IN = 1.0  # seconds before the first step
+
+
+def playable(rows, tm):
+    """Drop steps in the first second, and end a freeze before any row that would need a third arrow or its panel.
+    A freeze left shorter than half a beat becomes a tap. `rows` are (beat, time, "0123"), tails included."""
+    rows = [(b, t, r) for b, t, r in rows if t >= LEAD_IN or not any(c in "124" for c in r)]
+    grid = {b: list(r) for b, _, r in rows}
+    beats = sorted(grid)
+    for b in beats:
+        for c in range(4):
+            if grid[b][c] != "2":
+                continue
+            tail = next((x for x in beats if x > b and grid[x][c] == "3"), None)
+            if tail is None:
+                grid[b][c] = "1"
+                continue
+            def held_elsewhere(x: float) -> int:  # other freezes still down at beat x
+                n = 0
+                for d in range(4):
+                    if d == c:
+                        continue
+                    head = max((y for y in beats if y < x and grid[y][d] == "2"), default=None)
+                    if head is None:
+                        continue
+                    end = next((y for y in beats if y > head and grid[y][d] == "3"), None)
+                    if end is not None and end >= x:
+                        n += 1
+                return n
+
+            stop = next((x for x in beats if b < x <= tail and (
+                grid[x][c] in "124" or sum(ch in "124" for ch in grid[x]) + held_elsewhere(x) >= 2)), None)
+            if stop is None:
+                continue
+            grid[tail][c] = "0"
+            new_tail = math.floor((stop - 0.25) * 4 + 1e-6) / 4
+            if new_tail - b < 0.5:
+                grid[b][c] = "1"
+            else:
+                grid.setdefault(new_tail, ["0"] * 4)[c] = "3"
+                if new_tail not in beats:
+                    beats = sorted(grid)
+    # orphan tails (a head dropped with the lead-in) go too
+    open_cols: set[int] = set()
+    for b in sorted(grid):
+        for c in range(4):
+            if grid[b][c] == "2":
+                open_cols.add(c)
+            elif grid[b][c] == "3":
+                if c in open_cols:
+                    open_cols.discard(c)
+                else:
+                    grid[b][c] = "0"
+    return [(b, tm.beat_to_time(b), "".join(r)) for b, r in sorted(grid.items()) if "".join(r) != "0000"]
+
+
+def fixup(paths):
+    """Apply `playable` to the charts of finished .ssc files in place."""
+    from simfile import parse
+    for p in paths:
+        text = Path(p).read_text()
+        sim = parse(text)
+        blocks = text.split("#NOTES:\n")
+        out = [blocks[0]]
+        for chart, block in zip(sim.charts, blocks[1:]):
+            rest = block[block.index("\n;"):]
+            rows = playable([(b, sim.timing.beat_to_time(b), r) for b, r in chart.rows], sim.timing)
+            out.append(notes_text(rows) + rest)
+        Path(p).write_text("#NOTES:\n".join(out))
+
+
 # ---------------------------------------------------------------- ssc output
 def measure_text(rows_in_measure: dict[Fraction, str]) -> str:
     for n in (4, 8, 12, 16, 24, 32, 48, 64, 192):
@@ -293,4 +365,7 @@ def placement_eval():
 
 
 if __name__ == "__main__":
-    {"eval": eval_packs, "fuse": fuse, "placement": placement, "placement-eval": placement_eval}[sys.argv[1]]()
+    if sys.argv[1] == "fixup":
+        fixup(sys.argv[2:])
+    else:
+        {"eval": eval_packs, "fuse": fuse, "placement": placement, "placement-eval": placement_eval}[sys.argv[1]]()

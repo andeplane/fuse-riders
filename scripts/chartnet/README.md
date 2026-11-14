@@ -38,7 +38,7 @@ $P scripts/chartnet/gen.py placement-eval && pnpm exec tsx scripts/chartnet/rule
 $P scripts/chartnet/gen.py eval           # held-out songs: human vs learned vs rule-based vs hybrid
 $P scripts/chartnet/onset.py --phase 1 --density 1 --name onset_dens && $P scripts/chartnet/arrows.py   # v2 models
 $P scripts/chartnet/gen2.py eval && $P scripts/chartnet/gen2.py fuse   # v2 held-out metrics, Fuse charts
-pnpm exec tsx scripts/chartnet/bundle.ts $CHARTNET_WORK/out_fuse2    # → games/fusemania/charts/chartnet and the game
+pnpm exec tsx scripts/chartnet/bundle.ts $CHARTNET_WORK/out_fuse2 && (cd scripts/chartnet && $P gen.py fixup ../../games/fusemania/charts/*.ssc) && pnpm exec tsx scripts/fusemania-charts.ts bundle
 ```
 
 ## Results (48 held-out pack songs, 190 charts)
@@ -111,7 +111,7 @@ density, below.
 
 ## Fuse songs
 
-`games/fusemania/charts/chartnet/<id>.ssc` keeps each song's own header and timing (`bundle.ts`). The charts aim at
+Each song's charts keep its own header and timing (`bundle.ts`). The charts aim at
 about the packs' 75th to 90th percentile of steps per second: Easy 1.8, Medium 2.8 and Hard 4.3; Challenge aims at 7.0, which these songs' tempos cap at about 12 steps a second
 in 16th streams. Over the
 20 songs (`gen2.py fuse`):
@@ -126,6 +126,7 @@ in 16th streams. Over the
 The busiest two seconds of a Challenge chart reach a median of 9 steps a second (at most 10). Human Challenge charts in
 the packs peak at a median of 7.5, 10.5 at the 90th percentile, and 15 at most.
 
-The game offers them after each song's own charts as "Easy ChartNet" … "Challenge ChartNet"; the default chart is
-unchanged. To rebuild: train (`onset.py --density 1 --name onset_dens`, `arrows.py`), then `gen2.py fuse` and
+These are the game's charts: `bundle.ts` writes them into `games/fusemania/charts/<id>.ssc` (credited `ChartNet`,
+which `fusemania-charts.ts generate` leaves alone), and `gen.py fixup` keeps a one-second lead-in and ends a freeze
+before any row that would need a third arrow. To rebuild: train (`onset.py --density 1 --name onset_dens`, `arrows.py`), then `gen2.py fuse` and
 `pnpm exec tsx scripts/chartnet/bundle.ts $CHARTNET_WORK/out_fuse2`.
