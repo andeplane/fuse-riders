@@ -17,6 +17,8 @@ import {
   ONLINE_WINDOW_MS,
   PRESENCE_REFRESH_MS,
   PUBLIC_ID_LENGTH,
+  cleanStatus,
+  lastSeenOf,
   validPublicId,
   type Friend,
   type FriendCard,
@@ -51,12 +53,61 @@ export interface PresenceRecord {
   at: number;
   name?: string;
   avatarId?: string;
+  /** Present only while the account says it is away. */
+  away?: true;
+  /** The status line, already tidied by `cleanStatus`; absent when there is none. */
+  status?: string;
   /** The room the account is in, bound to the room's incarnation: a reissued code is another room. */
   room?: {
     code: string;
     memberId: string;
     gameId: string;
     incarnation: string;
+  };
+}
+/**
+ * A presence document as an adapter reads it back. Records written before `away` and `status` existed have neither
+ * and read as "not away, no status"; a document of another shape is refused rather than guessed at.
+ */
+export function storedPresence(value: unknown): PresenceRecord | undefined {
+  if (!plain(value)) return;
+  const room = value.room;
+  if (
+    !validUid(value.uid) ||
+    !validPublicId(value.publicId) ||
+    !Number.isSafeInteger(value.at) ||
+    (value.name !== undefined && typeof value.name !== "string") ||
+    (value.avatarId !== undefined && typeof value.avatarId !== "string") ||
+    (value.away !== undefined && typeof value.away !== "boolean") ||
+    (value.status !== undefined && typeof value.status !== "string") ||
+    (room !== undefined &&
+      (!plain(room) ||
+        typeof room.code !== "string" ||
+        typeof room.memberId !== "string" ||
+        typeof room.gameId !== "string" ||
+        typeof room.incarnation !== "string"))
+  )
+    throw new Error("Stored presence is incompatible");
+  return {
+    uid: value.uid,
+    publicId: value.publicId,
+    at: value.at as number,
+    ...(value.name === undefined ? {} : { name: value.name as string }),
+    ...(value.avatarId === undefined
+      ? {}
+      : { avatarId: value.avatarId as string }),
+    ...(value.away === true ? { away: true as const } : {}),
+    ...(value.status ? { status: value.status as string } : {}),
+    ...(room === undefined
+      ? {}
+      : {
+          room: {
+            code: room.code as string,
+            memberId: room.memberId as string,
+            gameId: room.gameId as string,
+            incarnation: room.incarnation as string,
+          },
+        }),
   };
 }
 /** One friendship, requested or accepted; the pair is one record whichever side asked. */
@@ -153,18 +204,28 @@ export class FriendsStore {
     };
   }
 
+  /** The body as sent, checked field by field; `status` comes back tidied. Nothing is stored before this passes. */
   private parseSync(body: unknown): FriendsSyncBody {
     if (
       !plain(body) ||
       !Object.keys(body).every((key) =>
-        ["name", "avatarId", "room"].includes(key),
+        ["name", "avatarId", "room", "passive", "away", "status"].includes(key),
       ) ||
       (body.name !== undefined &&
         !this.platform.account.validName(body.name)) ||
       (body.avatarId !== undefined &&
-        !this.platform.account.validAvatar(body.avatarId))
+        !this.platform.account.validAvatar(body.avatarId)) ||
+      (body.passive !== undefined && typeof body.passive !== "boolean") ||
+      (body.away !== undefined && typeof body.away !== "boolean") ||
+      // A passive page is by definition not the one in the room, so it has no claim to make.
+      (body.passive === true && body.room !== undefined)
     )
       throw new RoomError(400, "Invalid presence");
+    let status: string | undefined;
+    if (body.status !== undefined) {
+      status = cleanStatus(body.status);
+      if (status === undefined) throw new RoomError(400, "Invalid presence");
+    }
     const room = body.room;
     if (room !== undefined) {
       if (
@@ -182,7 +243,10 @@ export class FriendsStore {
       )
         throw new RoomError(400, "Invalid presence");
     }
-    return body as FriendsSyncBody;
+    return {
+      ...(body as FriendsSyncBody),
+      ...(status === undefined ? {} : { status }),
+    };
   }
 
   /**
@@ -194,14 +258,24 @@ export class FriendsStore {
     const claim = this.parseSync(body),
       now = this.now();
     const current = await this.database.presence(uid);
-    const claimed = claim.room
-      ? {
-          code: claim.room.code,
-          memberId: claim.room.memberId,
-          gameId: claim.room.gameId ?? LEGACY_GAME_ID,
+    const passive = claim.passive === true,
+      stored = current?.room,
+      due = !current || now - current.at >= PRESENCE_REFRESH_MS;
+    // A passive poll (the desktop around an embedded game) makes no claim of its own: it carries the stored one
+    // forward, so the two pages of one account do not overwrite each other's room every poll.
+    const claimed = passive
+      ? stored && {
+          code: stored.code,
+          memberId: stored.memberId,
+          gameId: stored.gameId,
         }
-      : undefined;
-    const stored = current?.room;
+      : claim.room
+        ? {
+            code: claim.room.code,
+            memberId: claim.room.memberId,
+            gameId: claim.room.gameId ?? LEGACY_GAME_ID,
+          }
+        : undefined;
     const sameClaim =
       stored !== undefined &&
       claimed !== undefined &&
@@ -211,40 +285,65 @@ export class FriendsStore {
     // A room claim is proven when it changes and again whenever the record is due a rewrite anyway: the seat must be a
     // live member of the room the code names now, which only a device in that room can know, and the claim is bound
     // to that room's incarnation, so a reissued code is another room. Otherwise any signed-in account could name a
-    // room code and read who is in it.
+    // room code and read who is in it. A carried-forward claim is re-proven on the same schedule, so a passive poll
+    // cannot keep a dead room alive longer than an active one would; it is dropped, not refused, when the proof
+    // fails, because the passive page is not the one that can act on a refusal.
     let room: PresenceRecord["room"];
     if (claimed) {
-      if (!sameClaim || now - current!.at >= PRESENCE_REFRESH_MS) {
+      if (!sameClaim || due) {
         const record = await this.rooms
             .get(claimed.code)
             .catch(() => undefined),
-          seat = record?.members[claimed.memberId];
-        if (!record || !seat || seat.expiresAt <= now)
-          throw new RoomError(403, "Join the room first");
-        room = { ...claimed, incarnation: record.incarnation };
+          seat = record?.members[claimed.memberId],
+          live =
+            record !== undefined &&
+            seat !== undefined &&
+            seat.expiresAt > now &&
+            (!passive || record.incarnation === stored!.incarnation);
+        if (live) room = { ...claimed, incarnation: record.incarnation };
+        else if (!passive) throw new RoomError(403, "Join the room first");
       } else room = { ...claimed, incarnation: stored!.incarnation };
     }
-    // A poll that names nothing keeps the name and head the player last showed up with.
+    // A poll that names nothing keeps the name, head and status the player last showed up with.
     const name = claim.name ?? current?.name,
-      avatarId = claim.avatarId ?? current?.avatarId;
+      avatarId = claim.avatarId ?? current?.avatarId,
+      status = claim.status ?? current?.status;
+    // Away: an active page that does not say is in use (every client from before the field, and it heals an "away"
+    // left behind by a page that closed). A passive page keeps what is stored unless it says, and says nothing
+    // that counts while the account is in a room, where the page in the room speaks for it. Coming back is recorded
+    // at once; going away rides the periodic rewrite, so two pages that disagree cannot cost a write per poll.
+    const reported = passive
+      ? room
+        ? undefined
+        : claim.away
+      : (claim.away ?? false);
+    const away =
+      reported === undefined
+        ? current?.away === true
+        : reported && (due || current?.away === true);
     const next: PresenceRecord = {
       uid,
       publicId: publicIdOf(uid),
       at: now,
       ...(name === undefined ? {} : { name }),
       ...(avatarId === undefined ? {} : { avatarId }),
+      ...(away ? { away: true as const } : {}),
+      ...(status ? { status } : {}),
       ...(room ? { room } : {}),
     };
     const same = (a: unknown, b: unknown) =>
       JSON.stringify(a) === JSON.stringify(b);
     if (
-      !current ||
-      now - current.at >= PRESENCE_REFRESH_MS ||
+      due ||
       current.name !== next.name ||
       current.avatarId !== next.avatarId ||
+      current.away !== next.away ||
+      current.status !== next.status ||
       !same(current.room, next.room)
     )
       await this.database.setPresence(next);
+    // The room's signed-in members are for the page in the room; a passive poll does not pay for that query.
+    const here = passive ? undefined : room;
     // Three lists, then two batches: one of presence records and one of accounts for everyone they name, so the
     // poll's cost is a handful of requests however many friends there are.
     const [edges, pending, seated] = await Promise.all([
@@ -252,8 +351,8 @@ export class FriendsStore {
       this.database
         .invites(uid, INVITE_LIMIT)
         .then((invites) => invites.filter((i) => i.expiresAt > now)),
-      room
-        ? this.database.roomPresences(room.code, ROOM_PRESENCE_LIMIT)
+      here
+        ? this.database.roomPresences(here.code, ROOM_PRESENCE_LIMIT)
         : Promise.resolve([] as PresenceRecord[]),
     ]);
     const others = edges.map((edge) =>
@@ -277,8 +376,8 @@ export class FriendsStore {
       }
       return card;
     };
-    const online = (p: PresenceRecord | undefined): p is PresenceRecord =>
-      p !== undefined && now - p.at < ONLINE_WINDOW_MS;
+    const online = (p: PresenceRecord): boolean =>
+      now - p.at < ONLINE_WINDOW_MS;
     const friends: Friend[] = [],
       incoming: FriendCard[] = [],
       outgoing: FriendCard[] = [],
@@ -288,13 +387,23 @@ export class FriendsStore {
         card = cardOf(other);
       if (edge.status === "accepted") {
         const p = presences.get(other);
-        friends.push({
-          ...card,
-          online: online(p),
-          ...(online(p) && p.room
-            ? { room: { code: p.room.code, gameId: p.room.gameId } }
-            : {}),
-        });
+        friends.push(
+          p && online(p)
+            ? {
+                ...card,
+                online: true,
+                ...(p.away ? { away: true as const } : {}),
+                ...(p.status ? { status: p.status } : {}),
+                ...(p.room
+                  ? { room: { code: p.room.code, gameId: p.room.gameId } }
+                  : {}),
+              }
+            : {
+                ...card,
+                online: false,
+                ...(p ? { lastSeen: lastSeenOf(p.at) } : {}),
+              },
+        );
         relations.set(other, "friend");
       } else if (edge.requestedBy === uid) {
         outgoing.push(card);
@@ -321,13 +430,13 @@ export class FriendsStore {
     }
     invites.sort((a, b) => b.at - a.at);
     const roomPlayers: RoomPlayer[] = [];
-    if (room) {
+    if (here) {
       for (const p of seated) {
         if (
           !online(p) ||
           !p.room ||
-          p.room.code !== room.code ||
-          p.room.incarnation !== room.incarnation
+          p.room.code !== here.code ||
+          p.room.incarnation !== here.incarnation
         )
           continue;
         roomPlayers.push({
