@@ -28,7 +28,8 @@ export const FILL = 0.85;
  * The largest whole number of device pixels per art pixel that fits the host: scaling by anything else doubles some
  * rows of pixels, so the leftover is letterboxed. When that would leave more than a sixth of the window empty (a
  * 1280 by 720 window fits 2.67), the picture is drawn at the next whole scale up and shown shrunk to fill the host,
- * smoothed (`smooth`) so no row is dropped. A host smaller than the art gets scale 1 and is cropped by the page.
+ * smoothed (`smooth`) so no row is dropped. A host smaller than the art (a phone held upright) gets the art at scale
+ * 1 shrunk to fit it, smoothed too: the whole arena always shows. A host with no size yet gets scale 1.
  */
 export function fitView(
   hostWidth: number,
@@ -40,8 +41,9 @@ export function fitView(
     heightPx = Math.max(0, hostHeight) * ratio;
   const exact = Math.min(widthPx / VIEW_WIDTH, heightPx / VIEW_HEIGHT);
   const whole = Math.max(1, Math.floor(exact));
-  const smooth = exact > 1 && whole / exact < FILL;
-  const scale = smooth ? whole + 1 : whole;
+  const shrunk = exact > 0 && exact < 1;
+  const smooth = shrunk || (exact > 1 && whole / exact < FILL);
+  const scale = smooth && !shrunk ? whole + 1 : whole;
   const shown = smooth ? exact : whole;
   const cssWidth = (VIEW_WIDTH * shown) / ratio,
     cssHeight = (VIEW_HEIGHT * shown) / ratio;

@@ -61,6 +61,8 @@ interface GameHook {
    * age however long a screenshot takes. The first call stops the real clock for good.
    */
   hold(ms: number): void;
+  /** Plays the seat by hand instead of the keyboard: the input for every step from now on, or null to hand back. */
+  drive(input: Partial<Input> | null): void;
 }
 
 declare global {
@@ -110,6 +112,7 @@ const arena = createArenaView(host, {
   localSlot: setup.seat,
   names: names(),
   muted: params.has("mute"),
+  highlight: params.has("highlight"),
 });
 
 let state: Round;
@@ -150,8 +153,18 @@ window.addEventListener("keydown", (event) => {
 window.addEventListener("keyup", (event) => down.delete(event.code));
 window.addEventListener("blur", () => down.clear());
 
+let driven: Input | null = null;
+
 function readInput(): Input {
+  if (driven) {
+    const input = driven;
+    // A press is an edge: it is given to one step only.
+    driven = { ...driven, pressed: false };
+    return input;
+  }
+  // Over NEUTRAL, so a button the engine adds later is simply not pressed here.
   const input: Input = {
+    ...NEUTRAL,
     left: down.has("ArrowLeft") || down.has("KeyA"),
     right: down.has("ArrowRight") || down.has("KeyD"),
     down: down.has("ArrowDown") || down.has("KeyS"),
@@ -285,6 +298,9 @@ window.__game = {
   resetStats: () => {
     frameTimes = [];
     renderTimes = [];
+  },
+  drive: (input) => {
+    driven = input ? { ...NEUTRAL, ...input } : null;
   },
   hold: (ms) => {
     if (heldClock === null) {

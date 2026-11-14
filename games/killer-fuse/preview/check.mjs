@@ -36,7 +36,8 @@ async function open(context, query, freeze = false) {
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
-  await page.goto(`${origin}/?mute&clean&seat=none&${query}`);
+  // The first value of a parameter wins: a query that seats a player comes before the default of none.
+  await page.goto(`${origin}/?mute&clean&${query}&seat=none`);
   await page.locator('#status[data-state="ready"]').waitFor({
     state: "attached",
   });
@@ -161,21 +162,52 @@ async function tour(context, prefix) {
     }
     await shoot(page, `${prefix}kill`);
   }
-  // A Queen's dive, with its afterimages above her.
-  const diver = (view) => view.units.find((unit) => unit.diving);
-  for (const seed of [1, 2, 3, 4, 5, 6]) {
-    await page.evaluate((s) => window.__game.restart({ seed: s }), seed);
-    if (
-      !(await reach(
+  // A Queen's dive, played by hand from seat 0: flap up, then hold down. Three looks at her and her after-images.
+  const queenSlot = await page.evaluate(() => {
+    const game = window.__game;
+    game.restart({ seed: 1, map: 1, seat: 0 });
+    const slot = game.view().units.findIndex((unit) => unit.kind === "queen");
+    game.restart({ seat: slot });
+    game.step(30);
+    for (let i = 0; i < 12; i += 1) {
+      game.drive({ pressed: true, held: true });
+      game.step(5);
+    }
+    game.drive({ down: true });
+    return slot;
+  });
+  for (let i = 0; i < 3; i += 1) {
+    await page.evaluate(() => {
+      for (let n = 0; n < 5; n += 1) {
+        window.__game.step(1);
+        window.__game.hold(1000 / 60);
+      }
+    });
+    const diving = await page.evaluate(
+      (slot) => window.__game.view().units[slot]?.diving,
+      queenSlot,
+    );
+    if (diving)
+      await closeup(
         page,
-        (view) => view.units.some((unit) => unit.diving),
-        60 * 90,
-      ))
-    )
-      continue;
-    await page.evaluate(() => window.__game.step(4));
-    await closeup(page, `${prefix}zoom-dive`, diver);
-    break;
+        `${prefix}zoom-dive-${i}`,
+        new Function("view", `return view.units[${queenSlot}]`),
+      );
+  }
+  await page.evaluate(() => {
+    window.__game.drive(null);
+    window.__game.restart({ seat: -1 });
+  });
+  // Two fighters meeting level: the spark burst where they touch, at once and a little later.
+  if (await page.evaluate(() => window.__game.until("bounce"))) {
+    const clash = (view) => {
+      const event = view.events.find((entry) => entry.type === "bounce");
+      return event && view.units[event.a];
+    };
+    for (let i = 0; i < 3; i += 1) {
+      await closeup(page, `${prefix}zoom-clash-${i}`, clash);
+      await frames(page, 6);
+    }
   }
   // A hive with several holes filled, at the moment another berry goes in.
   for (const seed of [1, 2, 3, 4, 5, 6]) {
@@ -201,8 +233,8 @@ async function tour(context, prefix) {
     await shoot(page, `${prefix}speed-units`);
     break;
   }
-  // The big moment: a Queen dies. The frame after it is held by the hit-stop, then the burst plays out, so a run
-  // of shots is taken straight away: the effect is over in two thirds of a second.
+  // The big moment: a Queen dies in a burst of specks and a white flare, and the picture shakes: a run of shots a
+  // tenth of a second apart.
   await page.evaluate(() => window.__game.restart({ seed: 1 }));
   if (await page.evaluate(() => window.__game.until("queenKill"))) {
     for (let i = 0; i < 5; i += 1) {
@@ -297,7 +329,7 @@ async function pageFeed(context) {
 }
 
 async function victories(context, prefix) {
-  const page = await open(context, "seed=1&map=1&level=hard");
+  const page = await open(context, "seed=1&map=1&level=hard", true);
   await page.evaluate(() => window.__game.pause());
   const found = {};
   for (const map of [1, 2, 3]) {
@@ -314,11 +346,31 @@ async function victories(context, prefix) {
       );
       if (!kind || found[kind]) continue;
       found[kind] = { map, seed };
-      await page.waitForTimeout(1300);
+      // The ending as it goes: the shake (a Queen's death only), the hexagon closing, the camera moving in.
+      let age = 0;
+      for (const at of [400, 1000, 1300, 1700, 3200]) {
+        await wait(page, at - age);
+        age = at;
+        await page.screenshot({
+          path: `${shots}${prefix}victory-${kind}-${at}.png`,
+        });
+      }
       await shoot(page, `${prefix}victory-${kind}`);
     }
   }
   report.victories = found;
+  await page.close();
+}
+
+/** The local player's outline, as the page switches it on at spawn. */
+async function highlight(context) {
+  const page = await open(context, "seed=2&map=1&level=hard&seat=2&highlight");
+  await page.evaluate(() => {
+    window.__game.pause();
+    window.__game.step(50);
+  });
+  await shoot(page, "highlight");
+  await closeup(page, "zoom-highlight", (view) => view.units[2]);
   await page.close();
 }
 
@@ -344,6 +396,7 @@ try {
   );
   await pageFeed(large);
   await victories(large, "");
+  await highlight(large);
   await timing(large);
   if (small) {
     const compact = await browser.newContext({

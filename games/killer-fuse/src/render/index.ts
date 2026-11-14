@@ -350,6 +350,7 @@ class Arena implements ArenaView {
           : 0;
       }),
       localSlot: this.options.localSlot,
+      highlight: this.options.highlight === true,
       names: this.options.names,
       flaps: this.flaps,
       pool: this.pool,

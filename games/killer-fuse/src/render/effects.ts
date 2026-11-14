@@ -639,6 +639,9 @@ export function planEvent(
         sounds: [{ name: VICTORY_SOUND[event.kind], volume: 1, pan: 0 }],
         shake: 0,
       };
+    default:
+      // An event this renderer has no effect for yet: the engine may add kinds before the renderer draws them.
+      return NOTHING;
   }
 }
 

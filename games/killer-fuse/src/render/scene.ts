@@ -31,9 +31,12 @@ import {
   eggStates,
   hiveAnchor,
   hiveSheet,
+  outlineOf,
+  RIM,
   respawnCount,
   tagOf,
   type Danger,
+  type Outline,
 } from "./hud-model.js";
 import {
   platformTiles,
@@ -77,6 +80,8 @@ export interface SceneFrame {
   /** Change of y per step by slot, for jump and fall poses. */
   readonly dy: readonly number[];
   readonly localSlot: number;
+  /** The page asked for the local player's unit to be outlined. */
+  readonly highlight: boolean;
   readonly names: readonly string[];
   readonly flaps: FlapClock;
   readonly pool: EffectPool;
@@ -526,8 +531,14 @@ export class Scene {
           born: frame.now,
         });
       this.shaped(ctx, at, frame.shapes[unit.slot], (x) => {
-        if (unit.speed && !inGate)
-          this.teamRim(ctx, unit, pose.frame, { x, y: at.y }, flip);
+        const outline = outlineOf(unit, frame.localSlot, frame.highlight);
+        if (outline && !inGate)
+          this.rim(ctx, unit, pose.frame, { x, y: at.y }, flip, outline);
+        else if (unit.speed && !inGate)
+          this.rim(ctx, unit, pose.frame, { x, y: at.y }, flip, {
+            color: this.sprites.ramp(unit.team)[2] ?? "#fff",
+            offsets: RIM,
+          });
         if (pose.flash && pose.sheet !== base) {
           // The white silhouette over the sprite, not instead of it: the unit stays readable while it blinks.
           this.sprites.draw(ctx, base, pose.frame, x, at.y, flip);
@@ -640,28 +651,22 @@ export class Scene {
   }
 
   /**
-   * A rim of the team's colour round a speed unit: its art is gold from helmet to outline, and at one pixel per
-   * pixel the small team-coloured torso alone does not say whose it is.
+   * A rim round a unit, a pixel outside its silhouette. A speed unit wears its team's colour: its art is gold from
+   * helmet to outline, and at one pixel per pixel the small team-coloured torso alone does not say whose it is. The
+   * local player's unit wears the highlight while the page asks for it.
    */
-  private teamRim(
+  private rim(
     ctx: Ctx,
     unit: UnitView,
     poseFrame: number,
     at: { x: number; y: number },
     flip: boolean,
+    outline: Outline,
   ): void {
     const id = unitSheet(unit);
     const shape = this.sprites.def(id)?.flash ?? id;
-    const tint = this.sprites.silhouette(
-      shape,
-      this.sprites.ramp(unit.team)[2] ?? "#fff",
-    );
-    for (const [dx, dy] of [
-      [-1, 0],
-      [1, 0],
-      [0, -1],
-      [0, 1],
-    ] as const)
+    const tint = this.sprites.silhouette(shape, outline.color);
+    for (const [dx, dy] of outline.offsets)
       this.sprites.draw(
         ctx,
         shape,

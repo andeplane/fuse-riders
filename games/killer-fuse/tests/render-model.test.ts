@@ -10,6 +10,10 @@ import {
   botTagAlpha,
   dangerOf,
   hexHalfWidth,
+  HIGHLIGHT_COLOR,
+  HIGHLIGHT_RIM,
+  outlineOf,
+  RIM,
   eggStates,
   hiveAnchor,
   hiveSheet,
@@ -277,8 +281,30 @@ test("the picture is scaled by whole pixels and centred", () => {
   const retina = fitView(960, 540, 2);
   assert.equal(retina.scale, 4, "device pixels count, not CSS pixels");
   assert.equal(retina.cssWidth, 960);
-  assert.equal(fitView(100, 50, 1).scale, 1, "never smaller than the art");
-  assert.equal(fitView(-5, -5, 1).scale, 1);
+  const upright = fitView(390, 844, 1);
+  assert.equal(upright.scale, 1, "never drawn smaller than the art");
+  assert.equal(
+    upright.smooth,
+    true,
+    "but shown shrunk, whole, in a small host",
+  );
+  assert.equal(upright.cssWidth, 390);
+  assert.equal(upright.left, 0);
+  assert.equal(upright.top, (844 - (270 * 390) / 480) / 2);
+  for (const [width, height] of [
+    [0, 0],
+    [-5, -5],
+    [0, 500],
+    [1e6, 1e6],
+    [844, 390],
+    [1, 1],
+  ] as const) {
+    const fit = fitView(width, height, 3);
+    assert.ok(Number.isInteger(fit.scale) && fit.scale >= 1);
+    assert.ok(fit.cssWidth <= Math.max(width, 480 / 3) + 1e-9, `${width}`);
+    assert.ok(Number.isFinite(fit.left) && Number.isFinite(fit.top));
+  }
+  assert.equal(fitView(0, 0, 1).smooth, false, "a host with no size yet");
   assert.equal(fitView(960, 540, 0).scale, 2, "a bad pixel ratio counts as 1");
   assert.equal(fitView(960, 540, Number.NaN).scale, 2);
 });
@@ -295,7 +321,6 @@ test("a window between whole scales is filled rather than left a third empty", (
   assert.equal(near.smooth, false, "2.08 is close enough to 2 to stay crisp");
   assert.equal(near.scale, 2);
   assert.equal(near.cssWidth, 960);
-  assert.equal(fitView(100, 50, 1).smooth, false, "never shrunk below the art");
   assert.equal(
     fitView(1280, 720, 2).smooth,
     false,
@@ -872,4 +897,26 @@ test("the ending says who won and how", () => {
     victoryLines({ team: 1, kind: "economy" }, false),
   ))
     assert.ok(textWidth(line, "big") > line.length * 5, `${line} can be drawn`);
+});
+
+test("only the local player's living unit is outlined, and only while asked", () => {
+  const view = openingView();
+  const mine = view.units[2];
+  const other = view.units[3];
+  assert.ok(mine && other);
+  assert.deepEqual(outlineOf(mine, 2, true), {
+    color: HIGHLIGHT_COLOR,
+    offsets: HIGHLIGHT_RIM,
+  });
+  assert.equal(outlineOf(mine, 2, false), null);
+  assert.equal(outlineOf(other, 2, true), null);
+  assert.equal(outlineOf(mine, -1, true), null, "a spectator has no unit");
+  assert.equal(outlineOf({ ...mine, dead: true }, 2, true), null);
+  assert.equal(outlineOf({ ...mine, eaten: true }, 2, true), null);
+  assert.equal(RIM.length, 4);
+  assert.equal(HIGHLIGHT_RIM.length, 20, "two pixels out, corners rounded");
+  assert.ok(HIGHLIGHT_RIM.every(([dx, dy]) => dx !== 0 || dy !== 0));
+  assert.ok(
+    RIM.every((step) => HIGHLIGHT_RIM.some((o) => `${o}` === `${step}`)),
+  );
 });

@@ -2,7 +2,7 @@
  * What is shown about a round beyond its things, worked out from a view without drawing anything: which win is one
  * move away, what a seat's tag reads, and where the ending closes in and what it says.
  */
-import type { RoundView } from "../engine/index.js";
+import type { RoundView, UnitView } from "../engine/index.js";
 import { VIEW_HEIGHT, VIEW_WIDTH } from "./layout.js";
 import { teamName, type SheetDef } from "./manifest.js";
 import type { Sizes } from "./metrics.js";
@@ -259,4 +259,37 @@ export function victoryLines(
     title: `${teamName(winner.team).toUpperCase()} WINS!`,
     kind: timeUp ? "TIME UP" : `${winner.kind.toUpperCase()} VICTORY`,
   };
+}
+
+export interface Outline {
+  readonly color: string;
+  /** Where the unit's silhouette is stamped under it, in pixels from its place. */
+  readonly offsets: readonly (readonly [number, number])[];
+}
+
+/** One pixel out on each side. */
+export const RIM: Outline["offsets"] = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+];
+/** The arcade's "this is you" outline: green, and two pixels thick so it reads at a glance on any background. */
+export const HIGHLIGHT_COLOR = "#4dff5e";
+export const HIGHLIGHT_RIM: Outline["offsets"] = [-2, -1, 0, 1, 2].flatMap(
+  (dx) =>
+    [-2, -1, 0, 1, 2]
+      .filter((dy) => (dx !== 0 || dy !== 0) && Math.abs(dx) + Math.abs(dy) < 4)
+      .map((dy) => [dx, dy] as const),
+);
+
+/** The outline the local player's unit wears while the page asks for the highlight; no other unit has one. */
+export function outlineOf(
+  unit: UnitView,
+  localSlot: number,
+  highlight: boolean,
+): Outline | null {
+  return highlight && unit.slot === localSlot && !unit.dead && !unit.eaten
+    ? { color: HIGHLIGHT_COLOR, offsets: HIGHLIGHT_RIM }
+    : null;
 }
