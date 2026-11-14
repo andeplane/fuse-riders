@@ -33,20 +33,22 @@ import {
   JUMP,
   SCORINGS,
   botInput,
+  blobsFor,
   isBotLevel,
+  isFormat,
   type BotLevel,
+  type Format,
   type Scoring,
 } from "../engine/index.js";
 import type { WorldView } from "../engine/view.js";
 import { GAME_ID } from "../basics.js";
 import {
   DEFAULT_SETTINGS,
-  TEAMS,
   createFuseVolleyGame,
   fuseVolleyGame,
   type Settings,
-  type Team,
   type View,
+  teamOfSlot,
 } from "../online/game.js";
 import { seatName } from "../online/names.js";
 import {
@@ -123,6 +125,7 @@ const store = safeStore(() => localStorage);
 const names = keys(GAME);
 const scoringKey = `${GAME}-scoring`,
   botKey = `${GAME}-bot`,
+  formatKey = `${GAME}-format`,
   teamKey = `${GAME}-team`,
   doublesKey = `${GAME}-doubles`;
 const query = new URLSearchParams(location.search);
@@ -166,13 +169,17 @@ const chosenScoring = (): Scoring => {
   const asked = query.get("scoring") ?? store.getItem(scoringKey);
   return SCORINGS.find((known) => known === asked) ?? DEFAULT_SETTINGS.scoring;
 };
-/** Blobs a side: `?team=`, else the last choice, else an older page's doubles flag. */
-const chosenTeam = (): Team => {
-  const asked = Number(query.get("team") ?? store.getItem(teamKey) ?? NaN);
-  if (TEAMS.some((team) => team === asked)) return asked as Team;
+/**
+ * The format: `?mode=` (1v1, 2v2, 3v3 or 2v2v2), else the last choice, else an older page's `?team=` or doubles flag.
+ */
+const chosenFormat = (): Format => {
+  const asked = query.get("mode") ?? store.getItem(formatKey);
+  if (isFormat(asked)) return asked;
+  const team = query.get("team") ?? store.getItem(teamKey);
+  if (team === "2" || team === "3") return `${team}v${team}` as Format;
   return (query.get("doubles") ?? store.getItem(doublesKey)) === "1"
-    ? 2
-    : DEFAULT_SETTINGS.team;
+    ? "2v2"
+    : DEFAULT_SETTINGS.format;
 };
 const chosenBot = (): BotLevel => {
   const raw = Number(query.get("bot") ?? store.getItem(botKey) ?? NaN);
@@ -259,23 +266,23 @@ function createScoringPicker(onPick: (id: Scoring) => void) {
   };
 }
 
-/** One, two or three a side, as three small buttons. */
-function createModePicker(onPick: (team: Team) => void) {
+/** The formats, as four small buttons. */
+function createModePicker(onPick: (format: Format) => void) {
   const element = el("div", "", "fv-levels fv-modes");
   element.setAttribute("role", "group");
   element.setAttribute("aria-label", "Players");
   const buttons = MODE_CHOICES.map((choice) => {
     const node = button(choice.title, "fv-level fv-mode");
-    node.dataset.team = String(choice.team);
-    node.onclick = () => onPick(choice.team);
+    node.dataset.format = choice.format;
+    node.onclick = () => onPick(choice.format);
     element.append(node);
     return node;
   });
   return {
     element,
-    update(team: Team, editable: boolean) {
+    update(format: Format, editable: boolean) {
       buttons.forEach((node, index) => {
-        const mine = MODE_CHOICES[index]!.team === team;
+        const mine = MODE_CHOICES[index]!.format === format;
         node.setAttribute("aria-pressed", String(mine));
         node.disabled = !editable && !mine;
       });
@@ -317,7 +324,7 @@ function landing(): void {
   const solo = () =>
     withFlags(
       endpoints.appUrl(
-        `?solo=1&scoring=${chosenScoring()}&bot=${chosenBot()}${chosenTeam() > 1 ? `&team=${chosenTeam()}` : ""}`,
+        `?solo=1&scoring=${chosenScoring()}&bot=${chosenBot()}${chosenFormat() !== "1v1" ? `&mode=${chosenFormat()}` : ""}`,
       ),
     );
   const card = createLandingCard({
@@ -325,7 +332,7 @@ function landing(): void {
       (await import("./attract.js")).createAttract(host),
     title: "FUSE VOLLEY",
     tagline:
-      "Jelly blobs, one ball, one net. Bounce the ball over to the other side and keep it off your own sand: three touches a side at most. Play one on one, two on two or three on three in lanes: friends online, on one TV with phones as pads, or bots.",
+      "Jelly blobs, one ball, one net. Bounce the ball over to the other side and keep it off your own sand: three touches a side at most. Play one on one, two on two, three on three, or three teams of two as king of the court: friends online, on one TV with phones as pads, or bots.",
     soloText: "PLAY SOLO VS BOTS",
     async onCreate() {
       const room = await createRoom(endpoints.apiUrl, fetch, GAME).catch(
@@ -357,11 +364,11 @@ function landing(): void {
     bots.update(level, true);
   });
   bots.update(chosenBot(), true);
-  const modes = createModePicker((team) => {
-    store.setItem(teamKey, String(team));
-    modes.update(team, true);
+  const modes = createModePicker((format) => {
+    store.setItem(formatKey, format);
+    modes.update(format, true);
   });
-  modes.update(chosenTeam(), true);
+  modes.update(chosenFormat(), true);
   const rules = el("section", "", "fv-landing-rules");
   rules.append(
     el("h2", "PLAYERS", "fui-lobby-title"),
@@ -504,9 +511,9 @@ function room(solo: boolean): void {
     store.setItem(scoringKey, scoring);
     runtime.command({ type: "settings", settings: { ...settings, scoring } });
   });
-  const modePicker = createModePicker((team) => {
-    store.setItem(teamKey, String(team));
-    runtime.command({ type: "settings", settings: { ...settings, team } });
+  const modePicker = createModePicker((format) => {
+    store.setItem(formatKey, format);
+    runtime.command({ type: "settings", settings: { ...settings, format } });
   });
   const botPicker = createBotPicker((bot) => {
     store.setItem(botKey, String(bot));
@@ -761,6 +768,7 @@ function room(solo: boolean): void {
     main.dataset.score = view.world ? view.world.score.join("-") : "";
     main.dataset.riding = String(next.riding);
     main.dataset.team = String(view.world?.court.team ?? 1);
+    main.dataset.format = view.world?.format ?? view.settings.format;
     lobby.hidden = next.screen !== "lobby";
     stage.hidden = next.screen !== "play";
     controller.hidden = next.screen !== "controller";
@@ -771,11 +779,13 @@ function room(solo: boolean): void {
         id: member.id,
         slot: member.slot,
         name: member.you ? `${member.name} (you)` : member.name,
-        color: sideColor(member.slot % 2),
+        color: sideColor(teamOfSlot(member.slot, view.settings.format)),
         status: member.bot
           ? "BOT"
           : member.connected
-            ? SIDE_NAMES[member.slot % 2 === 1 ? 1 : 0]
+            ? SIDE_NAMES[
+                teamOfSlot(member.slot, view.settings.format) as 0 | 1 | 2
+              ]
             : "OFFLINE",
       })),
     );
@@ -803,8 +813,11 @@ function room(solo: boolean): void {
       !solo
     );
     scoringPicker.update(view.settings.scoring, next.lobby.editable);
-    modePicker.update(view.settings.team, next.lobby.editable);
-    roomLayout.update(next.lobby.members.length, view.settings.team * 2);
+    modePicker.update(view.settings.format, next.lobby.editable);
+    roomLayout.update(
+      next.lobby.members.length,
+      blobsFor(view.settings.format),
+    );
     botPicker.update(view.settings.bot, next.lobby.editable);
     botTitle.hidden = botPicker.element.hidden =
       !next.lobby.hasBot && !next.lobby.fill;
@@ -857,8 +870,11 @@ function room(solo: boolean): void {
     // The phone controller.
     const mine = next.sides.find((side) => side.you);
     if (mine) {
-      controller.style.setProperty("--c", sideColor(mine.side));
-      setText(controllerName, `${SIDE_NAMES[mine.side]} · ${mine.name}`);
+      controller.style.setProperty("--c", sideColor(mine.team));
+      setText(
+        controllerName,
+        `${SIDE_NAMES[mine.team as 0 | 1 | 2]} · ${mine.name}`,
+      );
     }
     setText(controllerState, next.status);
     controllerResult.hidden = !(next.result && next.result.host);
@@ -974,7 +990,7 @@ function room(solo: boolean): void {
       display: shared,
       scoring: chosenScoring(),
       bot: chosenBot(),
-      team: chosenTeam(),
+      format: chosenFormat(),
     },
     callbacks,
     session.kind === "room"
@@ -996,9 +1012,9 @@ function room(solo: boolean): void {
       : {
           humanName: social.playerName(store.getItem(names.name)) ?? undefined,
         },
-    // Solo two or three a side seats three or five bots beside the player.
-    solo && chosenTeam() > 1
-      ? createFuseVolleyGame(botInput, chosenTeam() * 2 - 1)
+    // Solo in a team format seats three or five bots beside the player.
+    solo && chosenFormat() !== "1v1"
+      ? createFuseVolleyGame(botInput, blobsFor(chosenFormat()) - 1)
       : fuseVolleyGame,
   );
   installRoomLifecycle(window, {
