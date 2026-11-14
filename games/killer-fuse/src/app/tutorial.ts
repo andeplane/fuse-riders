@@ -130,8 +130,11 @@ export const LESSONS: readonly Lesson[] = [
       {
         text: (k) =>
           `Tap ${k.button} about ${HOVER_TAPS} times a second to fly up.`,
+        // Measured from where the Warrior stood when this step began, never from before the gate.
         done: (now, start) =>
-          now.kind === "warrior" && start.y - now.y >= CLIMB,
+          start.kind === "warrior" &&
+          now.kind === "warrior" &&
+          start.y - now.y >= CLIMB,
       },
       {
         text: (k) =>
@@ -215,12 +218,13 @@ export function advance(
   facts: Facts,
 ): Progress {
   if (progress.outcome !== "playing") return progress;
-  let { step } = progress,
-    start = progress.start ?? facts;
-  while (step < lesson.steps.length && lesson.steps[step]!.done(facts, start)) {
+  // Steps that finish together on one frame are all judged from where the first began, so an attack and the kill it
+  // made, both seen on the same frame, count for both steps; the next step then starts from this frame.
+  const from = progress.start ?? facts;
+  let { step } = progress;
+  while (step < lesson.steps.length && lesson.steps[step]!.done(facts, from))
     step += 1;
-    start = facts;
-  }
+  const start = step === progress.step ? from : facts;
   if (step >= lesson.steps.length) return { step, start, outcome: "won" };
   if (facts.winner) return { step, start, outcome: "lost" };
   return { step, start, outcome: "playing" };

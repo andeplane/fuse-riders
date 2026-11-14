@@ -410,7 +410,7 @@ function room(solo: boolean): void {
     progress: Progress = FRESH,
     lessonMatch = "",
     asked = { key: "", at: 0 },
-    recorded = false;
+    recorded: { seconds: number; best: number } | undefined;
   const padConnected = () =>
     typeof navigator.getGamepads === "function" &&
     navigator.getGamepads().some((pad) => pad !== null);
@@ -464,7 +464,7 @@ function room(solo: boolean): void {
     cardTitle = el("strong", "", "kf-brief-title"),
     cardSub = el("p", "", "kf-brief-sub"),
     cardWins = el("ul", "", "kf-brief-wins"),
-    cardControls = el("p", "", "kf-brief-controls");
+    cardControls = el("div", "", "kf-brief-controls");
   card.append(cardTitle, cardSub, cardWins, cardControls);
   card.setAttribute("role", "status");
   card.hidden = true;
@@ -651,7 +651,7 @@ function room(solo: boolean): void {
   lessonBar.append(lessonText, lessonActions);
   lessonBar.setAttribute("role", "status");
   lessonBar.hidden = !lesson;
-  stage.append(canvasHost, banner, card, lessonBar);
+  stage.append(canvasHost, banner, card);
 
   // The result of a set, over the arena.
   const result = el("section", "", "kf-result"),
@@ -672,12 +672,14 @@ function room(solo: boolean): void {
   );
   result.hidden = true;
   stage.append(result);
-  arena.append(scoreLine, stage, seatLine, touchRow);
+  // The lesson's step goes under the arena, out of the play field.
+  arena.append(scoreLine, stage, lessonBar, seatLine, touchRow);
   rematch.onclick = () =>
     runtime.command({ type: "action", action: "rematch" });
   toLobby.onclick = () => runtime.command({ type: "action", action: "lobby" });
 
   const main = el("main", "", "kf-room");
+  if (lesson) main.dataset.lesson = lesson.id;
   main.tabIndex = -1;
   main.append(nameEntry.form, lobby, arena);
   app.replaceChildren(top, main);
@@ -816,12 +818,26 @@ function room(solo: boolean): void {
           }),
         );
         cardWins.hidden = shown.wins.length === 0;
+        // One row per action: its name, the caps (keyboard and gamepad, or the touch buttons) and a short note.
+        const caps = (labels: readonly string[], kind: string) => {
+          const cell = el("span", "", `kf-caps kf-caps-${kind}`);
+          cell.append(...labels.map((label) => el("kbd", label)));
+          return cell;
+        };
+        cardControls.dataset.touch = String(shown.touch);
         cardControls.replaceChildren(
-          ...shown.controls.flatMap((hint, index) => [
-            ...(index ? [el("span", " · ", "kf-brief-dot")] : []),
-            el("kbd", hint.keys),
-            el("span", ` ${hint.action}`),
-          ]),
+          ...shown.controls.map((row) => {
+            const line = el("div", "", "kf-control");
+            line.dataset.mine = String(row.mine);
+            line.append(
+              el("strong", row.action, "kf-control-name"),
+              ...(shown.touch
+                ? [caps(row.touch, "touch")]
+                : [caps(row.keys, "keys"), caps(row.pad, "pad")]),
+              el("span", row.note, "kf-control-note"),
+            );
+            return line;
+          }),
         );
         cardControls.hidden = shown.controls.length === 0;
       }
@@ -934,7 +950,7 @@ function room(solo: boolean): void {
         if (frame.matchId !== lessonMatch) {
           lessonMatch = frame.matchId;
           progress = FRESH;
-          recorded = false;
+          recorded = undefined;
         }
         const key = `${action}:${frame.stage}:${frame.matchId}`,
           now = performance.now();
@@ -961,12 +977,12 @@ function room(solo: boolean): void {
           progress = advance(lesson, progress, facts);
         let line = stepText(lesson, progress, lessonDevice());
         if (progress.outcome === "won" && world) {
-          const seconds = playSeconds(world.step);
-          const best = recorded
-            ? (bestTime(store, lesson.id) ?? seconds)
-            : recordTime(store, lesson.id, seconds);
-          recorded = true;
-          line = `${line} in ${seconds} s · best ${best} s`;
+          // The time is the frame the last step finished on; later frames only show it.
+          if (recorded === undefined) {
+            const seconds = playSeconds(world.step);
+            recorded = { seconds, best: recordTime(store, lesson.id, seconds) };
+          }
+          line = `${line} in ${recorded.seconds} s · best ${recorded.best} s`;
         }
         lessonText.textContent = line;
         const done = progress.outcome === "won",

@@ -157,6 +157,24 @@ test("warrior: berry, gate, climb, attack, first kill", () => {
   assert.equal(progress.outcome, "won");
 });
 
+test("steps that finish on one frame are judged from where the first began", () => {
+  const warrior = lesson("warrior");
+  const flying = play(warrior, [
+    facts({ carrying: true }),
+    facts({ kind: "warrior", y: 214 }),
+    facts({ kind: "warrior", y: 214 - CLIMB }),
+  ]);
+  assert.equal(flying.step, 3);
+  const struck = advance(
+    warrior,
+    flying,
+    facts({ kind: "warrior", y: 150, attacks: 1, kills: 1 }),
+  );
+  assert.equal(struck.outcome, "won", "the attack and its kill, seen together");
+  const climbing = advance(warrior, flying, facts({ kind: "warrior", y: 100 }));
+  assert.deepEqual([climbing.step, climbing.start?.y], [3, 214 - CLIMB]);
+});
+
 test("snail: climb on and ride home; the enemy's snail win loses the lesson", () => {
   const snail = lesson("snail");
   const riding = play(snail, [facts({ riding: true })]);

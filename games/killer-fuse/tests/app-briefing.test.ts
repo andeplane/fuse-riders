@@ -9,7 +9,7 @@ import {
   cardKey,
   countdownCard,
   deviceFor,
-  roleControls,
+  controlRows,
   type CountdownCard,
   type CountdownState,
   type DeviceClues,
@@ -35,39 +35,64 @@ const texts = (shown: CountdownCard): string[] => [
   shown.title,
   shown.subtitle,
   ...shown.wins.map((win) => win.caption),
-  ...shown.controls.flatMap((hint) => [hint.keys, hint.action]),
+  ...shown.controls.flatMap((row) => [
+    row.action,
+    ...row.keys,
+    ...row.pad,
+    ...row.touch,
+    row.note,
+  ]),
 ];
 
-test("every seat sees all four controls, keyboard and gamepad side by side", () => {
-  assert.deepEqual(roleControls(0, "keys"), [
-    { keys: "A D / ← → · Stick / D-pad ← →", action: "move" },
-    {
-      keys: "Space · A / Cross",
-      action: "flap: tap repeatedly to fly (~3/s holds height)",
-    },
-    { keys: "S / ↓ · Stick / D-pad ↓", action: "dive (Queen, hold)" },
-    { keys: "J · B / Circle", action: "attack (Warrior, Queen)" },
-  ]);
+test("every seat sees all four controls as rows, its own role's first", () => {
+  const queen = controlRows(0);
   assert.deepEqual(
-    roleControls(5, "pad"),
-    roleControls(5, "keys"),
-    "the same on either",
-  );
-  assert.deepEqual(
-    roleControls(5, "keys").map((hint) => hint.action),
+    queen.map((row) => [row.action, row.mine]),
     [
-      "move",
-      "jump (hold for higher); tap repeatedly to fly as a Warrior",
-      "dive (Queen, hold)",
-      "attack (Warrior, Queen)",
+      ["MOVE", true],
+      ["JUMP / FLAP", true],
+      ["DIVE", true],
+      ["ATTACK", true],
     ],
   );
+  assert.deepEqual(queen[0], {
+    action: "MOVE",
+    keys: ["A", "D", "←", "→"],
+    pad: ["Stick", "D-pad"],
+    touch: ["Left pad"],
+    note: "",
+    mine: true,
+  });
   assert.deepEqual(
-    roleControls(1, "touch").map((hint) => hint.keys),
-    ["Left pad", "FLAP", "Left pad ↓", "ATTACK"],
+    [queen[1]!.keys, queen[1]!.pad, queen[1]!.touch, queen[1]!.note],
+    [["Space"], ["A / Cross"], ["FLAP"], "tap to fly (~3/s holds height)"],
   );
-  assert.equal(roleControls(3, "touch")[1]!.keys, "JUMP");
-  assert.deepEqual(roleControls(-1, "keys"), [], "a watcher has no keys");
+  assert.deepEqual(
+    [
+      queen[2]!.keys,
+      queen[2]!.note,
+      queen[3]!.keys,
+      queen[3]!.pad,
+      queen[3]!.note,
+    ],
+    [["S", "↓"], "Queen, hold", ["J"], ["B / Circle", "LB"], "Warrior, Queen"],
+  );
+  const worker = controlRows(5);
+  assert.deepEqual(
+    worker.map((row) => [row.action, row.mine]),
+    [
+      ["MOVE", true],
+      ["JUMP / FLAP", true],
+      ["DIVE", false],
+      ["ATTACK", false],
+    ],
+    "a Worker's own rows first; dive and attack stay, dimmed",
+  );
+  assert.equal(worker[1]!.touch[0], "JUMP");
+  assert.match(worker[1]!.note, /hold for higher · tap to fly as a Warrior/);
+  assert.deepEqual(controlRows(-1), [], "a watcher has no keys");
+  assert.equal(countdownCard(first(10), 0, "touch", "Twin Hives").touch, true);
+  assert.equal(countdownCard(first(10), 0, "pad", "Twin Hives").touch, false);
 });
 
 test("the first game opens on the three ways to win, one picture at a time, with the controls throughout", () => {

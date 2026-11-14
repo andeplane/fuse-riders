@@ -474,6 +474,41 @@ body.kf-page {
   font-weight: 700;
   white-space: nowrap;
 }
+/* The controls grid: one row per action, caps in columns, the seat's own actions first and brighter. */
+.kf-brief-controls {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(0, 1fr);
+  gap: 0.2rem var(--fui-space-2);
+  align-items: center;
+  margin: 0 auto;
+  text-align: left;
+}
+.kf-brief-controls[data-touch="true"] {
+  grid-template-columns: auto auto minmax(0, 1fr);
+}
+.kf-control {
+  display: contents;
+}
+.kf-control-name {
+  color: var(--fui-text);
+  font: 0.5625rem/1.6 var(--fui-font-pixel);
+  white-space: nowrap;
+}
+.kf-caps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+}
+.kf-caps-pad kbd {
+  background: var(--kf-cyan);
+}
+.kf-control-note {
+  color: var(--fui-text-muted);
+  font-size: 0.75rem;
+}
+.kf-control[data-mine="false"] > * {
+  opacity: 0.5;
+}
 .kf-brief-sub {
   color: var(--fui-text-muted);
   font-size: 0.6875rem;
@@ -533,6 +568,23 @@ body.kf-page {
   }
 }
 
+/* A narrow screen (a phone held upright): the arena is too short for the card, so it floats over the page. */
+@media (max-width: 34rem) {
+  .kf-brief,
+  .kf-brief[data-first="true"] {
+    position: fixed;
+    z-index: 5;
+    width: calc(100vw - 1.5rem);
+    max-width: none;
+  }
+  .kf-brief[data-first="true"] .kf-brief-title {
+    font-size: 0.8125rem;
+  }
+  .kf-brief-wins {
+    gap: var(--fui-space-2);
+  }
+}
+
 /* Lobby tips. */
 .kf-tip {
   display: grid;
@@ -584,22 +636,21 @@ body.kf-page {
   color: var(--fui-text-muted);
   font-size: 0.75rem;
 }
+/* The lesson's step: a slim strip under the arena, never over the play field. */
 .kf-lesson {
-  position: absolute;
-  left: 50%;
-  top: 2%;
-  display: grid;
-  justify-items: center;
-  gap: var(--fui-space-1);
-  max-width: min(94%, 40rem);
-  padding: var(--fui-space-2) var(--fui-space-3);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fui-space-1) var(--fui-space-3);
+  width: min(100%, 48rem);
+  box-sizing: border-box;
+  padding: var(--fui-space-1) var(--fui-space-3);
   color: var(--fui-text);
   background: #04091ae6;
-  border: 2px solid var(--kf-cyan);
+  border-left: 3px solid var(--kf-cyan);
   border-radius: var(--fui-radius-small);
   font-size: 0.8125rem;
-  text-align: center;
-  transform: translateX(-50%);
 }
 .kf-lesson[hidden] {
   display: none;
@@ -607,12 +658,12 @@ body.kf-page {
 .kf-lesson-text {
   margin: 0;
 }
-.kf-lesson[data-outcome="won"] {
-  border-color: var(--kf-gold);
-}
 .kf-lesson-actions {
   display: flex;
   gap: var(--fui-space-2);
+}
+.kf-lesson[data-outcome="won"] {
+  border-left-color: var(--kf-gold);
 }
 .kf-lesson-actions:empty {
   display: none;
@@ -683,17 +734,18 @@ body.kf-page {
 .fui-app .kf-flap:active {
   transform: scale(0.94);
 }
+/* The right thumb's buttons: attack above flap, so the row is never wider than a phone held upright. */
 .kf-buttons {
   display: flex;
-  align-items: flex-end;
-  gap: var(--fui-space-3);
+  flex-direction: column;
+  align-items: center;
+  gap: var(--fui-space-2);
 }
-/* The attack button: smaller than the flap button and above-left of it, where the thumb rolls to. */
+/* The attack button: smaller than the flap button, just above it, where the thumb rolls to. */
 .fui-app .kf-strike {
   flex: none;
   width: 5rem;
   height: 5rem;
-  margin-bottom: 3rem;
   color: var(--fui-text);
   background: var(--kf-pink);
   border: 0;
@@ -833,6 +885,10 @@ body.kf-display .kf-seat-line {
   }
   .kf-room[data-layout="arena"][data-screen="arena"] .kf-stage {
     width: min(100cqw, 100cqh * 16 / 9);
+  }
+  /* A lesson's strip under the arena takes its row out of the height. */
+  .kf-room[data-layout="arena"][data-screen="arena"][data-lesson] .kf-stage {
+    width: min(100cqw, (100cqh - 2.75rem) * 16 / 9);
   }
   .kf-room[data-layout="arena"] .kf-score,
   .kf-room[data-layout="arena"] .kf-seat-line {

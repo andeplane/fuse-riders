@@ -1,4 +1,3 @@
-import type { ControlHint } from "fuse-ui";
 import {
   QUEEN_EGGS,
   isQueenSlot,
@@ -6,7 +5,7 @@ import {
   type VictoryKind,
 } from "../engine/index.js";
 import type { ControlSource } from "./controls.js";
-import { DEVICE_KEYS, HOVER_TAPS, type Device } from "./guide.js";
+import { HOVER_TAPS, type Device } from "./guide.js";
 import { seatTitle } from "./presenter.js";
 
 /**
@@ -48,8 +47,21 @@ export interface CountdownCard {
   first: boolean;
   /** The win pictures shown so far. */
   wins: readonly { kind: VictoryKind; caption: string }[];
-  /** This seat's keys, one line. */
-  controls: readonly ControlHint[];
+  /** The controls, one row per action, this seat's own first. */
+  controls: readonly ControlRow[];
+  /** Name the touch buttons instead of keyboard and gamepad. */
+  touch: boolean;
+}
+
+/** One action of the controls grid: its keyboard, gamepad and touch caps, a short note, and whether this seat uses it. */
+export interface ControlRow {
+  action: "MOVE" | "JUMP / FLAP" | "DIVE" | "ATTACK";
+  keys: readonly string[];
+  pad: readonly string[];
+  touch: readonly string[];
+  note: string;
+  /** The seat's current role does this: shown first and brighter. */
+  mine: boolean;
 }
 
 /** The big touch button says what it does for the unit this device plays now. */
@@ -57,28 +69,52 @@ export const buttonLabel = (kind: UnitKind | undefined): string =>
   kind === "worker" ? "JUMP" : "FLAP";
 
 /**
- * The controls shown as play starts, for every seat (the user requires them all on screen): move, jump / flap, the
- * Queen's dive and the Warrior's and Queen's attack. On a keyboard or gamepad both are named, keyboard first; on touch
- * the on-screen buttons. A Worker's line says that a tap is a hop and a hold jumps higher. None for a watcher.
+ * The controls shown as play starts, for every seat (the user requires them all on screen), one row per action: move,
+ * jump / flap, the Queen's dive and the Warrior's and Queen's attack. The rows this seat's role uses come first; a
+ * Worker's dive and attack follow, dimmed. None for a watcher.
  */
-export function roleControls(slot: number, device: Device): ControlHint[] {
+export function controlRows(slot: number): ControlRow[] {
   if (slot < 0) return [];
-  const touch = device === "touch",
-    keys = DEVICE_KEYS.keys,
-    pad = DEVICE_KEYS.pad,
-    both = (key: "move" | "button" | "attack" | "down"): string =>
-      touch ? DEVICE_KEYS.touch[key] : `${keys[key]} · ${pad[key]}`,
-    queen = isQueenSlot(slot);
+  const queen = isQueenSlot(slot),
+    rows: ControlRow[] = [
+      {
+        action: "MOVE",
+        keys: ["A", "D", "←", "→"],
+        pad: ["Stick", "D-pad"],
+        touch: ["Left pad"],
+        note: "",
+        mine: true,
+      },
+      {
+        action: "JUMP / FLAP",
+        keys: ["Space"],
+        pad: ["A / Cross"],
+        touch: [queen ? "FLAP" : "JUMP"],
+        note: queen
+          ? `tap to fly (~${HOVER_TAPS}/s holds height)`
+          : "hold for higher · tap to fly as a Warrior",
+        mine: true,
+      },
+      {
+        action: "DIVE",
+        keys: ["S", "↓"],
+        pad: ["Stick ↓"],
+        touch: ["Left pad ↓"],
+        note: "Queen, hold",
+        mine: queen,
+      },
+      {
+        action: "ATTACK",
+        keys: ["J"],
+        pad: ["B / Circle", "LB"],
+        touch: ["ATTACK"],
+        note: "Warrior, Queen",
+        mine: queen,
+      },
+    ];
   return [
-    { keys: both("move"), action: "move" },
-    {
-      keys: touch ? (queen ? "FLAP" : "JUMP") : both("button"),
-      action: queen
-        ? `flap: tap repeatedly to fly (~${HOVER_TAPS}/s holds height)`
-        : "jump (hold for higher); tap repeatedly to fly as a Warrior",
-    },
-    { keys: both("down"), action: "dive (Queen, hold)" },
-    { keys: both("attack"), action: "attack (Warrior, Queen)" },
+    ...rows.filter((row) => row.mine),
+    ...rows.filter((row) => !row.mine),
   ];
 }
 
@@ -108,7 +144,8 @@ export function countdownCard(
           ({ kind, caption }) => ({ kind, caption }),
         )
       : [],
-    controls: roleControls(slot, device),
+    controls: controlRows(slot),
+    touch: device === "touch",
   };
 }
 
@@ -138,4 +175,5 @@ export const cardKey = (card: CountdownCard): string =>
     card.first,
     card.wins.map((win) => win.kind),
     card.controls,
+    card.touch,
   ]);
