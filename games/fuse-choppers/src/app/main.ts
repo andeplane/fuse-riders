@@ -18,7 +18,12 @@ import {
   installRoomLifecycle,
   validRoomCode,
 } from "fuse-network-fe";
-import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
+import {
+  MAX_PACKET_BYTES,
+  createLeadClock,
+  ticksAhead,
+  uuid,
+} from "fuse-netcode";
 import {
   button,
   createAppPortal,
@@ -50,6 +55,14 @@ import { chopperGame, type View } from "../online/game.js";
 import { seatName } from "../online/names.js";
 import { ChopperRuntime, type ChopperCallbacks } from "../online/runtime.js";
 import { blend, fraction } from "../render/interpolate.js";
+import type { WorldView } from "../engine/index.js";
+import {
+  createCueLatch,
+  createSmoother,
+  forward,
+  forwardInputs,
+  memoBot,
+} from "./forward.js";
 import { createScene, effectKey, VIEW_W } from "../render/scene.js";
 import { PICKUP_COLORS, seatColor } from "../render/palette.js";
 import { createSfx } from "./audio.js";
@@ -179,10 +192,21 @@ window.addEventListener("pagehide", (event) => {
   if (!event.persisted) radio.destroy();
 });
 const autopilot = query.has("autopilot");
+/** `?lead=off` draws the old way, a tick behind the clock and blended, to compare the feel against. */
+const drawAhead = query.get("lead") !== "off";
+/** `?probe` publishes where this device's chopper was last drawn, for the press-to-picture measurement. */
+const probe = query.has("probe");
 const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
-/** A link within the game that keeps this page's developer flags: `mute`, `autopilot`, `lift` and `combat`. */
-const DEV_FLAGS = ["mute", "autopilot", "lift", "combat"] as const;
+/** A link within the game that keeps this page's developer flags: `mute`, `autopilot`, `lift`, `combat`, `lead` and `probe`. */
+const DEV_FLAGS = [
+  "mute",
+  "autopilot",
+  "lift",
+  "combat",
+  "lead",
+  "probe",
+] as const;
 const withFlags = (path: string) => {
   const kept = DEV_FLAGS.filter((flag) => query.has(flag)).map((flag) =>
     query.get(flag) ? `${flag}=${encodeURIComponent(query.get(flag)!)}` : flag,
@@ -717,15 +741,62 @@ function room(solo: boolean): void {
   new ResizeObserver(fit).observe(screen);
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   let model: Model | undefined;
-  const frame = (now: number) => {
+  // ---- drawing: the newest folded world played forward to the clock, once per animation frame ----
+  const smoother = createSmoother(),
+    leadClock = createLeadClock(),
+    drawBot = memoBot(botInput),
+    latch = createCueLatch();
+  /** What to draw now: the forward run when the newest frame is the room's newest world, otherwise the two frames blended. */
+  const picture = (now: number): WorldView | undefined => {
     const timing = runtime.frameTiming();
-    if (timing?.newer.world && !stage.hidden) {
-      const alpha = fraction(
-        timing.older?.tick,
-        timing.newer.tick,
-        timing.tick,
+    const newer = timing?.newer.world;
+    if (!timing || !newer) return undefined;
+    const state = runtime.roomState();
+    if (
+      !drawAhead ||
+      state?.stage !== "running" ||
+      !state.world ||
+      state.world.step !== newer.step
+    )
+      return blend(
+        timing.older?.world,
+        newer,
+        fraction(timing.older?.tick, timing.newer.tick, timing.tick),
       );
-      const world = blend(timing.older?.world, timing.newer.world, alpha);
+    const ahead = leadClock(ticksAhead(timing), timing.newer.logTick, now);
+    return latch(
+      smoother.apply(
+        forward(
+          state.world,
+          ahead,
+          forwardInputs(
+            state,
+            runtime.self,
+            runtime.heldNow,
+            drawBot(timing.revision ?? 0),
+          ),
+        ),
+        timing.revision ?? 0,
+        newer.step,
+        { ...state.held },
+        now,
+        runtime.self,
+      ),
+    );
+  };
+  const frame = (now: number) => {
+    const world = stage.hidden ? undefined : picture(now);
+    if (world) {
+      if (probe) {
+        const mine = world.choppers.find((c) => c.id === viewer.me);
+        Reflect.set(window, "__fuseChoppersProbe", {
+          at: performance.now(),
+          step: world.step,
+          x: mine && mine.x - world.camX,
+          y: mine?.y,
+          state: mine?.state,
+        });
+      }
       g.setTransform(scale, 0, 0, scale, 0, 0);
       scene.draw({
         world,

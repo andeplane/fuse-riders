@@ -236,3 +236,20 @@ export function createWorld(
 
 /** The camera's right edge, in sub-units. */
 export const rightEdge = (world: World): number => world.camX + VIEW_W * SUB;
+
+/** A copy that shares nothing with `world`: for a screen that plays the world forward without touching the room's. */
+export function copyWorld(world: World): World {
+  const each = <T extends object>(items: readonly T[]): T[] =>
+    items.map((item) => ({ ...item }));
+  return {
+    ...world,
+    choppers: each(world.choppers),
+    bullets: each(world.bullets),
+    bolts: each(world.bolts),
+    rocks: each(world.rocks),
+    warnings: each(world.warnings),
+    drones: each(world.drones),
+    pickups: each(world.pickups),
+    fx: each(world.fx),
+  };
+}
