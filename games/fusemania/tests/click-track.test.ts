@@ -192,7 +192,20 @@ test("a click with an end falls silent on the audio clock right after its last t
   assert.equal(loop.origin, origin);
   assert.equal(loop.run, 1);
   assert.equal(loop.scheduledAt(39), origin + 39 * beat);
+  // A clock that stops after the end changes nothing: the click stays ended and does not start over.
+  assert.equal(loop.over, true);
+  clock.running = false;
+  loop.frame();
+  assert.equal(loop.origin, origin);
+  clock.running = true;
+  clock.time += 10;
+  loop.frame();
+  assert.equal(loop.over, true);
+  assert.equal(loop.run, 1);
+  assert.equal(song.plays.length, 3);
+  assert.equal(song.stops, 1);
   loop.stop();
+  assert.equal(loop.over, false);
   assert.equal(song.stops, 1, "already silent");
   assert.equal(loop.origin, undefined);
   // A click that ends on a lap's edge does not start the lap after it.

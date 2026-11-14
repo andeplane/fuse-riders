@@ -108,6 +108,8 @@ interface Run {
   /** Ticks already tapped: a second tap on one is not another measurement. */
   hit: Set<number>;
   last: { offMs: number; judgment: number; at: number } | undefined;
+  /** A run by ear had its sound off while ticks were counted: its taps were not by ear. */
+  deaf: boolean;
 }
 
 export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
@@ -195,6 +197,7 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
         errors: [],
         hit: new Set(),
         last: undefined,
+        deaf: false,
       };
     run = next;
     advice = undefined;
@@ -211,7 +214,8 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
     // the arrows are then exactly where a song's arrows would be.
     if (audio.clock())
       void audio.loadSong(lapUrl(rate)).then((song) => {
-        if (disposed || turn !== generation) return;
+        // A run that was stopped while its click was loading is not this one any more.
+        if (disposed || run !== next) return;
         if (!song) return abort("The click could not be loaded. Try again.");
         next.song = song;
         next.loop = createTickLoop({
@@ -226,6 +230,7 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
   const abort = (why: string) => {
     stop();
     advice = undefined;
+    lastErrors = [];
     note = why;
     readout();
   };
@@ -682,9 +687,19 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
     if (mapping?.pairedMs !== undefined) probe.pair(mapping.pairedMs);
     const live = run;
     if (live) {
-      live.loop?.frame();
-      // The audio clock stopped and came back (the page was hidden): the ticks started over, the run did not.
-      if (live.loop && live.loop.run > 1)
+      const loop = live.loop;
+      loop?.frame();
+      if (loop && loop.run > 0 && !audio.clock()?.running && loop.over) {
+        // The sound stopped after the last tick had left: the run is whole, bar the taps still to come.
+        finish(live);
+        shown = 0;
+        return readout();
+      }
+      // The audio clock stopped under the run (the page was hidden): its ticks are gone, or started over.
+      if (
+        loop &&
+        (loop.run > 1 || (loop.run === 1 && loop.origin === undefined))
+      )
         return abort("The sound stopped during the run. Run it again.");
       // By eye the click is there and cannot be heard.
       live.song?.shape(live.kind === "eye" ? 0 : 1, 0);
@@ -708,11 +723,17 @@ export function createTimingScreen(deps: TimingScreenDeps): TimingScreen {
     // The run is over a moment after its last counted tick, before another one sounds.
     if (live && heard !== undefined) {
       const beat = beatS(live.bpm) * 1000;
+      if (live.kind === "ear" && heard > RUN_COUNT_IN * beat && !soundOn())
+        live.deaf = true;
       if (
         heard >
         (RUN_COUNT_IN + live.ticks - 1) * beat + Math.min(200, beat * 0.45)
       ) {
-        finish(live);
+        if (live.deaf)
+          abort(
+            "The sound was off during the run, so nothing was measured by ear. Turn it on and run again, or check the picture by eye.",
+          );
+        else finish(live);
         shown = 0;
       }
     }

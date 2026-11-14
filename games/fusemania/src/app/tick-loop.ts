@@ -16,6 +16,8 @@ export interface TickLoop {
   readonly bpm: number;
   /** The index of the last tick that sounds, when the click has an end. */
   readonly last: number | undefined;
+  /** The click had an end and has reached it: it stays silent, and keeps its origin, until `stop()`. */
+  readonly over: boolean;
   /** Counts the click's starts: a clock that stopped and came back starts a new run, with a new origin. */
   readonly run: number;
   /** The audio-clock time (seconds) of this run's tick 0; undefined while the clock is not running. */
@@ -37,9 +39,10 @@ export function createTickLoop(deps: {
   bpm: number;
   ticks?: number;
   /**
-   * How many ticks sound before the click falls silent, for a click with an end. It is ended on the audio clock,
-   * right after its last tick, not when that tick is heard: with a long output latency the tick after it would
-   * otherwise have left for the speakers already.
+   * How many ticks sound before the click falls silent, for a click with an end. It is ended by the first frame
+   * after its last tick has left the context, going by the audio clock and not by when that tick is heard: with a
+   * long output latency the tick after it would otherwise have left for the speakers already. A frame that stalls
+   * for most of a beat at that moment lets the next tick out; nothing counts it.
    */
   count?: number;
 }): TickLoop {
@@ -60,6 +63,8 @@ export function createTickLoop(deps: {
   return {
     frame() {
       const clock = deps.clock();
+      // A click that has ended stays ended, and keeps its origin, whatever the clock does afterwards.
+      if (over) return;
       if (!clock?.running) return stop();
       const now = clock.now();
       if (origin === undefined) {
@@ -69,7 +74,6 @@ export function createTickLoop(deps: {
         deps.song.play(origin, 0);
         return;
       }
-      if (over) return;
       if (
         count !== undefined &&
         now >= origin + (count - 1) * beat + CLICK_S + QUIET_S
@@ -87,6 +91,9 @@ export function createTickLoop(deps: {
     },
     bpm: deps.bpm,
     last: count === undefined ? undefined : count - 1,
+    get over() {
+      return over;
+    },
     get run() {
       return run;
     },
