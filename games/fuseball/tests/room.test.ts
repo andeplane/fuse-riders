@@ -13,6 +13,7 @@ import {
 import {
   DEFAULT_SETTINGS,
   PLAY,
+  SIDE,
   createFuseballGame,
   createRoom,
   decode,
@@ -111,13 +112,47 @@ function point(room: Room, team: Slot): void {
   if (room.stage === "running") run(room, COUNTDOWN_TICKS);
 }
 
-test("settings are exactly a display flag and a known map", () => {
-  assert.deepEqual(parseSettings({ display: true, mapId: "halo" }), {
-    display: true,
-    mapId: "halo",
-  });
+test("settings are exactly a display flag, known map and uint32 seed", () => {
+  assert.deepEqual(
+    parseSettings({ display: true, mapId: "halo", seed: 0, size: 1 }),
+    {
+      display: true,
+      mapId: "halo",
+      seed: 0,
+      size: 1,
+    },
+  );
   for (const mapId of MAP_IDS)
-    assert.ok(parseSettings({ display: false, mapId }));
+    assert.ok(parseSettings({ display: false, mapId, seed: 0, size: 1 }));
+  for (const seed of [0, 1, 0x80000000, 0xffffffff])
+    assert.deepEqual(
+      parseSettings({ display: false, mapId: "random", seed, size: 1 }),
+      {
+        display: false,
+        mapId: "random",
+        seed,
+        size: 1,
+      },
+    );
+  for (const seed of [
+    -0,
+    -1,
+    0x100000000,
+    1.5,
+    NaN,
+    Infinity,
+    "12",
+    null,
+    undefined,
+  ])
+    assert.equal(
+      parseSettings({ display: false, mapId: "random", seed, size: 1 }),
+      undefined,
+    );
+  assert.equal(
+    parseSettings({ display: false, mapId: "halo", seed: 1, size: 1 }),
+    undefined,
+  );
   for (const bad of [
     null,
     [],
@@ -133,6 +168,28 @@ test("settings are exactly a display flag and a known map", () => {
     assert.equal(parseSettings(bad), undefined, JSON.stringify(bad));
 });
 
+test("generated settings stay fixed for a match and checkpoint seed mismatches are rejected atomically", () => {
+  const room = started({ display: false, mapId: "random", seed: 5, size: 1 });
+  assert.equal(room.world?.seed, 5);
+  assert.deepEqual(decode(encode(room), room.tick), room);
+  const before = hash(room),
+    corrupt = structuredClone(encode(room));
+  const world = corrupt[8];
+  assert.ok(Array.isArray(world));
+  world[14] = 4;
+  assert.equal(decode(corrupt, room.tick), undefined);
+  assert.equal(hash(room), before);
+  fold(room, {
+    a: [[SETTINGS, { display: false, mapId: "random", seed: 4, size: 1 }]],
+  });
+  assert.equal(room.settings.seed, 4);
+  assert.equal(room.play.seed, 5);
+  assert.equal(room.world?.seed, 5);
+  fold(room, { a: [[ACTION, "lobby", "m2"]] });
+  fold(room, { a: [[ACTION, "start", "m3"]] });
+  assert.equal(room.world?.seed, 4);
+});
+
 test("entries: play names a match and carries stick bits; management uses the shared kinds", () => {
   assert.ok(isEntry([1, 5, PLAY, "m1", RIGHT | BTN]));
   assert.ok(isEntry([1, 5, PLAY, "m1", 0]));
@@ -146,10 +203,21 @@ test("entries: play names a match and carries stick bits; management uses the sh
   assert.ok(!isEntry([1, 0, PLAY, "m1", BTN]), "tick from 1");
   assert.ok(!isEntry([1, 5, PLAY, "", BTN]), "a match id");
   assert.ok(isEntry([1, 5, JOIN, "a", "Ada", 1, "robot", 1]));
-  assert.ok(!isEntry([1, 5, JOIN, "a", "Ada", 2, "robot", 1]), "two seats");
+  assert.ok(isEntry([1, 5, JOIN, "a", "Ada", 5, "robot", 1]), "six seats");
+  assert.ok(!isEntry([1, 5, JOIN, "a", "Ada", 6, "robot", 1]), "six seats");
+  assert.ok(isEntry([1, 5, SIDE, "m1"]));
+  assert.ok(!isEntry([1, 5, SIDE, ""]), "a match id");
+  assert.ok(!isEntry([1, 5, SIDE, "m1", 0]), "nothing more");
   assert.ok(!isEntry([1, 5, JOIN, "a", "Ada", 0, "nobody", 1]));
   assert.ok(!isEntry([1, 5, JOIN, "constructor", "Ada", 0, "robot", 1]));
-  assert.ok(isEntry([1, 5, SETTINGS, { display: false, mapId: "halo" }]));
+  assert.ok(
+    isEntry([
+      1,
+      5,
+      SETTINGS,
+      { display: false, mapId: "halo", seed: 0, size: 1 },
+    ]),
+  );
   assert.ok(!isEntry([1, 5, SETTINGS, { display: false, mapId: "moon" }]));
   assert.ok(isEntry([1, 5, ACTION, "rematch", "m2"]));
   assert.ok(!isEntry([1, 5, ACTION, "start", "has space"]));
@@ -159,14 +227,28 @@ test("entries: play names a match and carries stick bits; management uses the sh
   assert.equal(seatName("\u0007"), undefined);
 });
 
-test("a duel needs both seats; it starts in slot order on the lobby's map, and watchers only watch", () => {
+test("a duel alone gets a bot; it starts in slot order on the lobby's map, and watchers only watch", () => {
   const alone = createRoom("m0", DEFAULT_SETTINGS);
   fold(alone, { a: [[JOIN, "a", "Ada", 1, "robot", 1]] });
   fold(alone, { a: [[ACTION, "start", "m1"]] });
-  assert.equal(alone.stage, "lobby", "one rider is not a duel");
-  assert.equal(alone.world, null);
+  assert.equal(alone.stage, "running", "a bot takes the empty seat");
+  assert.deepEqual(
+    alone.world!.riders.map((r) => r.id),
+    ["bot:1", "a"],
+    "the bot sits in the free seat, which is the left one",
+  );
+  assert.ok(decode(encode(alone), alone.tick));
+  const empty = createRoom("m0", DEFAULT_SETTINGS);
+  fold(empty, { a: [[BOT, "add", "bot:1", "Fizz", 0]] });
+  fold(empty, { a: [[ACTION, "start", "m1"]] });
+  assert.equal(empty.stage, "lobby", "bots alone do not play");
 
-  const room = createRoom("m0", { display: false, mapId: "halo" });
+  const room = createRoom("m0", {
+    display: false,
+    mapId: "halo",
+    seed: 0,
+    size: 1,
+  });
   // Seated out of order, and a watcher beside them.
   fold(room, {
     a: [
@@ -194,7 +276,7 @@ test("a duel needs both seats; it starts in slot order on the lobby's map, and w
   assert.equal(seen.seats.find((seat) => seat.id === "w")?.watcher, true);
   assert.equal(seen.world?.phase, "countdown");
   assert.equal(seen.world?.count, 3);
-  assert.equal(fuseballGame.seating.capacity, 2);
+  assert.equal(fuseballGame.seating.capacity, 6);
   assert.deepEqual(fuseballGame.seating.solo, { name: "You", bots: 1 });
   assert.deepEqual(fuseballGame.scope(room), { matchId: "m1", round: 0 });
 });
@@ -335,7 +417,9 @@ test("what is held stays held across a point reset, without becoming a fresh pre
 test("the third point ends the match; rematch and lobby start over, and the lobby's map applies to the next match", () => {
   const room = playing();
   // The map is changed mid-match: the match in play keeps its own.
-  fold(room, { a: [[SETTINGS, { display: false, mapId: "downlink" }]] });
+  fold(room, {
+    a: [[SETTINGS, { display: false, mapId: "downlink", seed: 0, size: 1 }]],
+  });
   assert.equal(room.settings.mapId, "downlink");
   assert.equal(room.play.mapId, "gridlock");
   assert.equal(room.world!.mapId, "gridlock");
@@ -356,6 +440,7 @@ test("the third point ends the match; rematch and lobby start over, and the lobb
   assert.deepEqual(room.decided, {
     clock: before + last,
     winner: "a",
+    side: 0,
     finishers: ["a", "b"],
   });
   assert.equal(view(room).winner, "a");
@@ -386,7 +471,7 @@ test("the third point ends the match; rematch and lobby start over, and the lobb
   assert.equal(room.seats.size, 2);
 });
 
-test("a rider who left is no finisher, and a rematch without them falls back to the lobby", () => {
+test("a rider who left is no finisher, and a rematch without them seats a bot", () => {
   const room = playing();
   point(room, 0);
   point(room, 0);
@@ -402,11 +487,14 @@ test("a rider who left is no finisher, and a rematch without them falls back to 
       ["b", "Bo", 1],
     ],
   );
-  // The rematch drops the absent seat first; one rider cannot duel.
+  // The rematch drops the absent seat first, and a bot rides in its place.
   fold(room, { a: [[ACTION, "rematch", "m2"]] });
-  assert.equal(room.stage, "lobby");
-  assert.equal(room.world, null);
+  assert.equal(room.stage, "running");
   assert.equal(room.seats.has("b"), false);
+  assert.deepEqual(
+    room.world!.riders.map((r) => r.id),
+    ["a", "bot:1"],
+  );
   assert.ok(decode(encode(room), room.tick));
 });
 
@@ -546,10 +634,10 @@ test("a corrupt checkpoint is refused whole, and refusing it changes nothing", (
     [
       "a map the world is not on",
       room,
-      at(4, { display: false, mapId: "halo" }),
+      at(4, { display: false, mapId: "halo", seed: 0, size: 1 }),
     ],
     ["seats that are not a list", room, at(3, {})],
-    ["a seat past the capacity", room, seat((s) => (s.slot = 2))],
+    ["a seat past the capacity", room, seat((s) => (s.slot = 6))],
     ["a seat with an unknown key", room, seat((s) => (s.extra = true))],
     [
       "a seat named for a prototype key",
@@ -586,35 +674,48 @@ test("a corrupt checkpoint is refused whole, and refusing it changes nothing", (
         ["b", "Bo", false],
       ]),
     ],
-    ["a decision before the end", room, at(7, [1, "a", ["a", "b"]])],
+    ["a decision before the end", room, at(7, [1, "a", ["a", "b"], 0])],
     ["a world that is not one", room, at(WORLD, [1, 2, 3])],
     ["no world in a match", room, at(WORLD, null)],
     [
       "a rider out of the field",
       room,
-      world((w) => ((w[10] as unknown[])[1] = -5)),
+      world((w) => ((w[9] as unknown[][])[1]![1] = -5)),
     ],
     ["a score past the target", room, world((w) => (w[5] = TARGET + 1))],
     ["a clock ahead of the log", room, at(9, room.tick * STEPS_PER_TICK + 1)],
     ["a clock behind the log", room, at(9, room.tick - 1)],
     ["a fractional clock", room, at(9, room.simulationTick + 0.5)],
     ["an ended match with no decision", over, at(7, null)],
-    ["the wrong winner", over, at(7, [over.decided!.clock, "b", ["a", "b"]])],
+    [
+      "the wrong winner",
+      over,
+      at(7, [over.decided!.clock, "b", ["a", "b"], 0]),
+    ],
     [
       "a stranger as winner",
       over,
-      at(7, [over.decided!.clock, "z", ["a", "b"]]),
+      at(7, [over.decided!.clock, "z", ["a", "b"], 0]),
     ],
     [
       "a decision from the future",
       over,
-      at(7, [over.simulationTick + 1, "a", ["a", "b"]]),
+      at(7, [over.simulationTick + 1, "a", ["a", "b"], 0]),
     ],
-    ["unsorted finishers", over, at(7, [over.decided!.clock, "a", ["b", "a"]])],
+    [
+      "unsorted finishers",
+      over,
+      at(7, [over.decided!.clock, "a", ["b", "a"], 0]),
+    ],
     [
       "a finisher who never played",
       over,
-      at(7, [over.decided!.clock, "a", ["a", "z"]]),
+      at(7, [over.decided!.clock, "a", ["a", "z"], 0]),
+    ],
+    [
+      "the other side as winner",
+      over,
+      at(7, [over.decided!.clock, "a", ["a", "b"], 1]),
     ],
     ["an ended match marked running", over, at(1, "running")],
     ["something held after the end", over, at(5, [["a", RIGHT]])],

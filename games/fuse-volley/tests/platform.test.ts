@@ -39,7 +39,7 @@ test("a player's stats are accepted only whole, known and within one match", () 
   const bad: Partial<FuseVolleyStats>[] = [
     { playerId: "nobody" },
     { name: " Ada" },
-    { slot: 2 },
+    { slot: 6 },
     { hits: 20_001 },
     { points: 41, matchScoreUnits: 41 },
     { points: 10 }, // points must be the board

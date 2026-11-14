@@ -1149,6 +1149,7 @@ function lobby(view: FuseLaneView, viewer: Viewer): LobbyModel {
   return {
     members: players.map((player) => ({
       id: player.id,
+      slot: player.slot,
       name:
         player.id === viewer.me && player.name !== "You"
           ? `${player.name} (you)`
@@ -1228,6 +1229,7 @@ export function boardModel(
           : undefined;
       return {
         id: player.id,
+        slot: player.slot,
         name: player.name,
         color: colorOf(player.slot),
         avatar: player.avatarId,
@@ -1283,6 +1285,7 @@ export function present(view: FuseLaneView, viewer: Viewer): ScreenModel {
   const board = boardModel(view, viewer);
   const scores: ScoreRow[] = players.map((player) => ({
     id: player.id,
+    slot: player.slot,
     name: player.name,
     color: colorOf(player.slot),
     avatar: player.avatarId,

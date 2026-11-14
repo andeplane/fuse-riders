@@ -583,6 +583,7 @@ export const frontGame: RollbackGame<Room, Entry, View, FrontEvent, Settings> =
     matchSettings: (room) => room.play,
     seating: {
       capacity: CAPACITY,
+      capacityFor: (room) => 2 * room.settings.size,
       // Bots fill every empty slot, so one rider can start a match.
       minPlayers: 1,
       maxWatchers: MAX_WATCHERS,

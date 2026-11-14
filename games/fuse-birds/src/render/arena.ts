@@ -116,6 +116,7 @@ export function createArena(
       canvas.removeEventListener("webglcontextlost", onLost);
       canvas.removeEventListener("webglcontextrestored", onRestored);
       game.destroy(false);
+      if (game.scene.isBooted) game.step(0, 0);
     },
   };
 }

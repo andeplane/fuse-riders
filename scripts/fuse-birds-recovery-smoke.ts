@@ -1,3 +1,4 @@
+import { openPlayOptions } from "./lib/main-menu.js";
 import { chromium, type Page } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
@@ -34,6 +35,7 @@ try {
     { times: 1 },
   );
   await creator.goto(`${base}/fuse-birds/?mute`);
+  await openPlayOptions(creator);
   await creator.getByRole("button", { name: "CREATE ROOM" }).click();
   assert.equal(
     await creator.getByRole("button", { name: "JOIN ROOM" }).isDisabled(),
@@ -51,14 +53,15 @@ try {
     await creator.getByRole("button", { name: "JOIN ROOM" }).isEnabled(),
     true,
   );
+  await openPlayOptions(creator);
   await creator.getByRole("button", { name: "CREATE ROOM" }).click();
   await creator.locator(".fui-name-input").fill("SKYE");
-  await creator.getByRole("button", { name: "JOIN BATTLE" }).click();
+  await creator.getByRole("button", { name: "Join" }).click();
   const code = await creator.locator(".birds-code").innerText();
   async function join(page: Page, name: string) {
     await page.goto(`${base}/fuse-birds/?room=${code}&mute`);
     await page.locator(".fui-name-input").fill(name);
-    await page.getByRole("button", { name: "JOIN BATTLE" }).click();
+    await page.getByRole("button", { name: "Join" }).click();
     await page
       .locator(".birds-roster")
       .getByText(`${name} · YOU`, { exact: true })
@@ -67,6 +70,7 @@ try {
   async function leave(page: Page) {
     await page.locator("summary").filter({ hasText: "MENU" }).click();
     await page.getByRole("button", { name: "LEAVE", exact: true }).click();
+    await openPlayOptions(page);
     await page.getByRole("button", { name: "CREATE ROOM" }).waitFor();
   }
   await join(successor, "EMBER");

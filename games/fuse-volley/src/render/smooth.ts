@@ -18,13 +18,13 @@ interface Offset {
 export interface Smoother {
   /**
    * The view to draw at wall time `nowMs`: `view` with the current offsets applied. `revision` is the runtime's frame
-   * revision; `local` is this device's side, or −1.
+   * revision; `local` is this device's blob slot, or −1.
    */
   apply(
     view: WorldView,
     revision: number,
     nowMs: number,
-    local: -1 | 0 | 1,
+    local: number,
   ): WorldView;
 }
 
@@ -32,13 +32,12 @@ export function createSmoother(): Smoother {
   let revision: number | undefined,
     last = -1,
     shown: WorldView | undefined;
-  const offsets: { ball: Offset; blobs: [Offset, Offset] } = {
+  const offsets: { ball: Offset; blobs: Offset[] } = {
     ball: { x: 0, y: 0 },
-    blobs: [
-      { x: 0, y: 0 },
-      { x: 0, y: 0 },
-    ],
+    blobs: [],
   };
+  const offsetOf = (slot: number): Offset =>
+    (offsets.blobs[slot] ??= { x: 0, y: 0 });
   /** Where the screen showed something last frame, moved on by `dt` at the speed it was moving then. */
   let before: WorldView | undefined,
     beforeDt = 0;
@@ -90,22 +89,17 @@ export function createSmoother(): Smoother {
           },
           view.ball,
         );
-        for (const side of [0, 1] as const)
-          if (side !== local)
-            take(
-              offsets.blobs[side],
-              expected(shown.blobs[side], before?.blobs[side], dt),
-              view.blobs[side],
-            );
+        for (const [slot, blob] of view.blobs.entries()) {
+          const was = shown.blobs[slot];
+          if (slot !== local && was)
+            take(offsetOf(slot), expected(was, before?.blobs[slot], dt), blob);
+        }
       }
       revision = nextRevision;
       // A serve teleports the ball: never drag it from the last rally.
       if (view.phase === "serve") {
         offsets.ball = { x: 0, y: 0 };
-        offsets.blobs = [
-          { x: 0, y: 0 },
-          { x: 0, y: 0 },
-        ];
+        offsets.blobs = [];
       }
       const result: WorldView = {
         ...view,
@@ -114,17 +108,16 @@ export function createSmoother(): Smoother {
           x: view.ball.x + offsets.ball.x,
           y: view.ball.y + offsets.ball.y,
         },
-        blobs: [0, 1].map((side) => {
-          const blob = view.blobs[side as 0 | 1],
-            offset = offsets.blobs[side as 0 | 1];
-          return side === local
+        blobs: view.blobs.map((blob, slot) => {
+          const offset = offsetOf(slot);
+          return slot === local
             ? blob
             : {
                 ...blob,
                 x: blob.x + offset.x,
                 y: Math.min(blob.y + offset.y, SAND_Y),
               };
-        }) as WorldView["blobs"],
+        }),
       };
       before = shown;
       beforeDt = dt;

@@ -1,6 +1,6 @@
-import { CAPACITY, type Scoring } from "../engine/index.js";
+import type { Scoring } from "../engine/index.js";
 import { DEAD_STEPS } from "../engine/view-kit.js";
-import type { View } from "../online/game.js";
+import { seatsFor, sideOf, type View } from "../online/game.js";
 
 /**
  * What the page shows, decided from one frame: the screen (lobby, the court, or a phone controller for a shared
@@ -33,15 +33,26 @@ export const SCORING_CHOICES: readonly {
       "Only the serving side can score; win a rally on the other's serve to take the serve. First to 15, win by 2.",
   },
 ];
+/** One, two or three a side, as the lobby offers them. */
+export const MODE_CHOICES = [
+  { team: 1, title: "1 V 1" },
+  { team: 2, title: "2 V 2" },
+  { team: 3, title: "3 V 3" },
+] as const;
+/** Three a side, the lanes by number from the net out. */
+export const LANE_NAMES = ["FRONT", "MIDDLE", "BACK"] as const;
 export const BOT_CHOICES = [
   { level: 0, title: "EASY" },
   { level: 1, title: "NORMAL" },
   { level: 2, title: "HARD" },
 ] as const;
 
+/** One blob of the match. */
 export interface Side {
   id: string;
-  slot: 0 | 1;
+  /** Its blob slot; even slots play the left side. */
+  slot: number;
+  side: 0 | 1;
   name: string;
   you: boolean;
   bot: boolean;
@@ -55,8 +66,10 @@ export interface Model {
   seated: boolean;
   /** This device has a blob in the match being played: its controls are live. */
   riding: boolean;
+  /** This device's blob slot in the match, or −1. */
+  localSlot: number;
   /** This device's side in the match, or −1. */
-  localSlot: 0 | 1 | -1;
+  localSide: 0 | 1 | -1;
   /** The control guide shows for a match's first serve; `guideKey` names that match. */
   controlsVisible: boolean;
   guideKey: string;
@@ -74,13 +87,19 @@ export interface Model {
     removable: string[];
     showStart: boolean;
     canStart: boolean;
+    /** Seats START fills with bots first: two or three a side starts with whoever is seated and bots for the rest. */
+    fill: number;
     editable: boolean;
     note: string;
     /** A bot is seated: the level choice matters. */
     hasBot: boolean;
   };
+  /** The match's blobs in slot order. */
   sides: Side[];
+  /** Each side's label: its player, or its team, "A & B" or "A, B & C". */
   names: readonly [string, string] | undefined;
+  /** Each blob's name by slot, for the tags under blobs two and three a side. */
+  tags: readonly string[];
   /** The scoring rule of the match being played (or the lobby's choice), in words. */
   scoringName: string;
   /** One line for a phone controller: the score, a point, the result. */
@@ -95,6 +114,12 @@ export interface Model {
   } | null;
 }
 
+/** A side's players as one label: "A", "A & B" or "A, B & C". */
+export const teamLabel = (names: readonly string[]): string =>
+  names.length > 2
+    ? `${names.slice(0, -1).join(", ")} & ${names.at(-1)}`
+    : names.join(" & ");
+
 const plural = (count: number, one: string, many: string) =>
   `${count} ${count === 1 ? one : many}`;
 
@@ -104,8 +129,11 @@ export function present(view: View, viewer: Viewer): Model {
   const seated = !!mine && !mine.watcher;
   const world = view.world;
   const inMatch = view.stage !== "lobby" && !!world;
-  const blob = world?.blobs.find((each) => each.id === viewer.me);
-  const localSlot = inMatch && blob ? blob.side : -1;
+  const mySlot = world
+    ? world.blobs.findIndex((each) => each.id === viewer.me)
+    : -1;
+  const localSlot = inMatch ? mySlot : -1;
+  const localSide: 0 | 1 | -1 = localSlot === -1 ? -1 : sideOf(localSlot);
   const riding = view.stage === "running" && localSlot !== -1;
   const shared = view.settings.display || view.play.display;
   const screen: Model["screen"] = !inMatch
@@ -121,39 +149,48 @@ export function present(view: View, viewer: Viewer): Model {
           return {
             id: entrant.id,
             slot: entrant.slot,
+            side: sideOf(entrant.slot),
             name: entrant.name,
             you: entrant.id === viewer.me,
             bot: entrant.bot,
             away: !entrant.bot && (!seat || seat.away || !seat.connected),
-            score: world.score[entrant.slot],
+            score: world.score[sideOf(entrant.slot)],
           };
         })
       : [];
-  const names =
-    sides.length === 2
-      ? ([sides[0]!.name, sides[1]!.name] as const)
-      : undefined;
+  const label = (side: 0 | 1) =>
+    teamLabel(
+      sides.filter((each) => each.side === side).map((each) => each.name),
+    );
+  const localLane =
+    world && localSlot !== -1 ? (world.blobs[localSlot]?.lane ?? -1) : -1;
+  const names = sides.length >= 2 ? ([label(0), label(1)] as const) : undefined;
 
   let status = "";
   if (world && inMatch) {
     const score = `${world.score[0]} – ${world.score[1]}`;
     if (view.stage === "over" || world.phase === "over")
       status =
-        localSlot === -1
+        localSide === -1
           ? score
-          : world.winner === localSlot
+          : world.winner === localSide
             ? "YOU WIN!"
             : "YOU LOSE";
     else if (world.phase === "serve")
       status =
-        localSlot !== -1 && world.server === localSlot
+        localSide !== -1 &&
+        world.server === localSide &&
+        // Three a side, the middle lane serves.
+        (localLane === -1 || localLane === 1)
           ? `${score} · YOUR SERVE`
-          : `${score} · SERVE`;
+          : localLane !== -1
+            ? `${score} · ${LANE_NAMES[localLane]} LANE`
+            : `${score} · SERVE`;
     else if (world.phase === "dead" && world.lastFault !== -1)
       status =
-        localSlot === -1
+        localSide === -1
           ? score
-          : world.lastFault === localSlot
+          : world.lastFault === localSide
             ? `${score} · MISSED`
             : `${score} · POINT!`;
     else status = score;
@@ -168,20 +205,20 @@ export function present(view: View, viewer: Viewer): Model {
         : "Pick a name to play in the next match";
 
   let result: Model["result"] = null;
-  if (view.stage === "over" && world && sides.length === 2) {
+  if (view.stage === "over" && world && names) {
     const winner = sides.find((side) => side.id === view.winner);
-    const [left, right] = [sides[0]!, sides[1]!];
+    const team = winner && sides.filter((side) => side.side === winner.side);
     result = {
-      title: winner
-        ? winner.you
+      title: !winner
+        ? "MATCH OVER"
+        : team!.some((side) => side.you)
           ? "YOU WIN!"
-          : `${winner.name.toUpperCase()} WINS`
-        : "MATCH OVER",
+          : `${names[winner.side].toUpperCase()} ${team!.length > 1 ? "WIN" : "WINS"}`,
       lines: [
-        `${left.name} ${left.score} – ${right.score} ${right.name}`,
+        `${names[0]} ${world.score[0]} – ${world.score[1]} ${names[1]}`,
         ...sides.map(
           (side) =>
-            `${side.name}: ${plural(world.blobs[side.slot].hits, "touch", "touches")}`,
+            `${side.name}: ${plural(world.blobs[side.slot]?.hits ?? 0, "touch", "touches")}`,
         ),
       ],
       host: viewer.host,
@@ -189,14 +226,29 @@ export function present(view: View, viewer: Viewer): Model {
     };
   }
 
+  const needed = seatsFor(view.settings),
+    team = view.settings.team,
+    teams = team > 1,
+    mode = `${team} V ${team}`;
+  const fill = teams && seats.length < needed ? needed - seats.length : 0;
+  const colours =
+    team === 3
+      ? "3 V 3 in lanes: seats 1, 3 and 5 play cyan, 2, 4 and 6 pink."
+      : "2 V 2: seats 1 and 3 play cyan, 2 and 4 pink.";
   const lobbyNote = !seats.length
     ? "Pick a name to take a seat"
     : viewer.host
-      ? seats.length < CAPACITY
-        ? "A match needs two players: invite a friend or add a bot."
-        : view.settings.display
-          ? "Shared screen: open the TV screen, then both players use their phones"
-          : ""
+      ? seats.length > needed
+        ? `${mode} takes ${needed} seats: pick a bigger match, or remove a bot.`
+        : !teams && seats.length < needed
+          ? "A match needs two players: invite a friend or add a bot."
+          : fill
+            ? `${colours} START adds ${plural(fill, "bot", "bots")} for the empty ${fill === 1 ? "seat" : "seats"}.`
+            : view.settings.display
+              ? "Shared screen: open the TV screen, then every player uses a phone"
+              : teams
+                ? colours
+                : ""
       : "Waiting for the host to start";
   const scoring = inMatch ? view.play.scoring : view.settings.scoring;
   return {
@@ -205,6 +257,7 @@ export function present(view: View, viewer: Viewer): Model {
     seated,
     riding,
     localSlot,
+    localSide,
     controlsVisible:
       view.stage === "running" &&
       world?.phase === "serve" &&
@@ -221,16 +274,25 @@ export function present(view: View, viewer: Viewer): Model {
         you: seat.id === viewer.me,
       })),
       watchers: view.seats.length - seats.length,
-      canAddBot: viewer.host && seats.length < CAPACITY,
+      canAddBot: viewer.host && seats.length < needed,
       removable: viewer.host ? seats.filter((s) => s.bot).map((s) => s.id) : [],
       showStart: viewer.host,
-      canStart: seats.length === CAPACITY,
+      canStart: teams
+        ? seats.length >= 1 && seats.length <= needed
+        : seats.length === needed,
+      fill,
       editable: viewer.host,
       note: lobbyNote,
       hasBot: seats.some((seat) => seat.bot),
     },
     sides,
     names,
+    tags: world
+      ? world.blobs.map(
+          (each) =>
+            view.roster.find((entrant) => entrant.id === each.id)?.name ?? "",
+        )
+      : [],
     scoringName:
       SCORING_CHOICES.find((choice) => choice.id === scoring)?.title ?? "",
     status,
@@ -288,14 +350,14 @@ export function createPointWatch(): (view: View, me: string) => PointReport[] {
     if (mySide === undefined) return [];
     const mine = winner === mySide,
       toBot = view.roster.some(
-        (entrant) => entrant.slot === winner && entrant.bot,
+        (entrant) => sideOf(entrant.slot) === winner && entrant.bot,
       );
     if (!mine && !toBot) return [];
     return [
       {
         scoring: world.scoring,
         mine,
-        touches: world.blobs[0].hits + world.blobs[1].hits,
+        touches: world.blobs.reduce((sum, blob) => sum + blob.hits, 0),
       },
     ];
   };

@@ -1,3 +1,4 @@
+import { openPlayOptions, takeHostSeat } from "./lib/main-menu.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
@@ -134,15 +135,18 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
     const entrance = new URL(ridersPageUrl(base));
     entrance.searchParams.set("mute", "");
     await host.goto(entrance.href);
+    await openPlayOptions(host);
     await host
       .getByRole("button", { name: "CREATE ROOM", exact: true })
       .click();
     await host.waitForURL(/room=/);
+    await takeHostSeat(host, "Host");
     await host.locator(".room-riders > .room-rider").first().waitFor();
     const target = new URL(host.url());
     target.searchParams.set("benchmark", "1");
     target.searchParams.set("renderer", "phaser-canvas");
     await host.goto(target.href);
+    await takeHostSeat(host, "Host");
     await host.locator(".room-riders > .room-rider").first().waitFor();
     const invite = host.url();
     for (let index = 1; index < 5; index++) {

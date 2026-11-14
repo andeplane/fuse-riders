@@ -17,6 +17,7 @@ import {
 import {
   BTN,
   CAPACITY,
+  TEAM_MAX,
   DOWN,
   INPUT_MASK,
   LEFT,
@@ -31,6 +32,9 @@ import {
   encodeWorld,
   isInput,
   isMapId,
+  isTeamMapId,
+  isSeed,
+  RANDOM,
   paceTick,
   stepWorld,
   stepsPerTick,
@@ -40,6 +44,7 @@ import {
   type Rider,
   type Slot,
   type World,
+  TEAM_MAP_IDS,
   type WorldView,
 } from "../engine/index.js";
 import { BOT_PREFIX, GAME_ID, validName } from "../basics.js";
@@ -63,24 +68,57 @@ export interface Settings {
   display: boolean;
   /** The arena the next match is played in. */
   mapId: MapId;
+  /** The random arena's uint32 seed; zero for handmade arenas. */
+  seed: number;
+  /**
+   * Riders a side: 1 is a duel, on a duel arena or the random one; 2 and 3 are 2v2 and 3v3, on a team arena. A
+   * start grows it to seat everybody in the room, up to three a side.
+   */
+  size: number;
 }
 export const DEFAULT_SETTINGS: Settings = {
   display: false,
   mapId: MAP_IDS[0],
+  seed: 0,
+  size: 1,
 };
-/** The settings boundary, for a logged entry, a command and a checkpoint alike: exactly the two fields, each checked. */
+/** The settings for a mode: the arena kept when it suits the mode, otherwise the mode's first. */
+export function settingsFor(settings: Settings, size: number): Settings {
+  const team = size > 1;
+  if (team === isTeamMapId(settings.mapId)) return { ...settings, size };
+  return {
+    ...settings,
+    size,
+    mapId: team ? TEAM_MAP_IDS[0] : MAP_IDS[0],
+    seed: 0,
+  };
+}
+/** The settings boundary, for logged entries, commands and checkpoints: exactly four checked fields. */
 export function parseSettings(raw: unknown): Settings | undefined {
   if (!plain(raw)) return;
   const keys = Object.keys(raw);
   if (
-    keys.length !== 2 ||
+    keys.length !== 4 ||
     !Object.hasOwn(raw, "display") ||
-    !Object.hasOwn(raw, "mapId")
+    !Object.hasOwn(raw, "mapId") ||
+    !Object.hasOwn(raw, "seed") ||
+    !Object.hasOwn(raw, "size")
   )
     return;
-  const { display, mapId } = raw;
-  if (typeof display !== "boolean" || !isMapId(mapId)) return;
-  return { display, mapId };
+  const { display, mapId, seed, size } = raw;
+  if (
+    typeof display !== "boolean" ||
+    !isMapId(mapId) ||
+    !isSeed(seed) ||
+    (mapId !== RANDOM && seed !== 0) ||
+    !uint32(size) ||
+    size < 1 ||
+    size > TEAM_MAX ||
+    // A team arena is for teams, and nothing else is.
+    size > 1 !== isTeamMapId(mapId)
+  )
+    return;
+  return { display, mapId, seed, size };
 }
 
 export const PLAY = 0;
@@ -92,7 +130,15 @@ export type PlayEntry = [
   matchId: string,
   bits: number,
 ];
-export type Entry = ManagementEntry<Settings> | PlayEntry;
+export const SIDE = 1;
+/** In the lobby, a seat asks to change sides: it moves to the lowest free seat of the other side, if there is one. */
+export type SideEntry = [
+  seq: number,
+  tick: number,
+  kind: typeof SIDE,
+  matchId: string,
+];
+export type Entry = ManagementEntry<Settings> | PlayEntry | SideEntry;
 
 export const MAX_WATCHERS = 5;
 /** A room is in its lobby, in a match, or looking at a finished one; a match has no break between rounds. */
@@ -109,6 +155,7 @@ export const idleBot: BotInput = () => 0;
 export interface Entrant {
   id: string;
   name: string;
+  /** The side they ride for. Entrants are in the riders' order, so the sides take turns down the roster. */
   slot: Slot;
   bot: boolean;
 }
@@ -117,6 +164,8 @@ export interface Decided {
   /** The game clock (`simulationTick`) as of the deciding tick: a report waits until it is confirmed. */
   clock: number;
   winner: string;
+  /** The side that won. `winner` is that side's first rider, which is what a result names. */
+  side: Slot;
   /** The humans still seated when it ended, sorted: who can attest the result. */
   finishers: string[];
 }
@@ -130,7 +179,7 @@ export interface Room extends ManagedRoom<Settings> {
   play: Settings;
   /** Each rider's held bits, from the latest entry its seat logged this match; absent when nothing is held. */
   held: Record<string, number>;
-  /** The match's two riders in slot order; empty in the lobby. */
+  /** The match's riders in the world's order; empty in the lobby. */
   roster: Entrant[];
   decided: Decided | null;
   world: World | null;
@@ -160,8 +209,10 @@ export interface View {
   seats: SeatView[];
   /** The match's riders in slot order, named as they started. */
   roster: Entrant[];
-  /** The winner's id once `stage` is "over", otherwise "". */
+  /** The winning side's first rider once `stage` is "over", otherwise "". */
   winner: string;
+  /** The side that won once `stage` is "over", otherwise −1. */
+  winnerSide: -1 | Slot;
   world: WorldView | null;
 }
 
@@ -182,6 +233,17 @@ export function isEntry(raw: unknown): raw is Entry {
       raw[2] === BOT || raw[2] === SPECTATOR ? 4 : raw[2] <= PRESENCE ? 3 : -1;
     return at < 0 || playerKey((raw as unknown[])[at]);
   }
+  if (
+    Array.isArray(raw) &&
+    raw.length === 4 &&
+    uint32(raw[0]) &&
+    raw[0] > 0 &&
+    uint32(raw[1]) &&
+    raw[1] > 0 &&
+    raw[2] === SIDE &&
+    validMatchId(raw[3])
+  )
+    return true;
   return (
     Array.isArray(raw) &&
     raw.length === 5 &&
@@ -226,18 +288,95 @@ function resetMatch(room: Room, matchId: string): void {
   room.decided = null;
   room.world = null;
 }
-/** Starts a match for the two seats, or leaves the room in its lobby when it does not have two. */
+const sideOf = (index: number): Slot => (index % 2 === 0 ? 0 : 1);
+
+/** A bot id nobody in the room or in the last match has, so a new bot is never mistaken for a departed one. */
+function freeBotId(
+  room: Room,
+  pending: ReadonlySet<string> = new Set(),
+): string {
+  let number = 1;
+  const taken = (id: string) =>
+    room.seats.has(id) ||
+    pending.has(id) ||
+    room.roster.some((entrant) => entrant.id === id);
+  while (taken(`${BOT_PREFIX}${number}`)) number++;
+  return `${BOT_PREFIX}${number}`;
+}
+function seatBot(room: Room, slot: number): SeatRecord {
+  const seat: SeatRecord = {
+    id: freeBotId(room),
+    name: BOT_NAMES[slot % BOT_NAMES.length]!,
+    slot,
+    avatarId: AVATAR,
+    connected: true,
+    bot: true,
+  };
+  room.seats.set(seat.id, seat);
+  return seat;
+}
+
+/**
+ * Who rides in the match about to start, in the world's order, with a bot seated wherever nobody is.
+ *
+ * A duel is the room's two lowest seats, whichever they are; anybody else seated watches this one. A team match
+ * goes by the seats themselves: an even seat rides for the left and an odd one for the right, which is what the
+ * lobby shows, and it is as big as the lobby asked for or bigger, so that everybody seated rides.
+ */
+function lineUp(room: Room): SeatRecord[] {
+  const seated = riders(room);
+  if (!isTeamMapId(room.play.mapId)) {
+    // People before bots: a bot left seated by a team match never takes a person's place in a duel.
+    const pair = [
+      ...seated.filter((seat) => !seat.bot),
+      ...seated.filter((seat) => seat.bot),
+    ].slice(0, 2);
+    while (pair.length < 2) {
+      const free = [0, 1, 2, 3, 4, 5].find(
+        (slot) => ![...room.seats.values()].some((seat) => seat.slot === slot),
+      );
+      if (free === undefined) return [];
+      pair.push(seatBot(room, free));
+    }
+    return pair.sort((a, b) => a.slot - b.slot);
+  }
+  const highest = Math.max(-1, ...seated.map((seat) => seat.slot)),
+    size = Math.min(TEAM_MAX, Math.max(room.play.size, 2, (highest >> 1) + 1));
+  room.play.size = size;
+  return Array.from(
+    { length: 2 * size },
+    (_, slot) =>
+      seated.find((seat) => seat.slot === slot) ?? seatBot(room, slot),
+  );
+}
+
+/** Starts a match with whoever is seated and bots in the empty places, or leaves the room in its lobby when nobody is. */
 function beginMatch(room: Room): void {
-  const [left, right, ...extra] = riders(room);
-  if (!left || !right || extra.length) return;
+  if (!riders(room).some((seat) => !seat.bot)) return;
+  const line = lineUp(room);
+  if (!line.length) return;
   room.stage = "running";
-  room.roster = [left, right].map((seat, index) => ({
+  room.roster = line.map((seat, index) => ({
     id: seat.id,
     name: seat.name,
-    slot: index === 0 ? 0 : 1,
+    slot: sideOf(index),
     bot: seat.bot,
   }));
-  room.world = createWorld(room.play.mapId, [left.id, right.id]);
+  room.world = createWorld(
+    room.play.mapId,
+    line.map((seat) => seat.id),
+    room.play.seed,
+  );
+}
+
+/** A seat changes sides in the lobby: to the lowest free seat of the other side, or nowhere when that side is full. */
+function changeSides(room: Room, seat: SeatRecord): void {
+  const taken = new Set(riders(room).map((each) => each.slot));
+  for (let slot = (seat.slot + 1) % 2; slot < CAPACITY; slot += 2)
+    if (!taken.has(slot)) {
+      seat.slot = slot;
+      return;
+    }
 }
 
 export const lifecycle: LifecycleHooks<Room, Settings> = {
@@ -246,11 +385,10 @@ export const lifecycle: LifecycleHooks<Room, Settings> = {
   parseSettings,
   botAvatar: AVATAR,
   start(room, matchId) {
-    if (riders(room).length !== CAPACITY) return;
     resetMatch(room, matchId);
     beginMatch(room);
   },
-  // A rematch with a rider gone falls back to the lobby, where the room can seat someone or add a bot.
+  // A rematch with a rider gone seats a bot in their place.
   rematch(room, matchId) {
     resetMatch(room, matchId);
     beginMatch(room);
@@ -307,12 +445,15 @@ export const steps = (room: Room): number =>
 function decide(room: Room, world: World, clock: number): void {
   const slot = winnerOf(world);
   if (slot === -1) return;
+  const first = world.riders[slot];
+  if (!first) return;
   room.stage = "over";
   // The match is done with its controls: the next one starts with nothing held.
   room.held = {};
   room.decided = {
     clock,
-    winner: world.riders[slot].id,
+    winner: first.id,
+    side: slot,
     finishers: room.roster
       .filter((entrant) => {
         const seat = room.seats.get(entrant.id);
@@ -333,6 +474,19 @@ export function foldTick(
   const count = steps(room),
     paced = room.stage === "running" ? room.world : null;
   applyManagementTick(room, tick, creatorId, streams, lifecycle);
+  if (room.stage === "lobby" && room.settings.size > 1)
+    for (const seat of riders(room)) {
+      if (seat.bot || !seat.connected) continue;
+      const stream = streams.get(seat.id);
+      if (!stream || stream.generation !== seat.generation) continue;
+      if (
+        stream.entries.some(
+          (entry) =>
+            entry[1] === tick && entry[2] === SIDE && entry[3] === room.matchId,
+        )
+      )
+        changeSides(room, seat);
+    }
   const world = room.world;
   if (room.stage === "running" && world) {
     // The world `steps` read sets its pace for this tick and runs the same count. A match that began on this tick
@@ -383,7 +537,8 @@ const SEAT_KEYS = [
   "away",
 ];
 const STAGES: readonly RoomStage[] = ["lobby", "running", "over"];
-const FIELDS = 10;
+const FIELDS = 10,
+  DECIDED_FIELDS = 4;
 const seatOrder = (a: SeatRecord, b: SeatRecord) =>
   a.slot - b.slot || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
@@ -397,7 +552,12 @@ export function encode(room: Room): unknown[] {
     Object.entries(room.held).sort(([a], [b]) => (a < b ? -1 : 1)),
     room.roster.map((entrant) => [entrant.id, entrant.name, entrant.bot]),
     room.decided
-      ? [room.decided.clock, room.decided.winner, [...room.decided.finishers]]
+      ? [
+          room.decided.clock,
+          room.decided.winner,
+          [...room.decided.finishers],
+          room.decided.side,
+        ]
       : null,
     room.world ? encodeWorld(room.world) : null,
     room.simulationTick,
@@ -482,7 +642,7 @@ function decodeHeld(raw: unknown): Record<string, number> | undefined {
 }
 
 function decodeRoster(raw: unknown): Entrant[] | undefined {
-  if (!Array.isArray(raw) || (raw.length !== 0 && raw.length !== CAPACITY))
+  if (!Array.isArray(raw) || raw.length > CAPACITY || raw.length % 2 !== 0)
     return;
   const roster: Entrant[] = [];
   for (const item of raw) {
@@ -495,7 +655,7 @@ function decodeRoster(raw: unknown): Entrant[] | undefined {
       roster.some((entrant) => entrant.id === id)
     )
       return;
-    roster.push({ id, name, slot: roster.length === 0 ? 0 : 1, bot });
+    roster.push({ id, name, slot: sideOf(roster.length), bot });
   }
   return roster;
 }
@@ -505,12 +665,14 @@ function decodeDecided(
   roster: readonly Entrant[],
 ): Decided | null | undefined {
   if (raw === null) return null;
-  if (!Array.isArray(raw) || raw.length !== 3) return;
-  const [clock, winner, finishers] = raw as unknown[];
+  if (!Array.isArray(raw) || raw.length !== DECIDED_FIELDS) return;
+  const [clock, winner, finishers, side] = raw as unknown[];
   if (
     !uint32(clock) ||
     clock === 0 ||
-    !roster.some((entrant) => entrant.id === winner) ||
+    (side !== 0 && side !== 1) ||
+    // The side's first rider stands for it.
+    roster[side]?.id !== winner ||
     !Array.isArray(finishers) ||
     finishers.length > roster.length
   )
@@ -523,7 +685,7 @@ function decodeDecided(
     if (list.length && list[list.length - 1]! >= id) return;
     list.push(id);
   }
-  return { clock, winner: winner as string, finishers: list };
+  return { clock, winner: winner as string, side, finishers: list };
 }
 
 /**
@@ -584,16 +746,18 @@ export function decode(
       stage === "lobby" ||
       (stage === "over") !== over ||
       (decided !== null) !== over ||
-      roster.length !== CAPACITY ||
+      roster.length !== world.riders.length ||
+      // A duel arena plays a duel, and a team arena the size the match settled on.
+      world.riders.length !== 2 * play.size ||
       world.mapId !== play.mapId ||
+      world.seed !== play.seed ||
       world.riders.some((rider, slot) => rider.id !== roster[slot]!.id) ||
       Object.keys(held).some(
         (id) => !roster.some((entrant) => entrant.id === id && !entrant.bot),
       ) ||
       (over && Object.keys(held).length > 0) ||
       (decided !== null &&
-        (decided.clock > simulationTick ||
-          decided.winner !== roster[winnerOf(world) === 1 ? 1 : 0]!.id))
+        (decided.clock > simulationTick || decided.side !== winnerOf(world)))
     )
       return;
   }
@@ -650,6 +814,7 @@ export function view(room: Room): View {
     })),
     roster: room.roster.map((entrant) => ({ ...entrant })),
     winner: room.decided?.winner ?? "",
+    winnerSide: room.decided?.side ?? -1,
     world: room.world ? toView(room.world) : null,
   };
 }
@@ -685,6 +850,7 @@ export function createFuseballGame(bot: BotInput = botInput): FuseballGame {
     matchSettings: (room) => room.play,
     seating: {
       capacity: CAPACITY,
+      capacityFor: (room) => 2 * room.settings.size,
       maxWatchers: MAX_WATCHERS,
       seatName,
       isAvatar,
@@ -692,22 +858,15 @@ export function createFuseballGame(bot: BotInput = botInput): FuseballGame {
       parseSettings,
       soloSettings: (settings) => ({ ...settings, display: false }),
       sharedScreen: (settings) => settings.display,
-      botId(room, pending) {
-        // Never an id the match remembers, so a new bot is not mistaken for a departed one in its result.
-        let number = 1;
-        const taken = (id: string) =>
-          room.seats.has(id) ||
-          pending.has(id) ||
-          room.roster.some((entrant) => entrant.id === id);
-        while (taken(`${BOT_PREFIX}${number}`)) number++;
-        return `${BOT_PREFIX}${number}`;
-      },
+      // A start seats a bot wherever nobody is, so one rider is enough.
+      minPlayers: 1,
+      botId: freeBotId,
       botName: (slot) => BOT_NAMES[slot % BOT_NAMES.length]!,
       solo: { name: "You", bots: 1 },
     },
     text: {
       ...defaultText,
-      needTwo: "A duel needs two riders: invite a friend or add a bot.",
+      needTwo: "Take a seat to start: the empty places are filled with bots.",
     },
   };
 }

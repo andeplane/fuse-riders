@@ -71,8 +71,14 @@ const gamePages = (): Plugin => {
         const id = games.find((game) =>
           url.pathname.startsWith(`${server.config.base}${game}/`),
         );
-        if (id)
-          request.url = `${server.config.base}games/${id}/${url.pathname.slice(`${server.config.base}${id}/`.length) || "index.html"}${url.search}`;
+        if (id) {
+          const suffix = url.pathname.slice(
+            `${server.config.base}${id}/`.length,
+          );
+          // Keep public game assets at their deployed URLs instead of rewriting them into source-page paths.
+          if (!suffix || !existsSync(`${root}public/${id}/${suffix}`))
+            request.url = `${server.config.base}games/${id}/${suffix || "index.html"}${url.search}`;
+        }
         next();
       });
     },

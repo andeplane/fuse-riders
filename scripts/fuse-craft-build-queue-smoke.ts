@@ -17,7 +17,7 @@ for (const [name, engine] of [
     await page.goto(url);
     assert.equal(await page.title(), "Fuse Craft");
     assert.match(
-      await page.locator(".fui-landing-title").innerText(),
+      await page.locator(".fui-main-menu-title").innerText(),
       /FUSE\s+CRAFT/,
     );
     await page.screenshot({ path: `/tmp/fuse-craft-menu-${name}.png` });

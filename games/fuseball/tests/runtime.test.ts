@@ -13,7 +13,12 @@ import { matchResult } from "../src/online/result.js";
 import { dueReports } from "../src/app/reports.js";
 import { Mesh, chase, chaserBot, type TestRuntime } from "./fixtures/mesh.js";
 
-const DOWNLINK: Settings = { display: false, mapId: "downlink" };
+const DOWNLINK: Settings = {
+  display: false,
+  mapId: "downlink",
+  seed: 0,
+  size: 1,
+};
 
 /** A seeded generator, so a lossy mesh is the same mesh on every run. */
 function seeded(seed: number): () => number {
@@ -83,7 +88,7 @@ test("solo is one rider against one bot, on the chosen map, never a shared scree
   };
   const runtime = new FuseballRuntime(
     "SOLO",
-    { display: true, mapId: "halo" },
+    { display: true, mapId: "halo", seed: 0, size: 1 },
     { state: () => {}, event: () => {}, status: () => {}, ready: () => {} },
     { humanName: "Ada", humanAvatar: "fox", dependencies },
   );
@@ -156,6 +161,36 @@ test("two devices play over a mesh that drops, duplicates and reorders, and agre
   assert.equal(frame.tick, b.simulationTick);
   const timing = guest.frameTiming();
   assert.ok(timing?.newer.world && timing.older?.world, "two frames to blend");
+});
+
+test("a generated level converges after lossy controls and a late join recovers its seed", () => {
+  const { mesh, host, guest } = duel({
+    display: false,
+    mapId: "random",
+    seed: 0xffffffff,
+    size: 1,
+  });
+  lossy(mesh, 37);
+  mesh.run(3_500);
+  let n = 0;
+  mesh.run(4_000, () => {
+    if (++n % 11 === 0) host.input(n % 22 ? LEFT | BTN : RIGHT);
+    if (n % 17 === 0) guest.input(n % 34 ? RIGHT | BTN : LEFT);
+  });
+  host.input(0);
+  guest.input(0);
+  steady(mesh);
+  const late = mesh.join("late");
+  mesh.run(3_000);
+  assert.ok(late.command({ type: "spectate", name: "Late" }));
+  mesh.run(2_000);
+  assert.ok(mesh.align());
+  for (const runtime of [host, guest, late]) {
+    assert.equal(runtime.roomState()!.world!.mapId, "random");
+    assert.equal(runtime.roomState()!.world!.seed, 0xffffffff);
+    assert.equal(hash(runtime.roomState()!), hash(host.roomState()!));
+    assert.equal(runtime.metrics().mismatches, 0);
+  }
 });
 
 test("a device that joins mid-match recovers the world from a peer and watches on in step", () => {
@@ -253,7 +288,7 @@ test("held controls are logged when play needs them, after a resync, and again i
   assert.ok(
     host.command({
       type: "settings",
-      settings: { display: false, mapId: "halo" },
+      settings: { display: false, mapId: "halo", seed: 0, size: 1 },
     }),
   );
   assert.ok(host.command({ type: "action", action: "rematch" }));
@@ -284,7 +319,6 @@ test("a room refuses settings it does not know, and a bot seat plays through the
     !host.command({ type: "settings", settings: unknown as Settings }),
     "a map that does not exist",
   );
-  assert.ok(!host.command({ type: "action", action: "start" }), "one rider");
   assert.ok(host.command({ type: "bot", action: "add" }));
   mesh.run(300);
   assert.ok(host.command({ type: "action", action: "start" }));

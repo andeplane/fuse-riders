@@ -1,3 +1,4 @@
+import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
@@ -21,6 +22,7 @@ import {
   createGameMenu,
   createInviteCard,
   createLandingCard,
+  createRoomLayout,
   createNameEntry,
   createNotice,
   createRoster,
@@ -34,12 +36,7 @@ import {
   ROUND_SECONDS,
   WIN_TARGETS,
   botInput,
-  createWorld,
-  roundDone,
-  stepWorld,
-  toView,
   type Settings,
-  type World,
 } from "../engine/index.js";
 import { freightGame, type View } from "../online/game.js";
 import { seatName } from "../online/names.js";
@@ -315,54 +312,6 @@ function landing(): void {
   document.body.classList.add("ff-landing-page");
   audio.mood("menu");
   const splash = el("section", "", "ff-splash");
-  const { canvas, g } = (() => {
-    const canvas = el("canvas", "", "ff-attract") as HTMLCanvasElement;
-    return { canvas, g: canvas.getContext("2d")! };
-  })();
-  const scene = createScene(g, make);
-  // A live round of five AI trains behind the menu, on the real rules.
-  let world: World = attractWorld(),
-    carry = 0,
-    lastNow = 0,
-    inputs = new Map<string, number>();
-  const labels = new Map(
-    [0, 1, 2, 3, 4].map((slot) => [`bot:${slot + 1}`, `P${slot + 1}`]),
-  );
-  const fit = () => {
-    const ratio = Math.min(2, window.devicePixelRatio || 1);
-    canvas.width = Math.max(1, Math.round(canvas.clientWidth * ratio));
-    canvas.height = Math.max(1, Math.round(canvas.clientHeight * ratio));
-  };
-  new ResizeObserver(fit).observe(canvas);
-  const shown = onScreen(canvas);
-  animations.add((now) => {
-    // Scrolled away (the rules below it), the depot waits rather than running on.
-    if (!shown()) {
-      lastNow = now;
-      return;
-    }
-    carry += Math.min(100, lastNow ? now - lastNow : 0);
-    lastNow = now;
-    while (carry >= 1000 / 60) {
-      carry -= 1000 / 60;
-      if (world.step % 3 === 0)
-        inputs = new Map(world.trains.map((t) => [t.id, botInput(world, t)]));
-      stepWorld(world, inputs);
-      if (roundDone(world)) world = attractWorld();
-    }
-    // Cover the canvas with the 16:9 depot, cropped at the edges on other shapes.
-    const scale = Math.max(canvas.width / VIEW_W, canvas.height / VIEW_H);
-    g.setTransform(
-      scale,
-      0,
-      0,
-      scale,
-      (canvas.width - VIEW_W * scale) / 2,
-      (canvas.height - VIEW_H * scale) / 2,
-    );
-    scene.draw({ world: toView(world), me: "", labels, now, reducedMotion });
-  });
-
   const shared = el("label", "", "ff-shared"),
     toggle = el("input");
   toggle.type = "checkbox";
@@ -371,6 +320,8 @@ function landing(): void {
     store.setItem(names.shared, toggle.checked ? "1" : "0");
   shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const card = createLandingCard({
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
     title: "FUSE FREIGHT",
     tagline:
       "Little trains, big plans. Collect loose carts, cut your rivals' tails and deliver before the whistle.",
@@ -395,34 +346,16 @@ function landing(): void {
     },
   });
   card.create.after(shared);
-  card.element.classList.add("ff-landing-card");
-  card.element.append(keyHelp());
-  const title = el("div", "", "ff-title");
-  title.append(
-    el("b", "FUSE", "ff-title-fuse"),
-    el("b", "FREIGHT", "ff-title-freight"),
-    el("span", "COLLECT • STEAL • DELIVER", "ff-title-tagline"),
-  );
+  card.menu.help.append(keyHelp());
   const back = el("a", "← FUSE RIDERS", "ff-back");
   back.href = import.meta.env.BASE_URL + (muted ? "?mute" : "");
   const front = el("div", "", "ff-splash-front");
-  front.append(title, card.element);
-  splash.append(canvas, front);
+  front.append(card.element);
+  splash.append(front);
   const menu = createGameMenu(controllerGuide);
   menu.update({ canLobby: false, touch: coarse() });
-  app.replaceChildren(
-    header([soundToggles(), back, menu.element]),
-    splash,
-    howToPlay(),
-  );
-}
-
-function attractWorld(): World {
-  return createWorld(
-    (Math.random() * 0xffff_ffff) >>> 0,
-    [0, 1, 2, 3, 4].map((slot) => ({ id: `bot:${slot + 1}`, slot })),
-    { seconds: 60 },
-  );
+  app.replaceChildren(header([soundToggles(), back, menu.element]), splash);
+  card.menu.help.append(howToPlay());
 }
 
 /** A button that holds `bits` while a pointer is down on it. */
@@ -563,7 +496,11 @@ function room(solo: boolean): void {
     buttonText: "JOIN",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      runtime.command({ type: "join", name });
+      runtime.command({
+        type: "join",
+        name,
+        slot: requestedRoomSlot(nameEntry.form),
+      });
     },
   });
   const rosterBox = el("div", "", "ff-roster");
@@ -573,7 +510,12 @@ function room(solo: boolean): void {
     addBot,
   );
   lobbySide.append(rosterBox);
-  addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
+  addBot.onclick = () =>
+    runtime.command({
+      type: "bot",
+      action: "add",
+      slot: requestedRoomSlot(addBot),
+    });
   start.onclick = () => runtime.command({ type: "action", action: "start" });
   tvLink.onclick = () =>
     window.open(
@@ -636,6 +578,7 @@ function room(solo: boolean): void {
   lobby.append(lobbyMain, lobbySide);
   const lobbyRules = howToPlay();
   lobbyRules.classList.add("ff-howto-lobby");
+  lobbyRules.hidden = true;
 
   // The depot: canvas, HUD, banner, scoreboard and the result card on one 16:9 screen.
   const stage = el("section", "", "ff-stage"),
@@ -767,6 +710,18 @@ function room(solo: boolean): void {
   );
   screen.append(roundControls.element);
   app.replaceChildren(top, main, lobbyConfirm);
+  createRoomLayout({
+    playerName: () => social.playerName(undefined) ?? undefined,
+    background: async (host) =>
+      (await import("./attract.js")).createAttract(host),
+    element: lobby,
+    roster,
+    capacity: 5,
+    join: nameEntry.form,
+    addAI: addBot,
+    settings: [rules, lobbyRules],
+    actions: [lobbyNote, tvLink, start],
+  });
   lobby.hidden = true;
   lobbyRules.hidden = true;
   stage.hidden = true;
@@ -877,6 +832,7 @@ function room(solo: boolean): void {
     roster.update(
       next.lobby.members.map((member) => ({
         id: member.id,
+        slot: member.slot,
         name: member.you ? `${member.name} (you)` : member.name,
         color: seatColor(member.slot),
         status: member.bot
@@ -1111,9 +1067,13 @@ function room(solo: boolean): void {
       settings = roomSettings;
       const next = present(frame, viewer);
       main.dataset.round = String(frame.round);
-      if (next.askName && remembered && !joinSent) {
+      if (next.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
-        runtime.command({ type: "join", name: remembered });
+        runtime.command({
+          type: "join",
+          slot: requestedRoomSlot(nameEntry.form),
+          name: remembered,
+        });
       }
       if (next.seated) joinSent = false;
       render(next, frame);

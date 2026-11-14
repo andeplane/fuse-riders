@@ -1,10 +1,15 @@
 import { JUMP, LEFT, RIGHT, isInput } from "./input.js";
-import { div, isqrt, round } from "./math.js";
+import { SINGLES, type Court } from "./court.js";
+import { abs, div, isqrt, round } from "./math.js";
 import * as T from "./tuning.js";
 import {
+  courtOf,
+  laneOf,
   otherSide,
   rng,
   serve,
+  setTouches,
+  touchesOf,
   type Blob,
   type Side,
   type World,
@@ -23,14 +28,52 @@ function startSquash(blob: Blob): void {
   if (!blob.air && blob.frame === 0 && blob.dir === 0) blob.dir = 1;
 }
 
-export function stepBlob(blob: Blob, bits: number, step: number): void {
+/** The x limits for a blob: its side's, or three a side, its lane's. */
+function limits(blob: Blob, court: Court, lane: number): [number, number] {
   const side = blob.side;
+  return lane < 0
+    ? [court.blobMin[side], court.blobMax[side]]
+    : [court.laneMin[side]![lane]!, court.laneMax[side]![lane]!];
+}
+
+/** Every blob is inside its lane (always, on courts without lanes). */
+export function inLanes(world: World): boolean {
+  const court = courtOf(world);
+  return world.blobs.every((blob, slot) => {
+    const [low, high] = limits(blob, court, laneOf(world, slot));
+    return low <= blob.x && blob.x <= high;
+  });
+}
+
+export function stepBlob(
+  blob: Blob,
+  bits: number,
+  step: number,
+  court: Court = SINGLES,
+  lane = -1,
+): void {
+  const [low, high] = limits(blob, court, lane);
+  // Three a side, a blob a rotation has left outside its lane hops across to it, whatever its player holds.
+  const moving = blob.x < low || blob.x > high;
+  if (moving) {
+    blob.x =
+      blob.x < low
+        ? Math.min(blob.x + T.ROTATE_SPEED, low)
+        : Math.max(blob.x - T.ROTATE_SPEED, high);
+    startSquash(blob);
+    if (!blob.air) {
+      blob.air = true;
+      blob.vy = T.JUMP_SPEED;
+      if (blob.frame !== T.SQUASH_FRAMES) blob.dir = 1;
+    }
+    bits = 0;
+  }
   if (bits & RIGHT) {
-    blob.x = Math.min(blob.x + T.RUN_SPEED, T.BLOB_MAX[side]);
+    blob.x = Math.min(blob.x + T.RUN_SPEED, high);
     startSquash(blob);
   }
   if (bits & LEFT) {
-    blob.x = Math.max(blob.x - T.RUN_SPEED, T.BLOB_MIN[side]);
+    blob.x = Math.max(blob.x - T.RUN_SPEED, low);
     startSquash(blob);
   }
   const jump = (bits & JUMP) !== 0;
@@ -77,6 +120,50 @@ export function bodyCentre(blob: Blob): { x: number; y: number } {
   };
 }
 
+/** The top of a blob's head above its feet, px, as squashed now. */
+export const headTop = (blob: Blob): number =>
+  T.HEAD_UP[blob.frame]! + (T.HEAD_HIT / T.BU - T.BALL_RADIUS);
+
+/**
+ * Two teammates are solid to each other. Overlapping side by side, they are pushed apart evenly, as far as the side's
+ * limits allow, so a blob running into a standing one shoves it at half speed and two pushing each other stand still.
+ * A blob whose feet are above the other's head passes over it; one coming down onto the head pops back up and slides
+ * off. Blobs on opposite sides never meet: the net keeps them 80 px apart.
+ */
+export function separate(a: Blob, b: Blob, court: Court): void {
+  const gap = 2 * T.BLOB_HALF - abs(b.x - a.x);
+  if (gap <= 0 || a.side !== b.side) return;
+  const [low, high] = a.y <= b.y ? [a, b] : [b, a];
+  const over = low.y + headTop(low) * T.HU - high.y;
+  if (over <= 0) return;
+  // Mostly above the other's head and coming down onto it: a pop up, as well as the push off below.
+  if (high.y > low.y && over < gap * T.HU && high.vy <= low.vy) {
+    high.vy = T.HEAD_BOUNCE;
+    high.air = true;
+    if (low.frame === 0 && low.dir === 0) low.dir = 1;
+  }
+  // Worked in the side's own frame (from its wall towards the net), so both sides of the court play alike: the blob
+  // nearer the wall, or level, the lower slot (passed first), goes towards the wall and takes the smaller half.
+  const side = a.side,
+    sign = side === 0 ? 1 : -1;
+  const at = (blob: Blob) => sign * blob.x;
+  const [outer, inner] = at(b) < at(a) ? [b, a] : [a, b];
+  const wall = side === 0 ? court.blobMin[0] : -court.blobMax[1],
+    limit = side === 0 ? court.blobMax[0] : -court.blobMin[1];
+  let o = at(outer) - div(gap, 2),
+    i = at(inner) + gap - div(gap, 2);
+  if (o < wall) {
+    i += wall - o;
+    o = wall;
+  }
+  if (i > limit) {
+    o -= i - limit;
+    i = limit;
+  }
+  outer.x = sign * o;
+  inner.x = sign * i;
+}
+
 /** Moves the ball out along its new speed until it is `out` from (cx, cy), in at most `PUSH_PASSES` passes. */
 function pushOut(world: World, cx: number, cy: number, out: number): void {
   const ball = world.ball;
@@ -89,15 +176,30 @@ function pushOut(world: World, cx: number, cy: number, out: number): void {
   }
 }
 
-/** The ball against the four blob circles and the net's top (0x443bf0). */
+/** The ball against every blob's head, then every body, and the net's top (0x443bf0). */
 export function collide(world: World): void {
-  const ball = world.ball;
+  const ball = world.ball,
+    court = courtOf(world);
   const speed = isqrt(ball.vx * ball.vx + ball.vy * ball.vy);
   const circles: [Blob, { x: number; y: number }, number, number][] = [
-    [world.blobs[0], headCentre(world.blobs[0]), T.HEAD_HIT, T.HEAD_OUT],
-    [world.blobs[1], headCentre(world.blobs[1]), T.HEAD_HIT, T.HEAD_OUT],
-    [world.blobs[0], bodyCentre(world.blobs[0]), T.BODY_HIT, T.BODY_OUT],
-    [world.blobs[1], bodyCentre(world.blobs[1]), T.BODY_HIT, T.BODY_OUT],
+    ...world.blobs.map(
+      (blob) =>
+        [blob, headCentre(blob), T.HEAD_HIT, T.HEAD_OUT] as [
+          Blob,
+          { x: number; y: number },
+          number,
+          number,
+        ],
+    ),
+    ...world.blobs.map(
+      (blob) =>
+        [blob, bodyCentre(blob), T.BODY_HIT, T.BODY_OUT] as [
+          Blob,
+          { x: number; y: number },
+          number,
+          number,
+        ],
+    ),
   ];
   for (const [blob, centre, hit, out] of circles) {
     let dx = ball.x - centre.x,
@@ -117,13 +219,13 @@ export function collide(world: World): void {
       T.GRAZE_NUM * d * speed
     ) {
       blob.contact = true;
-      world.blobs[otherSide(blob.side)].touches = 0;
+      setTouches(world, otherSide(blob.side), 0);
     }
     ball.vx = round(dx * T.HIT_SPEED, d);
     ball.vy = round(dy * T.HIT_SPEED, d);
     pushOut(world, centre.x, centre.y, out);
   }
-  let dx = ball.x - T.NET_TOP_X,
+  let dx = ball.x - court.netTopX,
     dy = ball.y - T.NET_TOP_Y;
   if (dy > 0 && dx * dx + dy * dy < T.NET_HIT * T.NET_HIT) {
     let d = isqrt(dx * dx + dy * dy);
@@ -138,13 +240,14 @@ export function collide(world: World): void {
     // Straight down on the top: a nudge either way so it never balances there.
     if (ball.vx === 0) ball.vx = rng(world, 5) - 2;
     world.netCounter = count(world.netCounter);
-    pushOut(world, T.NET_TOP_X, T.NET_TOP_Y, T.NET_OUT);
+    pushOut(world, court.netTopX, T.NET_TOP_Y, T.NET_OUT);
   }
 }
 
 /** The ball moves, falls, and bounces off the sand, the walls and the net's pole (0x4441d0, 0x444100). */
 export function stepBall(world: World): void {
-  const ball = world.ball;
+  const ball = world.ball,
+    court = courtOf(world);
   ball.x += ball.vx;
   ball.y += ball.vy;
   let gravity = T.BALL_GRAVITY + (world.step & 1);
@@ -157,28 +260,32 @@ export function stepBall(world: World): void {
     ball.y = T.BALL_FLOOR;
     if (impact > T.BU) world.floorCounter = count(world.floorCounter);
     if (world.phase === "rally" || world.phase === "serve")
-      pointAgainst(world, ball.x >= T.NET_X * T.BU ? 1 : 0, false);
+      pointAgainst(world, ball.x >= court.netTopX ? 1 : 0, false);
   }
-  if (ball.x < T.BALL_LEFT) {
+  if (ball.x < court.ballLeft) {
     ball.vx = -ball.vx;
-    ball.x = T.BALL_LEFT;
+    ball.x = court.ballLeft;
   }
-  if (ball.x > T.BALL_RIGHT) {
+  if (ball.x > court.ballRight) {
     ball.vx = -ball.vx;
-    ball.x = T.BALL_RIGHT;
+    ball.x = court.ballRight;
   }
   // The pole, read the same way from either side: a ball's back edge (from the right) or its front edge seen in a
   // mirror (from the left) inside the band turns it back. The exe floors both edges in screen space, which makes the
   // left side's band a pixel narrower; mirroring keeps the court fair.
   if (div(ball.y, T.BU) - T.BALL_RADIUS <= T.POLE_TOP) {
     const back = div(ball.x, T.BU) - T.BALL_RADIUS,
-      front = div(T.COURT_W * T.BU - ball.x, T.BU) - T.BALL_RADIUS;
-    if (ball.vx < 0 && T.POLE_LOW <= back && back < T.POLE_HIGH) {
-      ball.x = T.POLE_PUT_RIGHT;
+      front = div(2 * court.netTopX - ball.x, T.BU) - T.BALL_RADIUS;
+    if (ball.vx < 0 && court.poleLow <= back && back < court.poleHigh) {
+      ball.x = court.polePutRight;
       ball.vx = -ball.vx;
       world.netCounter = count(world.netCounter);
-    } else if (ball.vx > 0 && T.POLE_LOW <= front && front < T.POLE_HIGH) {
-      ball.x = T.POLE_PUT_LEFT;
+    } else if (
+      ball.vx > 0 &&
+      court.poleLow <= front &&
+      front < court.poleHigh
+    ) {
+      ball.x = court.polePutLeft;
       ball.vx = -ball.vx;
       world.netCounter = count(world.netCounter);
     }
@@ -187,18 +294,17 @@ export function stepBall(world: World): void {
   // watches one line left of the net; its mirror on the right is watched too.
   const across = (line: number) => ball.prevX >= line !== ball.x >= line;
   const crossed =
-    ball.live &&
-    (across(T.GUARD_LINE) || across(T.COURT_W * T.BU - T.GUARD_LINE + 1));
+    ball.live && (across(court.guardLine) || across(court.guardMirror));
   if (
-    ((T.GUARD_LOW <= ball.x && ball.x <= T.GUARD_HIGH) || crossed) &&
+    ((court.guardLow <= ball.x && ball.x <= court.guardHigh) || crossed) &&
     ball.y <= T.GUARD_Y &&
     ball.prevY < T.GUARD_PREV_Y
   ) {
     ball.x =
-      ball.prevX > T.NET_X * T.BU
-        ? T.GUARD_PUT_RIGHT
-        : ball.prevX < T.NET_X * T.BU
-          ? T.GUARD_PUT_LEFT
+      ball.prevX > court.netTopX
+        ? court.guardPutRight
+        : ball.prevX < court.netTopX
+          ? court.guardPutLeft
           : ball.x;
     ball.y = ball.prevY;
     ball.vx = -ball.vx;
@@ -211,6 +317,7 @@ export function stepBall(world: World): void {
 /** The rally is over and went against `loser`: score it, change the serve, maybe end the match. */
 export function pointAgainst(world: World, loser: Side, fault: boolean): void {
   const won = otherSide(loser);
+  const sideOut = world.server !== won;
   if (world.scoring === "rally" || world.server === won)
     world.score[won] = Math.min(world.score[won] + 1, T.SCORE_CAP);
   world.server = won;
@@ -222,6 +329,10 @@ export function pointAgainst(world: World, loser: Side, fault: boolean): void {
     world.ball.vy = div(world.ball.vy, 2);
   }
   if (decided(world.score, won, world.target)) world.winner = won;
+  // Three a side, a side that wins the serve back rotates, as in volleyball: the next of its blobs takes the middle
+  // lane and the serve. The settle gives them time to hop across.
+  else if (sideOut && courtOf(world).team === 3)
+    world.rotation[won] = (world.rotation[won] + 1) % 3;
   world.phase = "dead";
   world.phaseSteps = T.DEAD_STEPS;
 }
@@ -239,13 +350,15 @@ export function decided(
 
 /** Once a frame: touches counted, carrying timed, and a side's count cleared once the ball is well over the net. */
 export function countTouches(world: World): void {
-  const ball = world.ball;
-  if (ball.x >= T.CLEAR_RIGHT) world.blobs[0].touches = 0;
-  else if (ball.x <= T.CLEAR_LEFT) world.blobs[1].touches = 0;
+  const ball = world.ball,
+    court = courtOf(world);
+  if (ball.x >= court.clearRight) setTouches(world, 0, 0);
+  else if (ball.x <= court.clearLeft) setTouches(world, 1, 0);
   for (const blob of world.blobs) {
     const playing = world.phase === "serve" || world.phase === "rally";
     if (blob.contact && !blob.prevContact) {
-      blob.touches++;
+      // Teammates share the count: three touches a side, however they split them.
+      setTouches(world, blob.side, touchesOf(world, blob.side) + 1);
       blob.hold = 0;
       blob.hits = Math.min(blob.hits + 1, T.MOST_HITS);
       world.hitCounter = count(world.hitCounter);
@@ -263,24 +376,29 @@ export function countTouches(world: World): void {
   }
 }
 
-/** Both feet on the sand. */
+/** Every blob's feet on the sand, in its own lane. */
 const grounded = (world: World): boolean =>
-  !world.blobs[0].air && !world.blobs[1].air;
+  world.blobs.every((blob) => !blob.air) && inLanes(world);
 
-export function stepWorld(
-  world: World,
-  inputs: readonly [number, number],
-): void {
+/** One step with `inputs[slot]` held by each blob; a missing or malformed input holds nothing. */
+export function stepWorld(world: World, inputs: readonly number[]): void {
   if (world.phase === "over" || world.step >= T.MAX_STEP) return;
   // During the settle after a point nobody starts a jump, so both blobs come down and the next serve can start
   // even while two players hold jump.
   const settling = world.phase === "dead";
-  const bits = (side: Side) => {
-    const held = inputs[side];
+  const bits = (slot: number) => {
+    const held = inputs[slot];
     return isInput(held) ? (settling ? held & ~JUMP : held) : 0;
   };
-  stepBlob(world.blobs[0], bits(0), world.step);
-  stepBlob(world.blobs[1], bits(1), world.step);
+  const court = courtOf(world),
+    blobs = world.blobs;
+  for (const [slot, blob] of blobs.entries())
+    stepBlob(blob, bits(slot), world.step, court, laneOf(world, slot));
+  // Teammates (slots two apart) after both have moved. Three a side, the lanes keep them apart instead: their limits
+  // leave a blob's width between neighbours, and a blob hopping across after a rotation passes over the others.
+  if (court.team === 2)
+    for (let slot = 0; slot + 2 < blobs.length; slot++)
+      separate(blobs[slot]!, blobs[slot + 2]!, court);
   const playing = world.phase === "serve" || world.phase === "rally";
   if (playing && world.step % 2 === 0) collide(world);
   if (world.phase === "serve" && world.ball.live) {

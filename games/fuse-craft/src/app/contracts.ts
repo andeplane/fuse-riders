@@ -43,8 +43,8 @@ export interface RoomSnapshot extends RoomRules {
 export interface OnlineSession extends NeuralSession {
   readonly code: string;
   room(): RoomSnapshot;
-  join(name: string): void;
-  addBot(): void;
+  join(name: string, slot?: number): void;
+  addBot(slot?: number): void;
   removeBot(id: string): void;
   configure(change: Partial<RoomRules>): void;
   start(): void;

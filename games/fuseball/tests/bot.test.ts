@@ -269,6 +269,8 @@ test("the room's bot seats are folded with the engine's bot", () => {
   const room = fuseballGame.createRoom("m", {
     display: false,
     mapId: "gridlock",
+    seed: 0,
+    size: 1,
   });
   room.seats.set("me", {
     id: "me",

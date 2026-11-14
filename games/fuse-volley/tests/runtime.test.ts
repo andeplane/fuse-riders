@@ -85,7 +85,7 @@ test("solo is one player against one bot with the chosen scoring, never a shared
   };
   const runtime = new FuseVolleyRuntime(
     "SOLO",
-    { display: true, scoring: "classic", bot: 2 },
+    { display: true, scoring: "classic", bot: 2, team: 1 },
     { state: () => {}, event: () => {}, status: () => {}, ready: () => {} },
     { humanName: "Ada", humanAvatar: "fox", dependencies },
   );
@@ -196,7 +196,7 @@ test("a played-out match is decided the same everywhere, reported once, and a re
   const over = host.roomState()!;
   const winner = over.roster.find((each) => each.id === over.decided?.winner);
   assert.ok(winner);
-  assert.ok(over.world!.score[winner.slot] >= 11);
+  assert.ok(over.world!.score[winner.slot === 0 ? 0 : 1] >= 11);
   assert.equal(hash(guest.roomState()!), hash(over));
   assert.equal(over.held.guest, undefined, "nothing is held once it is over");
   const sent = new Set<string>();
@@ -224,7 +224,7 @@ test("a played-out match is decided the same everywhere, reported once, and a re
   assert.ok(
     host.command({
       type: "settings",
-      settings: { display: false, scoring: "classic", bot: 1 },
+      settings: { display: false, scoring: "classic", bot: 1, team: 1 },
     }),
   );
   assert.ok(host.command({ type: "action", action: "rematch" }));
@@ -250,7 +250,12 @@ test("unknown settings are refused, and a bot seat plays through the injected bo
   mesh.run(300);
   host.command({ type: "join", name: "Host" });
   mesh.run(800);
-  const unknown: unknown = { display: false, scoring: "golden", bot: 1 };
+  const unknown: unknown = {
+    display: false,
+    scoring: "golden",
+    bot: 1,
+    team: 1,
+  };
   assert.ok(!host.command({ type: "settings", settings: unknown as Settings }));
   assert.ok(!host.command({ type: "action", action: "start" }), "one player");
   assert.ok(host.command({ type: "bot", action: "add" }));
@@ -265,7 +270,7 @@ test("unknown settings are refused, and a bot seat plays through the injected bo
   const room = host.roomState()!;
   assert.equal(room.stage, "over", "the bot beat a host who never moved");
   assert.equal(room.decided?.winner, "bot:1");
-  assert.ok(room.world!.blobs[1].hits > 0, "the bot played");
+  assert.ok(room.world!.blobs[1]!.hits > 0, "the bot played");
   assert.deepEqual(room.decided?.finishers, ["host"]);
   assert.equal(hash(guest.roomState()!), hash(room), "the onlooker agrees");
 });

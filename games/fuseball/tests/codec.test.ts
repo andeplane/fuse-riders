@@ -13,6 +13,7 @@ import {
   decodeWorld,
   encodeWorld,
   riderId,
+  createWorld,
   stepWorld,
   type World,
 } from "../src/engine/index.js";
@@ -36,11 +37,13 @@ const MAP = 1,
   SCORE_B = 6,
   LAST_SCORER = 7,
   SUDDEN_DEATH = 8,
-  RIDER_A = 9,
-  RIDER_B = 10,
-  BUBBLE_A = 11,
-  BUBBLE_B = 12,
-  BALL = 13;
+  // The riders and the bubbles are lists at 9 and 10: 90 and 91 name the first and second of the one, 100 and 101
+  // of the other (see `part`).
+  RIDER_A = 90,
+  RIDER_B = 91,
+  BUBBLE_A = 100,
+  BUBBLE_B = 101,
+  BALL = 11;
 
 function goal(world: World, team: 0 | 1): void {
   const rect = MAPS.gridlock.goals.find((each) => each.team === team)!;
@@ -92,10 +95,38 @@ function altered(world: World, change: (fields: unknown[]) => void): unknown {
   return fields;
 }
 const part = (fields: unknown[], index: number): unknown[] => {
-  const tuple = fields[index];
+  const list = index >= 90 ? fields[Math.floor(index / 10)] : fields,
+    tuple = Array.isArray(list) ? list[index >= 90 ? index % 10 : index] : 0;
   assert.ok(Array.isArray(tuple));
   return tuple;
 };
+
+test("generated checkpoint seeds are strict uint32 values, and handmade maps carry zero", () => {
+  const world = createWorld("random", ["a", "b"], 0xffffffff);
+  const fields = encodeWorld(world);
+  assert.equal(fields[0], 5);
+  assert.equal(fields[1], 255);
+  assert.equal(fields[14], 0xffffffff);
+  for (const seed of [
+    -0,
+    -1,
+    0x100000000,
+    0.5,
+    NaN,
+    Infinity,
+    "1",
+    null,
+    undefined,
+  ]) {
+    const corrupt = [...fields];
+    corrupt[14] = seed;
+    assert.equal(decodeWorld(corrupt), undefined);
+  }
+  const handmade = encodeWorld(fresh());
+  handmade[14] = 1;
+  assert.equal(decodeWorld(handmade), undefined);
+  assert.deepEqual(decodeWorld(fields), world);
+});
 
 test("a world in any phase encodes to plain integers and ids, and decodes to an equal world", () => {
   const worlds = samples();

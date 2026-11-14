@@ -189,7 +189,7 @@ export function createHud(): Hud {
         else
           write(
             g,
-            mapOf(view.mapId).name.toUpperCase(),
+            mapOf(view.mapId, view.seed).name.toUpperCase(),
             mid,
             BANNER_Y - 36,
             8,

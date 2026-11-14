@@ -138,6 +138,32 @@ body.fuseball-page {
 }
 
 /* The arena picker: on the landing page and in the lobby */
+.fb-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--fui-space-2);
+  margin-bottom: var(--fui-space-3);
+}
+.fui-app .fb-mode {
+  display: grid;
+  gap: var(--fui-space-1);
+  justify-items: center;
+  padding: var(--fui-space-2);
+}
+.fb-mode small {
+  opacity: 0.7;
+}
+.fui-app .fb-mode[aria-pressed="true"] {
+  border-color: var(--fui-cyan);
+  box-shadow: 0 0 0 1px var(--fui-cyan);
+}
+.fb-map[hidden] {
+  display: none;
+}
+.fb-switch-side {
+  margin-top: var(--fui-space-3);
+  margin-left: var(--fui-space-2);
+}
 .fb-maps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -180,11 +206,44 @@ body.fuseball-page {
   background: #081430;
   border-radius: 0.25rem;
 }
+.fb-seed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--fui-space-2);
+  margin-top: var(--fui-space-3);
+}
+.fb-seed label {
+  display: grid;
+  flex: 1 1 10rem;
+  gap: var(--fui-space-1);
+  color: var(--fui-text-bright);
+}
+.fb-seed input {
+  width: 100%;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.fb-seed-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--fui-yellow);
+}
 .fb-map-thumb .solid {
   fill: #9a86ff;
 }
 .fb-map-thumb .cloud {
   fill: #aab4ff33;
+}
+.fb-map-thumb .ledge,
+.fb-map-thumb .mover {
+  fill: #7dffc9;
+}
+.fb-map-thumb .rail {
+  stroke: #7dffc9;
+  stroke-width: 3;
+  stroke-dasharray: 6 8;
+  opacity: 0.6;
 }
 .fb-map-thumb .bumper {
   fill: #141f4f;

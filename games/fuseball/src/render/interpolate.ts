@@ -1,5 +1,6 @@
 import type { WorldView } from "../engine/view.js";
-import { VIEW_H, VIEW_W, mapOf } from "../engine/view-kit.js";
+import { several } from "../engine/view-kit.js";
+import { mapOf } from "../engine/view-kit.js";
 
 /**
  * A coordinate `alpha` of the way from `from` to `to` along an axis `size` long.
@@ -37,29 +38,34 @@ export function blend(
     !older ||
     alpha >= 1 ||
     older.mapId !== newer.mapId ||
+    older.seed !== newer.seed ||
+    older.riders.length !== newer.riders.length ||
     older.step > newer.step ||
     (newer.phase === "countdown" && older.phase !== "countdown")
   )
     return newer;
   const a = Math.max(0, alpha),
-    map = mapOf(newer.mapId),
+    map = mapOf(newer.mapId, newer.seed),
     mix = (from: number, to: number) => from + (to - from) * a,
     place = <T extends { x: number; y: number }>(was: T, now: T): T => ({
       ...now,
-      x: between(was.x, now.x, a, VIEW_W, map.wrapX),
-      y: between(was.y, now.y, a, VIEW_H, map.wrapY),
+      x: between(was.x, now.x, a, map.w, map.wrapX),
+      y: between(was.y, now.y, a, map.h, map.wrapY),
     });
   return {
     ...newer,
     step: mix(older.step, newer.step),
+    clock: mix(older.clock, newer.clock),
     remaining:
       older.phase === newer.phase
         ? mix(older.remaining, newer.remaining)
         : newer.remaining,
-    riders: [
-      place(older.riders[0], newer.riders[0]),
-      place(older.riders[1], newer.riders[1]),
-    ],
+    riders: several(
+      newer.riders.map((now, index) => {
+        const was = older.riders[index];
+        return was ? place(was, now) : now;
+      }),
+    ),
     ball:
       older.ball.live === newer.ball.live
         ? place(older.ball, newer.ball)

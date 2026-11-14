@@ -1,6 +1,6 @@
 # Fuse Volley
 
-Fuse Volley is jelly-blob beach volleyball for two, served at `/fuse-volley/` (locally
+Fuse Volley is jelly-blob beach volleyball for two, four or six, served at `/fuse-volley/` (locally
 **http://localhost:8787/fuse-volley/?mute**). Two blobs, one ball, one net: bounce the ball over to the other side
 and keep it off your own sand. Play a friend online, on one TV with phones as the controllers, or a bot.
 
@@ -13,6 +13,26 @@ and keep it off your own sand. Play a friend online, on one TV with phones as th
 - **Hold jump to jump higher.** A tap is a hop; held, the blob rises about twice as high.
 - **Serving.** The server's ball hovers over its half until a blob touches it, or drops by itself after five seconds.
 - **The net** is a post with a round top: the ball bounces off it, and a blob cannot cross it.
+
+## Doubles (2 V 2)
+
+Pick **2 V 2** under PLAYERS in the lobby (or on the landing page for solo): two blobs a side on a court 1.75 times
+as wide. Seats alternate sides, so seats 1 and 3 play cyan and 2 and 4 pink; START fills empty seats with bots. The
+three touches are the side's, however the two teammates split them. Teammates are solid to each other: running into
+one shoves it, two pushing stand still, and you get past by jumping over its head (land on the head and you pop off).
+A flat hit from the back line only just carries over the net, so the back blob usually passes to the front.
+
+## Three a side (3 V 3)
+
+Pick **3 V 3** under PLAYERS: three blobs a side on a 1440 px court, each half cut into three lanes (front, middle and
+back) marked by dashed lines on the sand. Every blob keeps to its own lane, so teammates never pile up; the lane lines
+are walls between them. Seats 1, 3 and 5 play cyan, 2, 4 and 6 pink, and START fills empty seats with bots.
+
+**Rotation.** The serve hovers over the middle lane, so whoever plays the middle serves. As in volleyball, a side that
+wins the serve back rotates: back moves to the middle, middle to the front, and front hops all the way to the back,
+during the settle after the point. A side that keeps winning on its own serve stays put, and the winning point of a
+match never rotates. The phone shows your lane while a serve hovers. The back lane is too far out to reach the net in
+one hit, so it digs and passes in; the front lane attacks.
 
 ## Scoring
 

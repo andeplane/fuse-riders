@@ -16,6 +16,17 @@
   ],
   "smokes": [
     {
+      "id": "game-lobbies",
+      "group": "game-lobbies",
+      "name": "Shared main menus and rooms in every game",
+      "command": "pnpm exec tsx scripts/game-lobbies-smoke.ts",
+      "browsers": ["chrome"],
+      "env": {},
+      "serviceUrlEnv": "ONLINE_URL",
+      "timeoutMinutes": 10,
+      "retries": 0
+    },
+    {
       "id": "birds-online",
       "group": "birds-online",
       "name": "Fuse Birds online controls and phone recovery",

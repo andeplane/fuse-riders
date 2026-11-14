@@ -1,6 +1,6 @@
 import type { MatchResult } from "fuse-platform";
 import type { FuseVolleyStats } from "../platform.js";
-import type { Room } from "./game.js";
+import { sideOf, type Room } from "./game.js";
 
 /**
  * A finished match as every replica computes it, for the room service (`parseFuseVolleyStats` in `../platform.ts` is
@@ -12,19 +12,23 @@ export type FuseVolleyPlayerResult = FuseVolleyStats;
 function players(room: Room): FuseVolleyPlayerResult[] | undefined {
   const { world, decided, roster } = room;
   if (room.stage !== "over" || !world || !decided) return;
+  const winner = roster.find((entrant) => entrant.id === decided.winner);
+  if (!winner) return;
   return roster.map((entrant) => {
-    const blob = world.blobs[entrant.slot];
-    const won = entrant.id === decided.winner;
+    const blob = world.blobs[entrant.slot]!,
+      side = sideOf(entrant.slot);
+    // Two or three a side: every blob of the winning side wins, and each reports its side's points.
+    const won = side === sideOf(winner.slot);
     return {
       playerId: entrant.id,
       name: entrant.name,
       slot: entrant.slot,
       roundsPlayed: 1,
       roundWins: won ? 1 : 0,
-      matchScoreUnits: world.score[entrant.slot],
+      matchScoreUnits: world.score[side],
       matchPlacement: won ? 1 : 2,
       earlyExits: entrant.bot || decided.finishers.includes(entrant.id) ? 0 : 1,
-      points: world.score[entrant.slot],
+      points: world.score[side],
       hits: blob.hits,
     };
   });
@@ -39,7 +43,8 @@ export function matchResult(
   return {
     matchId: room.matchId,
     length: 1,
-    winnerId: room.decided.winner,
+    // Teams have several winners: the placements say who.
+    ...(list.length === 2 ? { winnerId: room.decided.winner } : {}),
     finishers: [...room.decided.finishers],
     players: list,
   };

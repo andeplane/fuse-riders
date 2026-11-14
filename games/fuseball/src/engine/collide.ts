@@ -1,12 +1,12 @@
 import { SUB, abs, clamp, delta, div, isqrt, wrap } from "./math.js";
 import {
   isCircle,
+  moverBoxesAt,
   type Box,
   type Circle,
   type MapDef,
   type Rect,
 } from "./maps.js";
-import { WORLD_H, WORLD_W } from "./tuning.js";
 
 /**
  * Collision for round bodies: riders, the ball and bubbles are circles and solids are axis-aligned boxes. All of it
@@ -19,7 +19,8 @@ export interface Body {
   vx: number;
   vy: number;
 }
-export type Space = Pick<MapDef, "wrapX" | "wrapY">;
+/** What collision reads of an arena: which axes wrap, and the field's size in pixels. */
+export type Space = Pick<MapDef, "wrapX" | "wrapY" | "w" | "h">;
 
 /** From `(bx, by)` to `(ax, ay)`, the short way round on axes that wrap. */
 export function apart(
@@ -30,8 +31,8 @@ export function apart(
   space: Space,
 ): { dx: number; dy: number } {
   return {
-    dx: space.wrapX ? delta(ax - bx, WORLD_W) : ax - bx,
-    dy: space.wrapY ? delta(ay - by, WORLD_H) : ay - by,
+    dx: space.wrapX ? delta(ax - bx, space.w * SUB) : ax - bx,
+    dy: space.wrapY ? delta(ay - by, space.h * SUB) : ay - by,
   };
 }
 
@@ -80,8 +81,8 @@ function hitBox(
     ey = dy - clamp(dy, -box.hh, box.hh);
   if (ex === 0 && ey === 0) {
     // The centre is inside the box: leave by the nearest face that leads back into the field.
-    const outX = wayOut(body.x, dx, box.hw, radius, WORLD_W, space.wrapX),
-      outY = wayOut(body.y, dy, box.hh, radius, WORLD_H, space.wrapY);
+    const outX = wayOut(body.x, dx, box.hw, radius, space.w * SUB, space.wrapX),
+      outY = wayOut(body.y, dy, box.hh, radius, space.h * SUB, space.wrapY);
     let into: number;
     if (outX.over < outY.over) {
       body.x += outX.side * (outX.over + radius);
@@ -129,6 +130,65 @@ export function resolveSolids(
   return touch;
 }
 
+/**
+ * A body against the ledges, straight after its own move and before the solids: it lands on one when it is coming
+ * down, its centre is over the ledge, and its underside was at or above the top before the move (give or take
+ * `slop`, so a nudge from a rider or a bubble does not drop it through). It then stands on the top and keeps
+ * `num/den` of its fall as a bounce. Anything coming up from below, or already lower than that, is not touched.
+ */
+export function landLedges(
+  body: Body,
+  radius: number,
+  ledges: readonly Box[],
+  space: Space,
+  num: number,
+  den: number,
+  slop: number,
+  touch: Touch,
+): void {
+  if (body.vy < 0) return;
+  for (const ledge of ledges) {
+    const { dx, dy } = apart(body.x, body.y, ledge.cx, ledge.cy, space);
+    if (abs(dx) > ledge.hw) continue;
+    // How far the body's underside is below the ledge's top now, and how far it was before this move.
+    const sunk = dy + radius + ledge.hh;
+    if (sunk <= 0 || sunk - body.vy > slop) continue;
+    body.y -= sunk;
+    if (body.vy > touch.impact) touch.impact = body.vy;
+    body.vy = -div(body.vy * num, den) + 0;
+    touch.hit = true;
+    touch.ground = true;
+  }
+}
+
+/**
+ * What a mover does to a body lying on it: a body whose underside is on the top of one, as the mover stood on
+ * step `step − 1`, is moved as far as the mover moves by step `step`. Returns how far that was.
+ */
+export function carried(
+  body: Body,
+  radius: number,
+  map: MapDef,
+  step: number,
+  slop: number,
+): { x: number; y: number } {
+  if (body.vy < 0 || map.movers.length === 0) return STILL;
+  const before = moverBoxesAt(map, step - 1),
+    after = moverBoxesAt(map, step);
+  for (let i = 0; i < before.length; i++) {
+    const was = before[i]!,
+      now = after[i]!,
+      { dx, dy } = apart(body.x, body.y, was.cx, was.cy, map);
+    if (abs(dx) > was.hw || abs(dy + radius + was.hh) > slop) continue;
+    const by = { x: now.cx - was.cx, y: now.cy - was.cy };
+    body.x += by.x;
+    body.y += by.y;
+    return by;
+  }
+  return STILL;
+}
+const STILL: { x: number; y: number } = Object.freeze({ x: 0, y: 0 });
+
 /** Whether the point is inside a map shape (given in pixels). */
 export function inShape(
   x: number,
@@ -152,9 +212,9 @@ export function inShape(
 /** Brings a body back into the field: round the seam on an axis that wraps, held inside the edge on one that does not. */
 export function settle(body: Body, radius: number, space: Space): void {
   body.x = space.wrapX
-    ? wrap(body.x, WORLD_W)
-    : clamp(body.x, radius, WORLD_W - radius);
+    ? wrap(body.x, space.w * SUB)
+    : clamp(body.x, radius, space.w * SUB - radius);
   body.y = space.wrapY
-    ? wrap(body.y, WORLD_H)
-    : clamp(body.y, radius, WORLD_H - radius);
+    ? wrap(body.y, space.h * SUB)
+    : clamp(body.y, radius, space.h * SUB - radius);
 }

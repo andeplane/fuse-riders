@@ -2,6 +2,7 @@ import { RoomRuntime, type Callbacks, type RuntimeOptions } from "fuse-netcode";
 import { DOWN, INPUT_MASK, LEFT, RIGHT, UP } from "../engine/index.js";
 import {
   PLAY,
+  SIDE,
   fuseballGame,
   type Entry,
   type FuseballGame,
@@ -62,6 +63,13 @@ export class FuseballRuntime extends RoomRuntime<
       return;
     this.sent = { matchId: room.matchId, bits: this.bits };
     this.append(PLAY, room.matchId, this.bits);
+    this.sendPackets(this.deps.now());
+  }
+  /** In the lobby, asks to ride for the other side: this device's seat moves to that side's lowest free place. */
+  switchSide(): void {
+    const room = this.world?.state;
+    if (!room || room.stage !== "lobby" || !this.player()?.connected) return;
+    this.append(SIDE, room.matchId);
     this.sendPackets(this.deps.now());
   }
   /** The newest simulated room, for reports and tests; the screen renders from frames. */

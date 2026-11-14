@@ -1,4 +1,5 @@
 import { createGameSocial } from "fuse-ui/social";
+import { requestedRoomSlot } from "fuse-ui";
 import "fuse-ui/social.css";
 import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
 import "@fontsource-variable/nunito";
@@ -518,7 +519,8 @@ function room(): void {
     tv: sharedHost || display,
     extra: [tvLink],
     actions: {
-      addBot: () => runtime.command({ type: "bot", action: "add" }),
+      playerName: () => social.playerName(undefined) ?? undefined,
+      addBot: (slot) => runtime.command({ type: "bot", action: "add", slot }),
       removeBot: (id) => runtime.command({ type: "bot", action: "remove", id }),
       start: () => runtime.command({ type: "action", action: "start" }),
       goal: (goal) => runtime.setGoals([goal, goal, goal, goal]),
@@ -546,9 +548,10 @@ function room(): void {
     drawFace();
   };
   drawFace();
-  const join = (name: string) =>
+  const join = (name: string, slot?: number) =>
     runtime.command({
       type: "join",
+      slot,
       name,
       avatarId: face,
     });
@@ -560,7 +563,7 @@ function room(): void {
     placeholder: "Your name",
     onSubmit: (name) => {
       store.setItem(names.name, name);
-      join(name);
+      join(name, requestedRoomSlot(nameEntry.form));
     },
   });
   nameEntry.input.before(faceButton);
@@ -608,6 +611,7 @@ function room(): void {
   joinCard.hidden = lobby.element.hidden = screen.game.hidden = true;
   const main = el("main", "", "fl-room");
   main.append(connecting, joinCard, lobby.element, ...screen.elements);
+  lobby.attachJoin(nameEntry.form);
   app.replaceChildren(top, main);
 
   const sent = new Set<string>();
@@ -642,10 +646,11 @@ function room(): void {
       connecting.hidden = true;
       lobby.element.hidden = model.screen !== "lobby";
       screen.game.hidden = model.screen === "lobby";
-      joinCard.hidden = !model.askName;
+      joinCard.hidden = !model.askName || model.screen === "lobby";
+      nameEntry.form.hidden = !model.askName;
       lobby.render(model.lobby, sharedHost);
       tvLink.hidden = !(viewer.host && !viewer.shared && !display);
-      if (model.askName && remembered && !joinSent) {
+      if (model.askName && remembered && !joinSent && !viewer.host) {
         joinSent = true;
         join(remembered);
       }

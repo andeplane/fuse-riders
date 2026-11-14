@@ -12,7 +12,8 @@ export const STEPS_PER_TICK = 6;
 /** Steps in one original 33 ms frame: touches are counted once a frame. */
 export const FRAME_STEPS = 4;
 
-export const CAPACITY = 2;
+/** Seats a room has: two for one blob a side, four for two a side, six for three a side. */
+export const CAPACITY = 6;
 export const RALLY_TARGET = 11,
   CLASSIC_TARGET = 15;
 /** A match level at this many is decided by the next point: the score never runs past it. */
@@ -82,11 +83,38 @@ export const GUARD_LINE = 11776,
 // ---- the blobs ----
 /** Feet on the sand: 100 px up, in height units (`cmp [blob+0x14],0x64`). */
 export const BLOB_FLOOR = 100 * HU;
+/** How close a blob's centre comes to the net's line, px. */
+export const NET_GAP = 40;
 /** Blob centre x limits in px, left side and right side (0x168, 0x1b8, 0x320). */
 export const BLOB_MIN = [0, 440] as const,
   BLOB_MAX = [360, 800] as const;
 /** Where blobs start. */
 export const BLOB_START = [200, 600] as const;
+
+// ---- two a side ----
+/**
+ * The doubles court's width, px: the singles court's net, pole and heights on a beach 1.75 times as wide. A flat hit
+ * from the back line just about carries over the net, so the back blob can still score but usually passes; at twice
+ * the width bot matches ended a third of their rallies on a third touch that could not reach.
+ */
+export const TEAM_COURT_W = 1400;
+/** Where a doubles side's two blobs start, px from the net. */
+export const TEAM_FRONT = 180,
+  TEAM_BACK = 490;
+/** Teammates are solid to each other: two blob centres stay this far apart unless one is above the other's head. */
+export const BLOB_HALF = 32;
+/** A blob coming down on a teammate's head pops back up at this speed (height units a step) as it slides off. */
+export const HEAD_BOUNCE = 1400;
+// ---- three a side ----
+/**
+ * Three a side, each half of the court is cut into three lanes of this width, px, from the net out: front, middle and
+ * back. A side's three blobs each keep to one lane. The middle lane holds the serve, so whoever plays the middle serves.
+ */
+export const TRIO_LANE = 240;
+/** The three-a-side court: three lanes a side. */
+export const TRIO_COURT_W = 6 * TRIO_LANE;
+/** A blob moving to its new lane after a rotation slides at this speed, px per step, hopping as it goes. */
+export const ROTATE_SPEED = 5;
 /** px per step, no inertia, the same in the air (the exe's 12 px a frame). */
 export const RUN_SPEED = 3;
 /** Jump launch in height units per step. The exe's 10 000 a frame, resampled to 120 Hz to keep its 264 px apex. */

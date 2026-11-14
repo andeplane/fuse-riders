@@ -1,0 +1,23 @@
+{
+  "name": "elasto-fuse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Elasto Fuse: neon motorbike trials for one to five riders. A springy bike on polygon terrain: eat every apple, then touch the flower.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "exports": {
+    "./platform": "./src/platform.ts"
+  },
+  "dependencies": {
+    "fuse-netcode": "workspace:*",
+    "fuse-platform": "workspace:*",
+    "fuse-ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@fontsource/press-start-2p": "^5.3.0",
+    "fuse-network-fe": "workspace:*",
+    "qrcode": "^1.5.4"
+  }
+}

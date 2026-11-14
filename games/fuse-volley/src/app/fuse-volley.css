@@ -292,7 +292,7 @@ body.fv-display .fv-lobby {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: var(--fui-space-2);
-  width: min(100%, calc((100dvh - 9.5rem) * 4 / 3));
+  width: min(100%, calc((100dvh - 9.5rem) * var(--fv-aspect, 4 / 3)));
   font: 0.5625rem/1.4 var(--fui-font-pixel);
 }
 .fv-side {
@@ -315,8 +315,8 @@ body.fv-display .fv-lobby {
 }
 .fv-screen {
   position: relative;
-  width: min(100%, calc((100dvh - 9.5rem) * 4 / 3));
-  aspect-ratio: 4 / 3;
+  width: min(100%, calc((100dvh - 9.5rem) * var(--fv-aspect, 4 / 3)));
+  aspect-ratio: var(--fv-aspect, 4 / 3);
   overflow: hidden;
   background: var(--fui-ink);
   border: var(--fui-stroke) solid #4a3fa8;
@@ -531,7 +531,7 @@ body.fv-display .fv-lobby {
 /* The shared TV: the court as large as the screen allows */
 body.fv-display .fv-screen,
 body.fv-display .fv-sides {
-  width: min(100%, calc((100dvh - 7rem) * 4 / 3));
+  width: min(100%, calc((100dvh - 7rem) * var(--fv-aspect, 4 / 3)));
 }
 
 /* A phone on its side: the court fills the screen and the pads float over its corners. */
@@ -562,6 +562,8 @@ body.fv-display .fv-sides {
   }
   .fv-screen {
     width: min(100%, calc(100dvh * 4 / 3));
+    /* A landscape phone keeps the full-height frame; the wide court sits centred in it. */
+    aspect-ratio: 4 / 3;
     border: 0;
     border-radius: 0;
   }
@@ -624,4 +626,12 @@ body.fv-display .fv-sides {
   .fv-result ol li:not(:first-child) {
     display: none;
   }
+}
+
+/* Two a side plays on a court 1.75 times as wide, three a side 1.8 times: the frame follows it, so the court fills it. */
+.fv-room[data-team="2"] {
+  --fv-aspect: 7 / 3;
+}
+.fv-room[data-team="3"] {
+  --fv-aspect: 12 / 5;
 }

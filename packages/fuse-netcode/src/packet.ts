@@ -136,15 +136,22 @@ export function encodePacket(packet: Packet): Uint8Array {
   if (bytes.byteLength > MAX_PACKET_BYTES) throw new Error("Packet too large");
   return bytes;
 }
-/** Fit a packet by dropping its oldest entries first: the newest entry always travels, the rest recur by rotation. */
-export function encodePacketTrimmed(packet: Packet): Uint8Array {
+/**
+ * Fit a packet by dropping entries until it encodes. The cadence keeps the `newest`: the newest entry always travels and
+ * the rest recur by rotation. A repair keeps the `oldest`: its first entry is the one the peer's stream is stuck behind,
+ * and the peer asks again from wherever the repair stopped.
+ */
+export function encodePacketTrimmed(
+  packet: Packet,
+  keep: "newest" | "oldest" = "newest",
+): Uint8Array {
   let entries = packet.entries;
   for (;;) {
     try {
       return encodePacket({ ...packet, entries });
     } catch (error) {
       if (entries.length <= 1) throw error;
-      entries = entries.slice(1);
+      entries = keep === "newest" ? entries.slice(1) : entries.slice(0, -1);
     }
   }
 }
