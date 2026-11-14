@@ -187,11 +187,39 @@ not changed with it, and they do not all scale the same way:
 
 None of this is a correctness bound: a refused signalling frame costs a late
 link, which `LinkRestartPolicy` retries, not a torn mesh, and it only bites in a
-room that is both full and renegotiating at once. It was not re-derived or
-re-measured when the capacity changed, and it should be before rooms routinely
-run to eleven — either by scaling the room-level publish allowance and the flood
-tolerance with the room's membership, or by re-measuring what an eleven-member
-gateway restart actually sends.
+room that is both full and renegotiating at once.
+
+### Rooms sized per game: the room-level allowances grow with membership
+
+Rooms are now sized per game, up to fourteen sockets (`ROOM_SOCKETS` in
+`service/room-limits.ts`: five seats, eight watchers and a shared screen), so
+L is up to 13. Two things changed with that.
+
+**Fewer whole-room renegotiations.** The largest honest burst used to be a
+gateway restart or the platform's hourly socket cut, after which every member
+rejoined and negotiated every link at once. A dropped socket now resumes its
+connection (PROTOCOL.md, "Resuming a connection"): the seat is held, no peer is
+told and no link is renegotiated, so a restart costs no signalling at all. What
+is left is one member reloading, which negotiates its own L links: 13 × 67 = 871
+frames at the ceiling, about 350 on a rich network.
+
+**The room-level bounds scale.** The three bounds that belong to a room and not
+to a link were sized for six members: the publish allowance per destination
+gateway (512 billed kB, 51.2/s), the receiving dedupe window that mirrors it
+(512 ids) and the flood tolerance of a connection (400 refused frames, 50/s).
+Each is now multiplied by `max(1, members / 6)`, read from the gateway's watched
+copy of the room, so a room of twelve has 1024 kB, 1024 ids and 800 refusals, and
+a room of fourteen 1195, 1195 and 933: a reload at the ceiling (871 frames, half
+of them to each gateway at worst) fits both the allowance and the tolerance.
+Rooms of six or fewer are exactly as before. The per-link bucket needs no
+change. `packages/fuse-network-be/tests/room-budget-scale.test.ts` pins the base
+and the growth.
+
+Scaling by live membership, not by the game's cap, keeps the deployment-wide
+worst case where it was. An instance has a fixed number of sockets and a member
+is a socket: the publish rate per socket is 51.2 / 2 = 25.6 kB/s in a room of
+two and 51.2 × (14 / 6) / 14 = 8.5 kB/s in a room of fourteen, so the room of two
+in the table below is still the most an attacker gets for its sockets.
 
 ### What abuse is bounded to
 
