@@ -302,14 +302,22 @@ export function createGameAudio(
       const audio = ensure();
       if (!audio) return;
       unlocked = true;
-      if (audio.state === "running") syncMusic();
-      else
-        void audio.resume().then(
-          () => syncMusic(),
-          () => {
-            // Resume is refused until a real gesture; the next one retries.
-          },
-        );
+      if (audio.state === "running") {
+        syncMusic();
+        return;
+      }
+      // iOS only lets a song start inside the gesture itself, so it starts now; the bus stays silent until the
+      // context resumes.
+      if (wantMusic && prefs.music > 0 && !prefs.muted && !hidden) {
+        if (!element) loadSong();
+        void element?.play().catch(() => undefined);
+      }
+      void audio.resume().then(
+        () => syncMusic(),
+        () => {
+          // Resume is refused until a real gesture; the next one retries.
+        },
+      );
     },
     setMuted(muted) {
       if (forcedMute || prefs.muted === muted) return;
@@ -413,10 +421,13 @@ export function createGameAudio(
       baseUrl = base.endsWith("/") ? base : `${base}/`;
       songIndex = songs.length ? Math.floor(deps.random() * songs.length) : 0;
       song = undefined;
+      failures = 0;
       if (element) {
         element.pause();
+        element.onended = element.onerror = null;
         element = undefined;
       }
+      syncMusic();
     },
     get nowPlaying() {
       return song;
@@ -432,6 +443,7 @@ export function createGameAudio(
     nextSong() {
       if (songs.length === 0) return;
       songIndex = (songIndex + 1) % songs.length;
+      failures = 0;
       if (element) {
         element.pause();
         loadSong();
@@ -445,6 +457,8 @@ export function createGameAudio(
     setHidden(value) {
       if (hidden === value) return;
       hidden = value;
+      // Pause the song itself too: not every browser stops a media element when its context is suspended.
+      if (value) element?.pause();
       if (context && unlocked) {
         if (value) void context.suspend().catch(() => undefined);
         else

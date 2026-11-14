@@ -116,7 +116,7 @@ test("songs load only after unlock, loop alone, advance in a list, and pause on 
   await Promise.resolve();
   const el = r.elements[0]!;
   assert.equal(el.src, "/base/music/g/a.mp3");
-  assert.equal(el.plays, 1);
+  assert.equal(el.plays, 2, "once inside the gesture, once after resume");
   assert.equal(audio.nowPlaying?.id, "a");
   fire(el, "onended");
   assert.equal(el.src, "/base/music/g/b.mp3");
@@ -177,4 +177,22 @@ test("ducking drops the music for a moment then restores it", async () => {
   audio.duck({ keep: 0.2 });
   r.timers.at(-2)!();
   assert.equal(duck.value, 0.2, "an older duck does not undo a newer one");
+});
+
+test("the first gesture starts the song at once, and a hidden tab pauses it", () => {
+  const r = createAudioRig("suspended");
+  const audio = createGameAudio(r.deps);
+  audio.setSongs(songs, "/");
+  audio.startMusic();
+  audio.unlock();
+  const el = r.elements[0]!;
+  assert.equal(
+    el.plays,
+    1,
+    "play() runs inside the gesture, before resume settles",
+  );
+  audio.setHidden(true);
+  assert.ok(el.pauses > 0);
+  audio.setSongs([songs[1]!], "/");
+  assert.equal(el.onended, null, "a replaced song's handlers are dropped");
 });
