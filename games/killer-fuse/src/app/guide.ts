@@ -148,44 +148,54 @@ export const DEVICE_NAMES: Record<Device, string> = {
   pad: "GAMEPAD",
   touch: "TOUCH",
 };
-/** The bindings of `controls.ts` in a few characters, per device: move, the button, and down. */
+/**
+ * The bindings of `controls.ts` in a few characters, per device: move, the one button, and down. As in the original,
+ * nothing is bound to up: flying is only ever the button.
+ */
 export const DEVICE_KEYS: Record<
   Device,
   { move: string; button: string; down: string }
 > = {
-  keys: { move: "A D / ← →", button: "Space / W / ↑", down: "S / ↓" },
-  pad: { move: "Stick / D-pad", button: "A", down: "Stick ↓" },
-  touch: { move: "Left pad", button: "Right button", down: "Left pad ↓" },
+  keys: { move: "A D / ← →", button: "Space", down: "S / ↓" },
+  pad: {
+    move: "Stick / D-pad ← →",
+    button: "A / Cross",
+    down: "Stick / D-pad ↓",
+  },
+  touch: { move: "Left pad", button: "Big button", down: "Left pad ↓" },
 };
+const FLAP = `Jump / flap: tap about ${HOVER_TAPS} times a second to hold height`;
+const DIVE = "Queen dive, hold (release to stop)";
 export const DEVICE_CONTROLS: Record<Device, readonly ControlHint[]> = {
   keys: [
     { keys: "A / D or ← / →", action: "Move" },
-    {
-      keys: "Space, W, ↑ or Z",
-      action:
-        "Jump as a Worker (hold for higher), flap as a Queen or Warrior, hop off the snail",
-    },
-    {
-      keys: "S or ↓",
-      action: "Hold to dive as the Queen, in the air; release to stop",
-    },
+    { keys: "Space", action: FLAP },
+    { keys: "S or ↓", action: DIVE },
   ],
   pad: [
-    {
-      keys: "Left stick or D-pad",
-      action: "Move; hold down to dive as the Queen",
-    },
-    { keys: "A, B, X or Y", action: "Jump or flap; hop off the snail" },
+    { keys: "Left stick or D-pad ← / →", action: "Move" },
+    { keys: "A / Cross", action: FLAP },
+    { keys: "Stick or D-pad ↓", action: DIVE },
   ],
   touch: [
-    { keys: "Left thumb", action: "Slide left or right to move, down to dive" },
-    { keys: "Right thumb", action: "Tap the big button to jump or flap" },
+    { keys: "Left pad", action: "Slide left or right to move" },
+    { keys: "Big button", action: FLAP },
+    { keys: "Left pad, slide down", action: DIVE },
   ],
 };
+/** The "Hold to flap" option, in words. */
+export const HOLD_TO_FLAP = {
+  label: "Hold to flap",
+  how: "Off: one flap per tap, as in the original. On: holding the button flaps 7.5 times a second. The switch is beside HOW TO PLAY on the start page and in the lobby.",
+} as const;
 /** The keyboard and gamepad, as the in-game menu lists them. */
 export const CONTROLS: readonly ControlHint[] = [
   ...DEVICE_CONTROLS.keys,
-  { keys: "Gamepad", action: "Stick or D-pad to move, A to jump or flap" },
+  {
+    keys: "Gamepad",
+    action:
+      "Stick or D-pad ← / → to move, ↓ to dive; A / Cross to jump or flap",
+  },
 ];
 export const TOUCH_CONTROLS: readonly ControlHint[] = DEVICE_CONTROLS.touch;
 

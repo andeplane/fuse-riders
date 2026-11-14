@@ -38,13 +38,22 @@ import {
 import { createArenaView } from "../render/index.js";
 import { parseManifest, type ArtManifest } from "../render/manifest.js";
 import { ArenaDriver } from "./arena.js";
-import { Controls, Keys, Pads, Touch, gameKey } from "./controls.js";
+import {
+  Controls,
+  HOLD_TO_FLAP_KEY,
+  Keys,
+  Pads,
+  Touch,
+  gameKey,
+  holdToFlapFrom,
+} from "./controls.js";
 import { briefing, briefingKey, buttonLabel, deviceFor } from "./briefing.js";
 import {
   CONTROLS,
   DEVICE_CONTROLS,
   DEVICE_NAMES,
   GOAL,
+  HOLD_TO_FLAP,
   RULES,
   TOUCH_CONTROLS,
   UNITS,
@@ -127,6 +136,24 @@ const loadManifest = () =>
     .then(async (response) => parseManifest(await response.json()))
     .catch(() => undefined));
 
+/** This device's "Hold to flap" choice, kept in local storage; the room's controls follow a change at once. */
+let holdToFlap = holdToFlapFrom(store.getItem(HOLD_TO_FLAP_KEY));
+let onHoldToFlap: (on: boolean) => void = () => undefined;
+function holdToFlapToggle(): HTMLElement {
+  const label = el("label", "", "kf-shared kf-hold"),
+    box = el("input");
+  box.type = "checkbox";
+  box.checked = holdToFlap;
+  box.onchange = () => {
+    holdToFlap = box.checked;
+    store.setItem(HOLD_TO_FLAP_KEY, holdToFlap ? "1" : "0");
+    onHoldToFlap(holdToFlap);
+  };
+  label.title = HOLD_TO_FLAP.how;
+  label.append(box, el("span", HOLD_TO_FLAP.label));
+  return label;
+}
+
 /**
  * How to play: a button for the landing page and the lobby that opens the whole guide in a dialog (Escape or CLOSE
  * shuts it). `#how-to-play` in the address opens it on load.
@@ -185,6 +212,8 @@ function howToPlay(): HTMLElement {
     }),
     el("h3", "CONTROLS"),
     controls,
+    el("h4", HOLD_TO_FLAP.label.toUpperCase()),
+    el("p", HOLD_TO_FLAP.how, "kf-how-goal"),
   );
   dialog.append(bar, body);
   const show = () => {
@@ -219,7 +248,7 @@ function howToPlay(): HTMLElement {
     open.focus();
   });
   const wrap = el("div", "", "kf-how-entry");
-  wrap.append(open, dialog);
+  wrap.append(open, holdToFlapToggle(), dialog);
   if (location.hash === "#how-to-play") queueMicrotask(show);
   return wrap;
 }
@@ -314,13 +343,18 @@ function room(solo: boolean): void {
     navigator.getGamepads().some((pad) => pad !== null);
 
   // ---- controls ----
-  const controls = new Controls({
-      input: (bits) => runtime.input(bits),
-      press: () => void runtime.press(),
-    }),
+  const controls = new Controls(
+      {
+        input: (bits) => runtime.input(bits),
+        press: () => void runtime.press(),
+      },
+      () => performance.now(),
+    ),
     keyboard = new Keys(controls),
     pads = new Pads(controls),
     touch = new Touch(controls);
+  controls.setHoldToFlap(holdToFlap);
+  onHoldToFlap = (on) => controls.setHoldToFlap(on);
 
   // ---- the page ----
   const status = createNotice({ className: "kf-status" });
@@ -816,6 +850,7 @@ function room(solo: boolean): void {
   const loop = () => {
     frameRequest = requestAnimationFrame(loop);
     if (!menu.isOpen()) pads.poll(navigator.getGamepads());
+    controls.pulse();
     runtime.flush();
     driver.draw();
   };

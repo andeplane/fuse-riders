@@ -1,7 +1,7 @@
 import type { ControlHint } from "fuse-ui";
 import { QUEEN_EGGS, isQueenSlot, type UnitKind } from "../engine/index.js";
 import type { ControlSource } from "./controls.js";
-import { DEVICE_KEYS, WIN_LINE, type Device } from "./guide.js";
+import { DEVICE_KEYS, HOVER_TAPS, WIN_LINE, type Device } from "./guide.js";
 import { seatTitle } from "./presenter.js";
 
 /**
@@ -45,8 +45,11 @@ export function briefing(slot: number, device: Device): Briefing {
       team,
       controls: [
         { keys: keys.move, action: "move" },
-        { keys: queenButton, action: "tap to flap" },
-        { keys: keys.down, action: "hold to dive, release to stop" },
+        {
+          keys: queenButton,
+          action: `flap: tap ~${HOVER_TAPS}×/s to hold height`,
+        },
+        { keys: keys.down, action: "dive, hold" },
       ],
       tips: [
         `Touch enemies from above or behind to kill · Touch gates to claim them · You have ${QUEEN_EGGS} lives`,

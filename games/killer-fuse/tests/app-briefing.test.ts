@@ -8,7 +8,12 @@ import {
   deviceFor,
   type DeviceClues,
 } from "../src/app/briefing.js";
-import { WIN_LINE } from "../src/app/guide.js";
+import {
+  CONTROLS,
+  DEVICE_CONTROLS,
+  DEVICE_KEYS,
+  WIN_LINE,
+} from "../src/app/guide.js";
 
 const clues = (patch: Partial<DeviceClues> = {}): DeviceClues => ({
   last: undefined,
@@ -32,8 +37,8 @@ test("a Queen on the keyboard: flap, dive, kill from above, claim gates, her liv
   assert.equal(card.team, 0);
   assert.deepEqual(card.controls, [
     { keys: "A D / ← →", action: "move" },
-    { keys: "Space / W / ↑", action: "tap to flap" },
-    { keys: "S / ↓", action: "hold to dive, release to stop" },
+    { keys: "Space", action: "flap: tap ~3×/s to hold height" },
+    { keys: "S / ↓", action: "dive, hold" },
   ]);
   assert.deepEqual(card.tips, [
     `Touch enemies from above or behind to kill · Touch gates to claim them · You have ${QUEEN_EGGS} lives`,
@@ -48,8 +53,8 @@ test("a Worker: jump, berries, gates and the snail", () => {
   assert.equal(card.title, "YOU ARE THE PINK WORKER");
   assert.equal(card.team, 1);
   assert.deepEqual(card.controls, [
-    { keys: "Stick / D-pad", action: "move" },
-    { keys: "A", action: "jump (hold for higher)" },
+    { keys: "Stick / D-pad ← →", action: "move" },
+    { keys: "A / Cross", action: "jump (hold for higher)" },
   ]);
   assert.match(card.tips[0]!, /berries to your hive/);
   assert.match(card.tips[0]!, /gate with a berry/);
@@ -105,4 +110,22 @@ test("the card's key changes with its text and only then", () => {
     briefingKey(briefing(2, "keys")),
     briefingKey(briefing(3, "keys")),
   );
+});
+
+test("no hint names up: flying is only ever the button", () => {
+  const texts = [
+    ...Object.values(DEVICE_KEYS).flatMap((keys) => Object.values(keys)),
+    ...Object.values(DEVICE_CONTROLS).flatMap((hints) =>
+      hints.flatMap((hint) => [hint.keys, hint.action]),
+    ),
+    ...CONTROLS.flatMap((hint) => [hint.keys, hint.action]),
+    ...[-1, 0, 2].flatMap((slot) =>
+      (["keys", "pad", "touch"] as const).flatMap((device) =>
+        lines(briefing(slot, device)),
+      ),
+    ),
+  ];
+  for (const text of texts) {
+    assert.doesNotMatch(text, /↑|\bup\b|\bW\b/i, text);
+  }
 });

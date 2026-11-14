@@ -119,7 +119,10 @@ body.kf-page {
 /* How to play: a button on the landing page and in the lobby, the guide in a dialog. */
 .kf-how-entry {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
+  gap: var(--fui-space-2) var(--fui-space-4);
 }
 .fui-app .kf-how-open {
   border-color: var(--kf-gold);

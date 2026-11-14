@@ -7,6 +7,7 @@ import {
   DEVICE_CONTROLS,
   DEVICE_KEYS,
   HIVE_HOLES,
+  HOLD_TO_FLAP,
   HOVER_TAPS,
   RULES,
   TOUCH_CONTROLS,
@@ -89,7 +90,11 @@ test("the controls name the bindings of controls.ts and no platform drop", () =>
     ...DEVICE_CONTROLS.keys,
   ];
   assert.ok(!all.some((hint) => /drop through/i.test(hint.action)));
-  assert.match(DEVICE_CONTROLS.keys[1]!.keys, /Space.*W.*↑.*Z/);
+  assert.equal(DEVICE_CONTROLS.keys[1]!.keys, "Space");
+  assert.match(DEVICE_CONTROLS.keys[1]!.action, /tap about 3 times a second/);
+  assert.match(DEVICE_CONTROLS.keys[2]!.action, /Queen dive, hold/);
+  assert.equal(DEVICE_CONTROLS.pad[1]!.keys, "A / Cross");
+  assert.match(HOLD_TO_FLAP.how, /7\.5 times a second/);
   assert.equal(TOUCH_CONTROLS, DEVICE_CONTROLS.touch);
   assert.deepEqual(Object.keys(DEVICE_KEYS), ["keys", "pad", "touch"]);
 });

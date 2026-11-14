@@ -3,12 +3,14 @@ import {
   INPUT_HELD,
   INPUT_LEFT,
   INPUT_RIGHT,
+  TICK_HZ,
 } from "../engine/index.js";
 
 /**
- * This device's controls: left, right, down and one button, from the keyboard, a gamepad and the touch pad at once.
- * Each source says what it holds; `Controls` merges them into the held bits the runtime logs (`input`) and passes
- * every press of the button on as its own edge (`press`), so a tap shorter than a frame still flaps.
+ * This device's controls, the arcade's: left, right, down and one button, from the keyboard, a gamepad and the touch
+ * pad at once. The button jumps on the ground and flaps in the air, on its press edge; down is the Queen's dive. Up
+ * does nothing. Each source says what it holds; `Controls` merges them into the held bits the runtime logs (`input`)
+ * and passes every press of the button on as its own edge (`press`), so a tap shorter than a frame still flaps.
  */
 export interface ControlSink {
   /** The held bits changed: `INPUT_LEFT | INPUT_RIGHT | INPUT_DOWN | INPUT_HELD`. */
@@ -23,11 +25,55 @@ const DIRECTIONS = INPUT_LEFT | INPUT_RIGHT;
 export const settle = (bits: number): number =>
   (bits & DIRECTIONS) === DIRECTIONS ? bits & ~DIRECTIONS : bits;
 
+/** Engine steps between the presses "Hold to flap" makes while the button is held: 8, or 7.5 a second. */
+export const HOLD_REPEAT_STEPS = 8;
+export const HOLD_REPEAT_MS = (HOLD_REPEAT_STEPS * 1000) / TICK_HZ;
+/** Where this device keeps its "Hold to flap" choice; off unless it was turned on, as in the original. */
+export const HOLD_TO_FLAP_KEY = "killer-fuse-hold-to-flap";
+export const holdToFlapFrom = (stored: string | null): boolean =>
+  stored === "1";
+
 export class Controls {
   private readonly held = new Map<ControlSource, number>();
   private bits = 0;
   private last: ControlSource | undefined;
-  constructor(private readonly sink: ControlSink) {}
+  private holdToFlap = false;
+  /** When "Hold to flap" presses next, while the button stays down. */
+  private repeatAt: number | undefined;
+  /** `now` is a clock in milliseconds, for "Hold to flap". */
+  constructor(
+    private readonly sink: ControlSink,
+    private readonly now: () => number = () => 0,
+  ) {}
+  /** "Hold to flap": while the button is held, `pulse` presses it again every HOLD_REPEAT_STEPS steps. */
+  setHoldToFlap(on: boolean): void {
+    this.holdToFlap = on;
+    this.repeatAt = undefined;
+  }
+  holdsToFlap(): boolean {
+    return this.holdToFlap;
+  }
+  /**
+   * Called every frame: with "Hold to flap" on and the button held, presses again on the cadence, counted from the
+   * last press. A long stall (a hidden tab) presses once and starts the count again rather than catching up.
+   */
+  pulse(): void {
+    if (!this.holdToFlap || !(this.bits & INPUT_HELD)) {
+      this.repeatAt = undefined;
+      return;
+    }
+    const now = this.now();
+    if (this.repeatAt === undefined) {
+      this.repeatAt = now + HOLD_REPEAT_MS;
+      return;
+    }
+    if (now < this.repeatAt) return;
+    this.sink.press();
+    this.repeatAt =
+      now - this.repeatAt >= HOLD_REPEAT_MS
+        ? now + HOLD_REPEAT_MS
+        : this.repeatAt + HOLD_REPEAT_MS;
+  }
   /** What `source` holds now. */
   set(source: ControlSource, bits: number): void {
     this.held.set(source, bits);
@@ -41,6 +87,7 @@ export class Controls {
   }
   press(): void {
     this.sink.press();
+    if (this.holdToFlap) this.repeatAt = this.now() + HOLD_REPEAT_MS;
   }
   /** Everything let go: the page lost focus, or a menu opened. */
   release(): void {
@@ -63,12 +110,17 @@ const KEY_BITS: Record<string, number> = {
   ArrowDown: INPUT_DOWN,
   KeyS: INPUT_DOWN,
 };
-const BUTTON_KEYS = new Set(["Space", "KeyZ", "ArrowUp", "KeyW"]);
-/** Whether the game uses the key (`KeyboardEvent.code`): the page keeps it from scrolling. */
+/** The one button. Up and W are bound to nothing, as in the original. */
+const BUTTON_KEYS = new Set(["Space"]);
+/** Keys the page swallows during play so they do not scroll it, though they do nothing. */
+const QUIET_KEYS = new Set(["ArrowUp"]);
+/** Whether the game owns the key (`KeyboardEvent.code`) during play: the page keeps it from scrolling. */
 export const gameKey = (code: string): boolean =>
-  Object.hasOwn(KEY_BITS, code) || BUTTON_KEYS.has(code);
+  Object.hasOwn(KEY_BITS, code) ||
+  BUTTON_KEYS.has(code) ||
+  QUIET_KEYS.has(code);
 
-/** The keyboard: arrows or WASD to move and dive, Space, Z, W or up for the button. Every button key presses by itself. */
+/** The keyboard: A/D or the arrows to move, S or down to dive, Space for the button. */
 export class Keys {
   private readonly down = new Set<string>();
   constructor(private readonly controls: Controls) {}
@@ -81,6 +133,7 @@ export class Keys {
   /** A key went down; false when the game does not use it. The browser's key repeat is not a new press. */
   press(code: string): boolean {
     if (!gameKey(code)) return false;
+    if (QUIET_KEYS.has(code)) return true;
     if (this.down.has(code)) return true;
     this.down.add(code);
     this.update();
@@ -101,14 +154,15 @@ export interface PadLike {
   readonly axes: readonly number[];
   readonly buttons: readonly { readonly pressed: boolean }[];
 }
-export const STICK_DEAD = 0.4;
-/** The four face buttons: each is the button, so two thumbs can alternate. */
-const FACE = [0, 1, 2, 3];
+/** A stick counts as pushed past half way, sideways for moving and down for the dive, as in the original. */
+export const STICK_DEAD = 0.5;
+/** The bottom face button (A on Xbox, Cross on PlayStation) is the one button. */
+const FACE = [0];
 const DPAD_DOWN = 13,
   DPAD_LEFT = 14,
   DPAD_RIGHT = 15;
 
-/** Gamepads: the left stick or the d-pad to move and dive, a face button (A) for the button. Polled every frame. */
+/** Gamepads: the left stick or the d-pad to move and dive, A / Cross for the button; up does nothing. Polled every frame. */
 export class Pads {
   private readonly was = new Set<string>();
   constructor(private readonly controls: Controls) {}
@@ -122,7 +176,7 @@ export class Pads {
         y = pad.axes[1] ?? 0;
       if (x < -STICK_DEAD || on(DPAD_LEFT)) bits |= INPUT_LEFT;
       if (x > STICK_DEAD || on(DPAD_RIGHT)) bits |= INPUT_RIGHT;
-      if (y > 0.6 || on(DPAD_DOWN)) bits |= INPUT_DOWN;
+      if (y > STICK_DEAD || on(DPAD_DOWN)) bits |= INPUT_DOWN;
       for (const button of FACE)
         if (on(button)) {
           bits |= INPUT_HELD;
