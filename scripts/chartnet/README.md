@@ -112,7 +112,8 @@ density, below.
 ## Fuse songs
 
 `games/fusemania/charts/chartnet/<id>.ssc` keeps each song's own header and timing (`bundle.ts`). The charts aim at
-about the packs' 75th to 90th percentile of steps per second: Easy 1.8, Medium 2.8, Hard 4.3 and Challenge 6.0. Over the
+about the packs' 75th to 90th percentile of steps per second: Easy 1.8, Medium 2.8, Hard 4.3 and Challenge 6.0, plus an **Expert** chart (an Edit named "Expert ChartNet") at 7.0,
+with 24th notes allowed. Over the
 20 songs (`gen2.py fuse`):
 
 | Difficulty | Steps/s | 16th-stream share | Longest 16th run | 4-gram variety | Crossovers | Jacks | Jumps | Freezes |
@@ -121,7 +122,12 @@ about the packs' 75th to 90th percentile of steps per second: Easy 1.8, Medium 2
 | Medium     | 2.57    | 0                 | 1                | 0.60           | 0.030      | 0.005 | 0.110 | 0.008   |
 | Hard       | 3.96    | 0.14              | 5.9              | 0.44           | 0.038      | 0.023 | 0.077 | 0.010   |
 | Challenge  | 5.52    | 0.53              | 21.3             | 0.44           | 0.033      | 0.028 | 0.084 | 0.032   |
+| Expert     | 6.43    | 0.66              | 37.1             | 0.34           | 0.048      | 0.027 | 0.049 | 0.023   |
 
-The game offers them after each song's own charts as "Easy ChartNet" … "Challenge ChartNet"; the default chart is
-unchanged. To rebuild: train (`onset.py --density 1 --name onset_dens`, `arrows.py`), then `gen2.py fuse` and
+The busiest two seconds reach a median of 8.5 steps a second on Challenge and 9 on Expert (at most 9.5 and 10). The
+Fuse songs run at 99 to 179 BPM, so 16th streams top out at 6.6 to 12 steps a second. Human Challenge charts in the packs
+peak at a median of 7.5, 10.5 at the 90th percentile, and 15 at most.
+
+The game offers them after each song's own charts as "Easy ChartNet" … "Challenge ChartNet" and "Expert ChartNet"; the
+default chart is unchanged. To rebuild: train (`onset.py --density 1 --name onset_dens`, `arrows.py`), then `gen2.py fuse` and
 `pnpm exec tsx scripts/chartnet/bundle.ts $CHARTNET_WORK/out_fuse2`.

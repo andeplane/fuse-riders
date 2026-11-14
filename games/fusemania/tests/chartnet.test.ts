@@ -34,14 +34,17 @@ test("every song has ChartNet charts, bundled as they are on disk", () => {
   }
 });
 
-test("ChartNet charts are well formed: four difficulties, each busier, no hands, freezes that end", () => {
+test("ChartNet charts are well formed: four difficulties and an Expert, each busier, no hands, freezes that end", () => {
   for (const song of SONGS_DATA) {
     const sim = parseSimfile(
       read(`games/fusemania/charts/chartnet/${song.id}.ssc`),
     );
     assert.deepEqual(
       sim.charts.map((chart) => [chart.difficulty, chart.description]),
-      OWN.map((difficulty) => [difficulty, "ChartNet"]),
+      [
+        ...OWN.map((difficulty) => [difficulty, "ChartNet"]),
+        ["Edit", "Expert ChartNet"],
+      ],
       song.id,
     );
     let rows = 0,
@@ -76,7 +79,7 @@ test("the game offers ChartNet's charts after each song's own, so the default ch
   for (const song of LIBRARY.songs) {
     assert.deepEqual(
       song.charts.map((chart) => chart.name),
-      [...OWN, ...OWN.map((name) => `${name} ChartNet`)],
+      [...OWN, ...OWN.map((name) => `${name} ChartNet`), "Expert ChartNet"],
       song.id,
     );
   }
@@ -92,6 +95,7 @@ test("the game offers ChartNet's charts after each song's own, so the default ch
 
 test("an alternate chart is named after its description and takes its difficulty's colour", () => {
   assert.equal(chartLevel("Hard ChartNet"), "hard");
+  assert.equal(chartLevel("Expert ChartNet"), "other");
   assert.equal(chartLevel("Easy"), "easy");
   const ssc = SONGS_DATA[0]!.ssc;
   const extra = ssc
