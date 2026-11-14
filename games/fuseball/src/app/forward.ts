@@ -115,24 +115,70 @@ export function forwardInputs(
 }
 
 /**
- * The bot's answer for a world is the same every frame until the next tick is folded, and planning it is the most
- * expensive thing the forward run does: ask it once per folded step and rider.
+ * The bot's answer for a world is the same every frame until the next tick is folded or a rollback replaces it, and
+ * planning it is the most expensive thing the forward run does: ask it once per rider, step and frame revision.
  */
-export function memoBot(bot: BotInput): BotInput {
+export function memoBot(bot: BotInput): (revision: number) => BotInput {
   const cache = new Map<string, number>();
-  let at = "";
-  return (world, rider) => {
-    const stamp = `${world.step}:${world.seed}:${world.ball.x}:${world.ball.y}`;
-    if (stamp !== at) {
-      at = stamp;
-      cache.clear();
-    }
-    let bits = cache.get(rider.id);
+  return (revision) => (world, rider) => {
+    const key = `${revision}:${world.step}:${rider.id}`;
+    let bits = cache.get(key);
     if (bits === undefined) {
+      // Old steps are never asked for again: a handful of entries is all a frame needs.
+      if (cache.size >= 64) cache.clear();
       bits = bot(world, rider);
-      cache.set(rider.id, bits);
+      cache.set(key, bits);
     }
     return bits;
+  };
+}
+
+/** How far a wrapping 16-bit counter moved forwards; 0 when it stood still or went back. */
+const COUNTER = 0x10000;
+const gained = (was: number, now: number): number => {
+  const moved = (now - was + COUNTER) % COUNTER;
+  return moved < COUNTER / 2 ? moved : 0;
+};
+
+/**
+ * Keeps an effect from firing twice. The scene fires a jump or a bounce when its counter goes up between two drawn
+ * views. A forward run can show a count the next one takes back (a rollback, another rider's controls changing), and
+ * the count then goes up again when the room folds the event: the same jump, heard twice. Within a match the counts
+ * handed to the scene therefore never go back; the confirmed event finds its count already shown.
+ */
+export function createCueLatch(): (
+  view: WorldView,
+  matchId: string,
+) => WorldView {
+  let match = "",
+    jumps: number[] = [],
+    bounces: number | undefined;
+  return (view, matchId) => {
+    const key = `${matchId}:${view.mapId}:${view.seed}:${view.riders.length}`;
+    if (key !== match) {
+      match = key;
+      jumps = [];
+      bounces = undefined;
+    }
+    const hold = (was: number | undefined, now: number): number =>
+      was === undefined || gained(was, now) > 0 ? now : was;
+    let same = true;
+    const riders = view.riders.map((rider) => {
+      const count = (jumps[rider.index] = hold(
+        jumps[rider.index],
+        rider.jumps,
+      ));
+      if (count === rider.jumps) return rider;
+      same = false;
+      return { ...rider, jumps: count };
+    });
+    bounces = hold(bounces, view.ball.bounces);
+    if (same && bounces === view.ball.bounces) return view;
+    return {
+      ...view,
+      riders: riders as WorldView["riders"],
+      ball: { ...view.ball, bounces },
+    };
   };
 }
 
@@ -143,12 +189,14 @@ export const DECAY_MS = 45,
 export interface Smoother {
   /**
    * `view` with corrections hidden. `revision` is the runtime's frame revision (a rollback replaced history) and
-   * `folded` the newest folded step; `local` is this device's rider index, or −1, and is never smoothed.
+   * `folded` the newest folded step; `held` is what each rider, by index, had logged as of that step; `local` is
+   * this device's rider index, or −1, and is never smoothed.
    */
   apply(
     view: WorldView,
     revision: number,
     folded: number,
+    held: readonly number[],
     nowMs: number,
     local: number,
   ): WorldView;
@@ -156,7 +204,7 @@ export interface Smoother {
 
 /**
  * Hides what the forward run got wrong. The ball and the other riders are drawn where the room's newest inputs put
- * them; when a rollback moves them, or a new tick shows another rider did not do what they were taken to hold, the
+ * them; when a rollback moves them, or a new tick shows another rider changed what they hold, the
  * screen keeps them where they were and lets the difference decay.
  */
 export function createSmoother(
@@ -167,9 +215,10 @@ export function createSmoother(
 ): Smoother {
   let revision: number | undefined,
     folded = -1,
+    logged: readonly number[] = [],
     key = "";
   return {
-    apply(view, nextRevision, nextFolded, nowMs, local) {
+    apply(view, nextRevision, nextFolded, held, nowMs, local) {
       const match = `${view.mapId}:${view.seed}:${view.phase}:${view.score.join("-")}`;
       // A point reset, a new arena or a countdown is a teleport by design: start again.
       if (match !== key) {
@@ -179,8 +228,13 @@ export function createSmoother(
       smoother.begin(nowMs);
       const rolled = revision !== undefined && nextRevision !== revision,
         stepped = nextFolded !== folded;
+      // A rider the forward run got wrong is one whose logged controls changed with this tick: the others moved as drawn.
+      const before = logged,
+        changed = (index: number) =>
+          stepped && (before[index] ?? 0) !== (held[index] ?? 0);
       revision = nextRevision;
       folded = nextFolded;
+      logged = held;
       if (view.phase !== "play") return view;
       const map = mapOf(view.mapId, view.seed);
       const wrap = (value: number, size: number, wraps: boolean) =>
@@ -202,7 +256,7 @@ export function createSmoother(
         riders: view.riders.map((rider) =>
           rider.index === local || rider.zapped
             ? rider
-            : at(`rider:${rider.index}`, rider, rolled || stepped),
+            : at(`rider:${rider.index}`, rider, rolled || changed(rider.index)),
         ) as WorldView["riders"],
         ball: view.ball.live ? at("ball", view.ball, rolled) : view.ball,
       };

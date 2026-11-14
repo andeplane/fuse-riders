@@ -67,7 +67,13 @@ import {
 import { seatName } from "../online/names.js";
 import { FuseballRuntime, type FuseballCallbacks } from "../online/runtime.js";
 import { blend, fraction } from "../render/interpolate.js";
-import { createSmoother, forward, forwardInputs, memoBot } from "./forward.js";
+import {
+  createCueLatch,
+  createSmoother,
+  forward,
+  forwardInputs,
+  memoBot,
+} from "./forward.js";
 import {
   GADGET,
   PORTAL,
@@ -901,7 +907,8 @@ function room(solo: boolean): void {
   let model: Model | undefined;
   const smoother = createSmoother(),
     leadClock = createLeadClock(),
-    drawBot = memoBot(botInput);
+    drawBot = memoBot(botInput),
+    latch = createCueLatch();
   /** What to draw now: the forward run when the newest frame is the room's newest world, otherwise the two frames blended. */
   const picture = (now: number): WorldView | undefined => {
     const timing = runtime.frameTiming();
@@ -924,16 +931,23 @@ function room(solo: boolean): void {
       forward(
         state.world,
         ahead,
-        forwardInputs(state, runtime.self, runtime.heldNow, drawBot),
+        forwardInputs(
+          state,
+          runtime.self,
+          runtime.heldNow,
+          drawBot(timing.revision ?? 0),
+        ),
       ),
       timing.revision ?? 0,
       newer.step,
+      state.world.riders.map((rider) => state.held[rider.id] ?? 0),
       now,
       model?.localIndex ?? -1,
     );
   };
   const frame = (now: number) => {
-    const world = stage.hidden ? undefined : picture(now);
+    const drawn = stage.hidden ? undefined : picture(now),
+      world = drawn && latch(drawn, runtime.frameTiming()?.newer.matchId ?? "");
     if (world) {
       if (probe) {
         const mine = world.riders[model?.localIndex ?? -1];
