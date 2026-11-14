@@ -25,12 +25,11 @@ async function create(host: Page, shared: boolean): Promise<string> {
   await host.goto(`${service.url}?mute`);
   await host.locator('.arcade-game[href*="fuse-lane/"]').click();
   await openPlayOptions(host);
-  await host.getByRole("tab", { name: "PLAY ONLINE" }).click();
   await host.getByRole("textbox", { name: "Your name" }).fill("Host");
   if (shared)
     await host.getByRole("button", { name: "SHARED TV", exact: true }).click();
   await openPlayOptions(host);
-  await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
+  await host.getByRole("button", { name: "Host room", exact: true }).click();
   await host.locator(".fl-code").waitFor();
   if (!shared) await takeHostSeat(host, "Host");
   return (await host.locator(".fl-code").innerText()).trim();

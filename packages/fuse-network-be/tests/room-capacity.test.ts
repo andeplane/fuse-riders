@@ -5,6 +5,7 @@ import {
   RoomError,
   RoomStore,
   parseRoomRecord,
+  roomGuestLimits,
 } from "../src/index.js";
 
 const token = (n: number) => n.toString(16).padStart(64, "0");
@@ -102,4 +103,48 @@ test("invalid capacity configuration fails before accepting members or parsing m
     );
     assert.throws(() => parseRoomRecord({}, maxGuests), RangeError);
   }
+});
+
+test("each game's rooms have their own size, a game without one the default, and the refusal says the same to all", async () => {
+  let ids = 0;
+  const limits = { maxGuests: 3, gameMaxGuests: { lane: 6, duel: 1 } },
+    store = new RoomStore(new MemoryRoomDatabase(), {
+      now: () => 1000,
+      id: () => `id-${++ids}`,
+      gameIds: ["lane", "duel", "plain"],
+      ...limits,
+    }),
+    bound = roomGuestLimits(limits.maxGuests, limits.gameMaxGuests);
+  for (const [gameId, guests] of [
+    ["lane", 6],
+    ["duel", 1],
+    ["plain", 3],
+  ] as const) {
+    const code = await store.createAvailable(token(1), undefined, gameId);
+    for (let n = 0; n < guests; n++)
+      await store.admit(code, token(10 + n), "gateway", gameId);
+    await assert.rejects(
+      store.admit(code, token(99), "gateway", gameId),
+      (error: unknown) =>
+        error instanceof RoomError &&
+        error.status === 429 &&
+        error.message === "Room full",
+      `${gameId} admits ${guests} guests`,
+    );
+    // The creator's seat is kept whatever the game's size, and the stored room passes its own game's bound only.
+    const { room } = await store.admit(code, token(1), "gateway", gameId);
+    assert.equal(Object.keys(room.members).length, guests + 1);
+    assert.deepEqual(parseRoomRecord(structuredClone(room), bound), room);
+    assert.equal(
+      parseRoomRecord(structuredClone(room), (id) => bound(id) - 1),
+      undefined,
+    );
+  }
+});
+test("invalid per-game capacity fails at configuration", () => {
+  assert.throws(() => roomGuestLimits(5, { lane: -1 }), RangeError);
+  assert.throws(() => roomGuestLimits(5, { lane: 1.5 }), RangeError);
+  assert.throws(() => roomGuestLimits(5, { "Not A Game": 5 }), RangeError);
+  assert.equal(roomGuestLimits(undefined, { lane: 9 })("lane"), 9);
+  assert.equal(roomGuestLimits()("anything"), 5);
 });

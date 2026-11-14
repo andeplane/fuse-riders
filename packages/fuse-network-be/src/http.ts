@@ -9,6 +9,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import { AdmissionGate } from "./admission-gate.js";
+import { AddressBudget } from "./address-budget.js";
 import {
   RoomError,
   RoomFullError,
@@ -67,6 +68,17 @@ export interface RoomHttpOptions {
   revision?: string;
 }
 
+/**
+ * `/ice` and `/end` read the room for any caller, member or not, so each address has a budget of each: 30 at once and
+ * one more every two seconds. A page asks for ICE servers once per admission (never on a resumed socket) and ends a
+ * room once, so a whole room of devices behind one address joining together is well inside it. A refused `/ice`
+ * costs the page nothing: it falls back to the same STUN servers this service would have named. The two are counted
+ * apart, so a venue's worth of pages asking for ICE servers cannot keep a creator from ending their room.
+ */
+export const ROOM_LOOKUP_BURST = 30,
+  ROOM_LOOKUP_PER_SECOND = 0.5;
+/** What `ws` reports for a socket that ended without a close frame. */
+const CLOSE_ABNORMAL = 1006;
 const ROOM_ROUTE = /^\/api\/rooms\/([A-Z]{2}[0-9]{2})\/(end|ice|ws)$/;
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -151,6 +163,10 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
       code: (error as { code?: unknown })?.code,
     });
   const admissions = new AdmissionGate(store.database, now);
+  const lookup = () =>
+    new AddressBudget(now, ROOM_LOOKUP_BURST, ROOM_LOOKUP_PER_SECOND);
+  const iceLookups = lookup(),
+    endLookups = lookup();
   const handle = async (
     req: IncomingMessage,
     res: ServerResponse,
@@ -235,6 +251,16 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
         return;
       }
       const route = url.pathname.match(ROOM_ROUTE);
+      const budget =
+        route?.[2] === "ice"
+          ? iceLookups
+          : route?.[2] === "end" && req.method === "POST"
+            ? endLookups
+            : undefined;
+      if (budget && !budget.take(options.clientAddress(req))) {
+        json({ error: "Too many requests; try later" }, 429);
+        return;
+      }
       if (route?.[2] === "end" && req.method === "POST") {
         await store.end(route[1]!, bearer(req));
         json({ ok: true });
@@ -391,19 +417,28 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
                 cancelDeadline?.();
                 reject(error);
               };
-              const admit = (token: string, gameId?: string) => {
+              // Set once the socket has closed: whether the seat is kept for the page to resume. A socket that
+              // just stops (1006: the platform's hourly cut, a network change, a stopped instance) said no goodbye,
+              // so its page is taken to be coming back; a close frame from the page is the page leaving.
+              let hold = false;
+              const admit = (
+                token: string,
+                gameId?: string,
+                resume?: string,
+              ) => {
                 phase = "admitted";
                 cancelDeadline?.();
                 void gateway
-                  .connect(code, token, ws, gameId)
+                  .connect(code, token, ws, gameId, resume)
                   .then((id) => {
                     connectionId = id;
                     if (closed) {
-                      void gateway.disconnect(id);
+                      void gateway.disconnect(id, { socket: ws, hold });
                       resolve();
                       return;
                     }
-                    for (const data of pending) void gateway.receive(id, data);
+                    for (const data of pending)
+                      void gateway.receive(id, data, ws);
                     pending = [];
                     resolve();
                   })
@@ -422,7 +457,7 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
                   if (frame === undefined)
                     // Nothing about the frame is echoed or logged.
                     refuse(new RoomError(401, "Authentication required"));
-                  else admit(frame.token, frame.gameId);
+                  else admit(frame.token, frame.gameId, frame.resume);
                   return;
                 }
                 if (binary) {
@@ -430,12 +465,13 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
                   return;
                 }
                 const data = raw.toString();
-                if (connectionId) void gateway.receive(connectionId, data);
+                if (connectionId) void gateway.receive(connectionId, data, ws);
                 else if (pending.length < 4) pending.push(data);
                 else ws.close(1008, "Wait for welcome");
               });
-              ws.on("close", () => {
+              ws.on("close", (closeCode) => {
                 closed = true;
+                hold = closeCode === CLOSE_ABNORMAL;
                 pending = [];
                 // Leaving before authenticating frees the slot and is not a failure. Charging it would stop nobody —
                 // a slot can be held to the deadline and then authenticated for free — and it would land on honest
@@ -445,7 +481,8 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
                   cancelDeadline?.();
                   resolve();
                 }
-                if (connectionId) void gateway.disconnect(connectionId);
+                if (connectionId)
+                  void gateway.disconnect(connectionId, { socket: ws, hold });
               });
               ws.on("error", () => {
                 // `ws` reports a frame it will not parse (a protocol violation, or one past `maxPayload`) here, not a

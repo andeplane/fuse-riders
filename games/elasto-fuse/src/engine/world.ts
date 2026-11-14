@@ -29,7 +29,7 @@ export interface Rider {
   status: Status;
   bike: Bike;
   /** The apples this run has eaten, one bit each in the level's apple order. */
-  taken: number;
+  taken: bigint;
   /** The bits held on the previous step: what goes down on a step is what was not held before it. */
   prev: number;
   /** Steps the current run has lasted (the finishing run's length once finished). */
@@ -66,7 +66,7 @@ function freshRider(id: string, level: Compiled): Rider {
     id,
     status: RIDING,
     bike: resetBike(level),
-    taken: 0,
+    taken: 0n,
     prev: 0,
     run: 0,
     wait: 0,
@@ -98,7 +98,7 @@ export function createWorld(
 function restart(rider: Rider, level: Compiled): void {
   rider.status = RIDING;
   rider.bike = resetBike(level);
-  rider.taken = 0;
+  rider.taken = 0n;
   rider.run = 0;
   rider.wait = 0;
 }
@@ -162,7 +162,7 @@ export function stepWorld(
 export function ranking(world: World): number[] {
   const apples = (rider: Rider) => {
     let count = 0;
-    for (let bits = rider.taken; bits; bits &= bits - 1) count++;
+    for (let bits = rider.taken; bits; bits &= bits - 1n) count++;
     return count;
   };
   return world.riders

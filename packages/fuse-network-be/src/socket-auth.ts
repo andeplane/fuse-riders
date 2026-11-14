@@ -1,4 +1,8 @@
-import { AUTH_FRAME_MAX_BYTES, validGameId } from "fuse-network-protocol";
+import {
+  AUTH_FRAME_MAX_BYTES,
+  RESUME_ID_MAX_LENGTH,
+  validGameId,
+} from "fuse-network-protocol";
 import { validToken } from "./room-store.js";
 
 /**
@@ -20,14 +24,22 @@ export function authToken(raw: string, binary: boolean): string | undefined {
   return readAuthFrame(raw, binary)?.token;
 }
 
+/** What a room socket's first frame carries. */
+export interface AuthFrame {
+  token: string;
+  gameId?: string;
+  /** The connection id the page was welcomed with before its socket dropped (`RoomStore.admit`). */
+  resume?: string;
+}
 /**
- * A room socket's first frame: the member token and, when the page names one, its game. Undefined for anything but
- * one small `auth` frame with a valid token and, if present, a well-formed `gameId`.
+ * A room socket's first frame: the member token and, when the page names them, its game and the connection it would
+ * resume. Undefined for anything but one small `auth` frame with a valid token and, if present, a well-formed
+ * `gameId` and `resume`.
  */
 export function readAuthFrame(
   raw: string,
   binary: boolean,
-): { token: string; gameId?: string } | undefined {
+): AuthFrame | undefined {
   if (binary || Buffer.byteLength(raw) > AUTH_FRAME_MAX_BYTES) return undefined;
   let frame: unknown;
   try {
@@ -37,13 +49,27 @@ export function readAuthFrame(
   }
   if (!frame || typeof frame !== "object" || Array.isArray(frame))
     return undefined;
-  const { type, token, gameId } = frame as {
+  const { type, token, gameId, resume } = frame as {
     type?: unknown;
     token?: unknown;
     gameId?: unknown;
+    resume?: unknown;
   };
   if (type !== "auth" || typeof token !== "string" || !validToken(token))
     return undefined;
-  if (gameId === undefined) return { token };
-  return validGameId(gameId) ? { token, gameId } : undefined;
+  if (gameId !== undefined && !validGameId(gameId)) return undefined;
+  if (
+    resume !== undefined &&
+    !(
+      typeof resume === "string" &&
+      resume.length > 0 &&
+      resume.length <= RESUME_ID_MAX_LENGTH
+    )
+  )
+    return undefined;
+  return {
+    token,
+    ...(gameId === undefined ? {} : { gameId }),
+    ...(resume === undefined ? {} : { resume }),
+  };
 }

@@ -116,7 +116,7 @@ function solve(
           const t = targets[target]!;
           const reached =
             t.apple >= 0
-              ? (rider.taken & (1 << t.apple)) !== 0
+              ? (rider.taken & (1n << BigInt(t.apple))) !== 0n
               : t.apple === -1 && Math.hypot(b.fx - t.x, b.fy - t.y) < 1.6;
           if (!reached) break;
           target++;
@@ -167,6 +167,7 @@ const chosen = args
     (arg, index) => /^\d+$/.test(arg) && (beamAt < 0 || index !== beamAt + 1),
   )
   .map(Number);
+
 /** The module's text around its data: everything up to the object, and the object itself. */
 const HEAD = `/**
  * The solver's finishing rides, written by \`scripts/elasto-fuse-solve.ts\` (never by hand): for each level a list of
@@ -182,6 +183,13 @@ export const RECORDED: {
 const rides: Record<string, { ride: string; steps: number }> = {
   ...RECORDED.rides,
 };
+/** Persist each result so interrupted searches retain their progress. */
+const save = (): void => {
+  writeFileSync(
+    OUT,
+    `${HEAD}${JSON.stringify({ rules: RULES, decision: DECISION, rides }, null, 2)};\n`,
+  );
+};
 for (const [index, level] of LEVELS.entries()) {
   if (chosen.length && !chosen.includes(index)) continue;
   const started = Date.now();
@@ -189,6 +197,7 @@ for (const [index, level] of LEVELS.entries()) {
   if (!path) {
     console.log(`${index} ${level.id}: no ride found`);
     delete rides[level.id];
+    save();
     continue;
   }
   // Replay it for the exact finishing step.
@@ -204,8 +213,5 @@ for (const [index, level] of LEVELS.entries()) {
   console.log(
     `${index} ${level.id}: ${(steps / 80).toFixed(2)} s, searched ${((Date.now() - started) / 1000).toFixed(1)} s`,
   );
+  save();
 }
-writeFileSync(
-  OUT,
-  `${HEAD}${JSON.stringify({ rules: RULES, decision: DECISION, rides }, null, 2)};\n`,
-);

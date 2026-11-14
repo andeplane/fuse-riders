@@ -1,20 +1,23 @@
 import { Firestore, Timestamp } from "@google-cloud/firestore";
 import {
   parseRoomRecord,
-  roomGuestLimit,
+  roomGuestLimits,
+  type GuestLimits,
   type RoomDatabase,
   type RoomRecord,
 } from "../room-store.js";
 
 /** The operation callback is pure and may be retried by Firestore. */
 export class FirestoreRoomDatabase implements RoomDatabase {
-  private readonly maxGuests: number;
+  private readonly maxGuests: GuestLimits;
+  /** `maxGuests` bounds a stored room's members: one number for every room, or each game's own (`roomGuestLimits`). */
   constructor(
     private firestore: Firestore,
     private prefix: string,
-    maxGuests?: number,
+    maxGuests?: number | GuestLimits,
   ) {
-    this.maxGuests = roomGuestLimit(maxGuests);
+    this.maxGuests =
+      typeof maxGuests === "function" ? maxGuests : roomGuestLimits(maxGuests);
   }
   private room(code: string) {
     return this.firestore.collection(`${this.prefix}-rooms`).doc(code);
