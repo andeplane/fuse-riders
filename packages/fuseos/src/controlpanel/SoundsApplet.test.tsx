@@ -44,6 +44,7 @@ describe("SoundsApplet", () => {
       "sound-error",
       "sound-recycle",
       "sound-floppy",
+      "sound-seek",
       "sound-modem",
     ]);
     const modem = within(events).getByRole("checkbox", {

@@ -103,6 +103,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
     scope: "Explorer",
   },
   {
+    id: "explorer.delete",
+    keys: "Delete",
+    description: "Delete the selected file or folder",
+    scope: "Explorer",
+  },
+  {
     id: "explorer.properties",
     keys: "Alt+Enter",
     description: "Show Properties for the selected item",

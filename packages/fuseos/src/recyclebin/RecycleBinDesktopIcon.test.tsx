@@ -64,7 +64,7 @@ describe("RecycleBinDesktopIcon", () => {
 
   it("offers Open and Empty Recycle Bin on its context menu, with the confirmation box", async () => {
     const store = new MemoryRecycleBinStore();
-    const { user, icon } = renderDesktop(store);
+    const { user, icon, sounds } = renderDesktop(store);
     await user.pointer({ keys: "[MouseRight]", target: icon() });
     const menu = await screen.findByRole("menu", { name: "Recycle Bin menu" });
     await user.click(
@@ -93,6 +93,10 @@ describe("RecycleBinDesktopIcon", () => {
     expect(store.get().removed).toEqual(
       RECYCLE_BIN_ITEMS.map((item) => item.id),
     );
+    // The paper crumples once, when the bin really empties.
+    expect(
+      sounds.plays.filter((play) => play.event === "recycle"),
+    ).toHaveLength(1);
     expect(icon().querySelector("svg[data-icon='recycle']")).not.toBeNull();
 
     await user.pointer({ keys: "[MouseRight]", target: icon() });

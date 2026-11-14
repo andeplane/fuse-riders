@@ -16,6 +16,8 @@ export async function loadSynth(
       return (await import("./modem")).renderModem;
     case "floppy":
       return (await import("./floppy")).renderFloppy;
+    case "seek":
+      return (await import("./floppy")).renderDriveSeek;
     case "startup":
       return (await import("./chimes")).renderStartup;
     case "shutdown":

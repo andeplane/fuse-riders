@@ -6,10 +6,11 @@ import { createContext, useContext } from "react";
  * rendered on its own in a test) it does nothing.
  */
 export interface BsodControls {
-  showBsod(): void;
+  /** Raises the screen; the promise resolves when a key or a click has taken it down again. */
+  showBsod(): Promise<void>;
 }
 
-export const NO_BSOD: BsodControls = { showBsod: () => undefined };
+export const NO_BSOD: BsodControls = { showBsod: () => Promise.resolve() };
 
 export const BsodContext = createContext<BsodControls>(NO_BSOD);
 

@@ -1,5 +1,6 @@
 import { useCallback, useContext, useMemo, useState } from "react";
 
+import { usePlaySystemSound } from "../sounds/useSystemSound";
 import { useWindowCommands } from "../windows/useWindowCommands";
 
 import type { DeleteConfirmation } from "./ConfirmDeleteDialog";
@@ -64,6 +65,7 @@ export function useRecycleBinViewModel(windowId: string): RecycleBinViewModel {
   const store = useContext(RecycleBinStoreContext);
   const state = useRecycleBinState();
   const commands = useWindowCommands();
+  const playSystemSound = usePlaySystemSound();
   const [sort, setSort] = useState(DEFAULT_RECYCLE_BIN_SORT);
   const [selected, setSelected] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -161,7 +163,11 @@ export function useRecycleBinViewModel(windowId: string): RecycleBinViewModel {
     emptyBin: () => askToDelete(contents.map((item) => item.id)),
     pendingDelete,
     confirmDelete: () => {
-      if (pendingDelete) remove(pendingDelete.ids);
+      if (pendingDelete) {
+        remove(pendingDelete.ids);
+        // The paper crumples once the files are really gone (Control Panel > Sounds, "Empty Recycle Bin").
+        playSystemSound("recycle");
+      }
       setPendingDelete(null);
     },
     cancelDelete: () => setPendingDelete(null),

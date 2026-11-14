@@ -1,5 +1,12 @@
 import type { ReactNode } from "react";
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { FuseGamesContext } from "../fusegames/registry";
 
@@ -31,11 +38,22 @@ export function BsodProvider({
   const { games } = useContext(FuseGamesContext);
   const [culprit, setCulprit] = useState<string | null>(null);
 
+  // Whoever raised the screen and is waiting for it to go (the SYSTEM32 gag restarts the desktop after it).
+  const waiting = useRef<(() => void)[]>([]);
+
   const showBsod = useCallback(() => {
     // Raising it twice keeps the first culprit rather than reshuffling the blame.
     setCulprit((current) => current ?? pickCulprit(games, random));
+    return new Promise<void>((resolve) => {
+      waiting.current.push(resolve);
+    });
   }, [games, random]);
-  const dismiss = useCallback(() => setCulprit(null), []);
+  const dismiss = useCallback(() => {
+    setCulprit(null);
+    const resolvers = waiting.current;
+    waiting.current = [];
+    for (const resolve of resolvers) resolve();
+  }, []);
 
   const shown = culprit !== null;
 
@@ -44,7 +62,7 @@ export function BsodProvider({
     const onKeyDown = (event: KeyboardEvent) => {
       if (!isBsodChord(event)) return;
       event.preventDefault();
-      showBsod();
+      void showBsod();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);

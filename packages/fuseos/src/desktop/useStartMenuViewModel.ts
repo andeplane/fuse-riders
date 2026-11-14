@@ -3,10 +3,10 @@ import { useContext } from "react";
 import { APPLETS } from "../controlpanel/applets";
 import { FuseGamesContext } from "../fusegames/registry";
 import { GAME_LIST } from "../retro/games";
+import { useDialUpCommands } from "../sounds/dialup/useDialUpCommands";
 import { useAppState } from "../state/useAppState";
 import type { IconRef } from "../ui/icons";
 import type { WindowCommands } from "../windows/useWindowCommands";
-import { useWindowCommands } from "../windows/useWindowCommands";
 import type { Size } from "../windows/windowManager";
 import { WindowManagerContext } from "../windows/windowManagerContext";
 
@@ -58,7 +58,8 @@ export function useStartMenuViewModel(): {
   close: () => void;
 } {
   const { state, dispatch } = useAppState();
-  const commands = useWindowCommands();
+  // Network Neighborhood and Fuse Messenger dial in the first time one of them is opened by hand.
+  const commands = useDialUpCommands();
   const ui = useContext(DesktopUiContext);
   const deps = useContext(DesktopDepsContext);
   const games = useContext(FuseGamesContext);

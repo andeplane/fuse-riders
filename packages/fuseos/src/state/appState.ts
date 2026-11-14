@@ -105,7 +105,7 @@ export interface HallOfFameWindowContent {
   gameId?: string;
 }
 
-/** Network Neighborhood: rooms by game, recent rooms, Join room. Single instance (opened with id `NETWORK_WINDOW_ID`). */
+/** Network Neighborhood: rooms by game, recent rooms, Join room. One instance. */
 export interface NetworkWindowContent {
   kind: "network";
 }

@@ -15,17 +15,28 @@ import {
 } from "../__mocks__/disk";
 import { FakePaintFileDeps } from "../__mocks__/paintFiles";
 import { renderWithProviders } from "../__mocks__/renderWithProviders";
+import type { FakeSoundService } from "../__mocks__/soundService";
 import { Desktop } from "../desktop/Desktop";
 import { DRIVE_A, DRIVE_C, MY_COMPUTER } from "../disk/diskPath";
 import { HOMEWORK_LOCATION, HOMEWORK_TEXT } from "../disk/floppy";
 import type { AppState, WindowState } from "../state/appState";
 
 import { MODIFIED_LABEL } from "./IconView";
-import { addressNotFoundMessage } from "./useExplorerViewModel";
+import {
+  addressNotFoundMessage,
+  DELETE_DENIED_TITLE,
+} from "./useExplorerViewModel";
 import { WINZIP_STEP_MS } from "./WinZipDialog";
 
 const explorerAt = (location: string) =>
   ({ kind: "explorer", location }) as const;
+
+/** What the drives were heard doing; the start-up chime the desktop plays on mount is not theirs. */
+function driveSounds(sounds: FakeSoundService): string[] {
+  return sounds.plays
+    .map((play) => play.event)
+    .filter((event) => event === "floppy" || event === "seek");
+}
 
 function contents() {
   return within(screen.getByLabelText("Folder contents"));
@@ -87,6 +98,7 @@ describe("Explorer", () => {
       "docsFile Folder11/14/26, 1:39 PM",
       "packagesFile Folder11/14/26, 1:39 PM",
       "publicFile Folder11/14/26, 1:39 PM",
+      "WINDOWSFile Folder5/11/98, 8:01 PM",
       "package.json1 KBJSON Document11/14/26, 1:39 PM",
       "README.md1 KBMarkdown Document11/14/26, 1:39 PM",
     ]);
@@ -213,13 +225,15 @@ describe("Explorer", () => {
           finishSeek = resolve;
         }),
     });
-    renderWithProviders(<Desktop />, {
+    const { sounds } = renderWithProviders(<Desktop />, {
       initialOpen: [explorerAt(MY_COMPUTER)],
       diskDeps,
     });
     await user.dblClick(row(/3½ Floppy/));
     expect(contents().getByText("Reading drive A:...")).toBeInTheDocument();
     expect(diskDeps.seeks).toBe(1);
+    // The drive is heard spinning up while the listing waits.
+    expect(driveSounds(sounds)).toEqual(["floppy"]);
     await act(async () => {
       finishSeek();
       await Promise.resolve();
@@ -234,6 +248,8 @@ describe("Explorer", () => {
     diskDeps.jokeGate.tryOpen();
     await user.dblClick(row(/porn/));
     expect(diskDeps.seeks).toBe(1);
+    // ...only the short seek every folder gets.
+    expect(driveSounds(sounds)).toEqual(["floppy", "seek"]);
     expect(screen.getByRole("textbox", { name: "Address" })).toHaveValue(
       "A:\\porn",
     );
@@ -314,6 +330,61 @@ describe("Explorer", () => {
     expect(diskDeps.source.reads).toEqual([]);
   });
 
+  it("deletes SYSTEM32 into the gag's questions, and refuses to delete anything else", async () => {
+    const user = userEvent.setup();
+    const { sounds } = renderWithProviders(<Desktop />, {
+      initialOpen: [explorerAt(DRIVE_C)],
+    });
+    await waitFor(() => expect(row(/WINDOWS/)).toBeInTheDocument());
+    await user.dblClick(row(/WINDOWS/));
+    expect(screen.getByRole("textbox", { name: "Address" })).toHaveValue(
+      "C:\\WINDOWS",
+    );
+    expect(driveSounds(sounds)).toEqual(["seek"]);
+    // From the context menu: the first of the three questions, and No keeps the folder.
+    fireEvent.contextMenu(row(/SYSTEM32/), { clientX: 10, clientY: 10 });
+    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent(
+      "Are you sure you want to remove the folder 'SYSTEM32'",
+    );
+    await user.click(screen.getByRole("button", { name: "No" }));
+    expect(row(/SYSTEM32/)).toBeInTheDocument();
+    // The Delete key and File > Delete ask the same; three times Yes and the folder is gone.
+    await user.click(row(/SYSTEM32/));
+    await user.keyboard("{Delete}");
+    await user.click(screen.getByRole("button", { name: "No" }));
+    await openMenu("File", "Delete");
+    for (let question = 0; question < 3; question += 1)
+      await user.click(screen.getByRole("button", { name: "Yes" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(contents().queryByText("SYSTEM32")).not.toBeInTheDocument();
+    expect(screen.getByText("0 object(s)")).toBeInTheDocument();
+  });
+
+  it("refuses to delete a repository file, and lists what SYSTEM32 holds without opening any of it", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Desktop />, {
+      initialOpen: [explorerAt(DRIVE_C)],
+    });
+    await waitFor(() => expect(row(/README\.md/)).toBeInTheDocument());
+    await user.click(row(/README\.md/));
+    await user.keyboard("{Delete}");
+    expect(
+      screen.getByRole("dialog", { name: DELETE_DENIED_TITLE }),
+    ).toHaveTextContent("Cannot delete README.md: Access is denied.");
+    await user.click(screen.getByRole("button", { name: "OK" }));
+    // A drive has no Delete at all.
+    await user.type(
+      screen.getByRole("textbox", { name: "Address" }),
+      "{Control>}a{/Control}C:\\WINDOWS\\SYSTEM32{Enter}",
+    );
+    await waitFor(() => expect(row(/KERNEL32\.DLL/)).toBeInTheDocument());
+    await user.dblClick(row(/KERNEL32\.DLL/));
+    expect(
+      screen.getByRole("dialog", { name: "Open With" }),
+    ).toHaveTextContent("Windows cannot open this file");
+  });
+
   it("marks files with a saved copy and reverts them from the context menu", async () => {
     const user = userEvent.setup();
     const { diskDeps } = renderWithProviders(<Desktop />, {
@@ -392,7 +463,7 @@ describe("Explorer", () => {
     await waitFor(() => expect(row(/packages/)).toBeInTheDocument());
     await openMenu("View", "Large Icons");
     const icons = within(screen.getByRole("listbox", { name: "Large icons" }));
-    expect(icons.getAllByRole("option")).toHaveLength(5);
+    expect(icons.getAllByRole("option")).toHaveLength(6);
     await user.click(screen.getByRole("button", { name: "Details" }));
     await user.click(screen.getByRole("button", { name: "Name ▲" }));
     expect(
@@ -400,7 +471,14 @@ describe("Explorer", () => {
         .getAllByRole("row")
         .slice(1)
         .map((item) => item.querySelector("td")?.textContent),
-    ).toEqual(["public", "packages", "docs", "README.md", "package.json"]);
+    ).toEqual([
+      "WINDOWS",
+      "public",
+      "packages",
+      "docs",
+      "README.md",
+      "package.json",
+    ]);
     await user.click(screen.getByRole("button", { name: "Folders" }));
     expect(
       screen.queryByRole("list", { name: "Folders" }),

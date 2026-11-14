@@ -1,6 +1,13 @@
 /** Every sound the desktop can make. The Sounds applet lists these; `playSystemSound(event)` plays one. */
 export type SystemSoundEvent =
-  "startup" | "shutdown" | "ding" | "error" | "recycle" | "floppy" | "modem";
+  | "startup"
+  | "shutdown"
+  | "ding"
+  | "error"
+  | "recycle"
+  | "floppy"
+  | "seek"
+  | "modem";
 
 export type SoundEventInfo = {
   event: SystemSoundEvent;
@@ -60,10 +67,17 @@ export const SOUND_EVENTS: readonly SoundEventInfo[] = [
   {
     event: "floppy",
     label: "Floppy drive",
-    description: 'The 3½" drive seeking when Explorer opens a folder or A:',
+    description: 'The 3½" drive spinning up and seeking when Explorer opens A:',
     gain: 0.9,
     trigger:
-      "Explorer (B11): folder navigation; opening 3½ Floppy (A:) before its delay",
+      "explorer/useExplorerViewModel.ts: entering 3½ Floppy (A:), before its delay",
+  },
+  {
+    event: "seek",
+    label: "Open folder",
+    description: "One short head seek when Explorer opens a folder or drive",
+    gain: 0.7,
+    trigger: "explorer/useExplorerViewModel.ts: every other navigation",
   },
   {
     event: "modem",

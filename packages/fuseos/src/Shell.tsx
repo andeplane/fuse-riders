@@ -12,7 +12,7 @@ import { SystemSoundTriggers } from "./sounds/SystemSoundTriggers";
 import type { WindowContent } from "./state/appState";
 import { AppStateProvider } from "./state/AppStateProvider";
 import type { StateStore } from "./state/stateStore";
-import { System32Provider } from "./system32/System32Provider";
+import { System32BsodProvider } from "./system32/System32BsodProvider";
 import { WindowManagerProvider } from "./windows/WindowManagerProvider";
 
 export type ShellProps = {
@@ -33,11 +33,11 @@ export function Shell({ store, initialOpen, children }: ShellProps) {
               <WindowManagerProvider>
                 <SystemSoundTriggers />
                 <BsodProvider>
-                  <System32Provider>
+                  <System32BsodProvider>
                     <AssistantToolsProvider>
                       {children ?? <Desktop />}
                     </AssistantToolsProvider>
-                  </System32Provider>
+                  </System32BsodProvider>
                 </BsodProvider>
               </WindowManagerProvider>
             </DisplayEffectsProvider>

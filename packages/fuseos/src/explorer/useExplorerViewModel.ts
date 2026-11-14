@@ -2,7 +2,11 @@ import type { KeyboardEvent } from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import type { DiskEntry } from "../disk/diskEntries";
-import { listEntries, locationExists } from "../disk/diskEntries";
+import {
+  listEntries,
+  locationExists,
+  SYSTEM32_LOCATION,
+} from "../disk/diskEntries";
 import {
   driveOf,
   formatAddress,
@@ -16,7 +20,9 @@ import { ACCESS_DENIED_MESSAGE, WINZIP_ERROR_MESSAGE } from "../disk/floppy";
 import { useDiskDeps, useDiskManifest, useOverlayPaths } from "../disk/useDisk";
 import { matchShortcut } from "../lib/shortcuts";
 import { useOpenInNotepad } from "../notepadpp/useOpenInNotepad";
+import { usePlaySystemSound } from "../sounds/useSystemSound";
 import { useAppState } from "../state/useAppState";
+import { useSystem32Folder } from "../system32/explorerContract";
 import type { IconName } from "../ui/icons";
 import type { MenuPosition } from "../windows/menuPosition";
 import { useWindowCommands } from "../windows/useWindowCommands";
@@ -77,6 +83,8 @@ export type ExplorerViewModel = {
   winzipCancel: () => void;
   /** File > Revert to original on a modified file. */
   revert: (entry: DiskEntry) => void;
+  /** File > Delete: SYSTEM32 starts the gag's questions; everything else on these drives refuses. */
+  remove: (entry: DiskEntry) => void;
   /** Status bar fields. */
   statusText: string;
   statusDetail: string;
@@ -85,6 +93,12 @@ export type ExplorerViewModel = {
 };
 
 export const ADDRESS_NOT_FOUND_TITLE = "Explorer";
+
+export const DELETE_DENIED_TITLE = "Error Deleting File";
+
+export function deleteDeniedMessage(name: string): string {
+  return `Cannot delete ${name}: Access is denied.\n\nMake sure the disk is not full or write-protected and that the file is not currently in use.`;
+}
 
 export function addressNotFoundMessage(text: string): string {
   return `Cannot find '${text}'. Make sure the path is correct and try again.`;
@@ -100,6 +114,8 @@ export function useExplorerViewModel(
   const manifest = useDiskManifest();
   const overlayPaths = useOverlayPaths(deps.overlay);
   const openInNotepad = useOpenInNotepad();
+  const system32 = useSystem32Folder();
+  const playSystemSound = usePlaySystemSound();
 
   const [history, setHistory] = useState<{ back: string[]; forward: string[] }>(
     { back: [], forward: [] },
@@ -123,9 +139,10 @@ export function useExplorerViewModel(
   const tree = manifest.status === "ready" ? manifest.tree : undefined;
   const committedAt =
     manifest.status === "ready" ? manifest.manifest.committedAt : "";
+  const system32Present = system32.present;
   const listingInputs = useMemo(
-    () => ({ tree, committedAt, overlayPaths }),
-    [tree, committedAt, overlayPaths],
+    () => ({ tree, committedAt, overlayPaths, system32Present }),
+    [tree, committedAt, overlayPaths, system32Present],
   );
 
   const entries = useMemo(
@@ -162,14 +179,19 @@ export function useExplorerViewModel(
       setSelected(null);
       setLocation(next);
       if (driveOf(next) === "A" && driveOf(location) !== "A") {
+        // The drive spins up and seeks (Control Panel > Sounds, "Floppy drive") while the listing waits.
+        playSystemSound("floppy");
         const token = (seekToken.current += 1);
         setSeeking(true);
         void deps.floppySeek().finally(() => {
           if (seekToken.current === token) setSeeking(false);
         });
+      } else if (next !== MY_COMPUTER) {
+        // Any other folder or drive: one short head seek.
+        playSystemSound("seek");
       }
     },
-    [location, setLocation, deps],
+    [location, setLocation, deps, playSystemSound],
   );
 
   const navigate = useCallback((next: string) => go(next, true), [go]);
@@ -199,7 +221,10 @@ export function useExplorerViewModel(
   const openAddress = useCallback(
     (text: string) => {
       const parsed = parseAddress(text);
-      if (parsed !== undefined && locationExists(parsed, tree))
+      if (
+        parsed !== undefined &&
+        locationExists(parsed, tree, system32Present)
+      )
         navigate(parsed);
       else
         commands.showError(
@@ -207,7 +232,7 @@ export function useExplorerViewModel(
           addressNotFoundMessage(text.trim()),
         );
     },
-    [tree, navigate, commands],
+    [tree, system32Present, navigate, commands],
   );
 
   const open = useCallback(
@@ -269,6 +294,20 @@ export function useExplorerViewModel(
     [deps.overlay],
   );
 
+  const removeSystem32 = system32.remove;
+  const remove = useCallback(
+    (entry: DiskEntry) => {
+      // The gag asks its own three questions; no confirm here.
+      if (entry.location === SYSTEM32_LOCATION) removeSystem32();
+      else
+        commands.showError(
+          DELETE_DENIED_TITLE,
+          deleteDeniedMessage(entry.name),
+        );
+    },
+    [removeSystem32, commands],
+  );
+
   const selectedEntry = entries.find((entry) => entry.location === selected);
 
   const onKeyDown = useCallback(
@@ -280,6 +319,11 @@ export function useExplorerViewModel(
         if (selectedEntry) {
           event.preventDefault();
           open(selectedEntry);
+        }
+      } else if (matchShortcut(event, "explorer.delete")) {
+        if (selectedEntry && selectedEntry.kind !== "drive") {
+          event.preventDefault();
+          remove(selectedEntry);
         }
       } else if (matchShortcut(event, "explorer.clearSelection")) {
         setSelected(null);
@@ -306,7 +350,7 @@ export function useExplorerViewModel(
         if (next) setSelected(next.location);
       }
     },
-    [up, open, selectedEntry, entries, selected],
+    [up, open, remove, selectedEntry, entries, selected],
   );
 
   const busy =
@@ -386,6 +430,7 @@ export function useExplorerViewModel(
     winzipFailed,
     winzipCancel: () => setWinzip(false),
     revert,
+    remove,
     statusText,
     statusDetail,
     onKeyDown,

@@ -2,6 +2,7 @@ import { useCallback, useContext, useState } from "react";
 
 import { DesktopIcon } from "../desktop/DesktopIcon";
 import { DesktopUiContext } from "../desktop/desktopUiContext";
+import { usePlaySystemSound } from "../sounds/useSystemSound";
 import { ContextMenu } from "../windows/ContextMenu";
 import type { MenuPosition } from "../windows/menuPosition";
 
@@ -26,6 +27,7 @@ export const RECYCLE_BIN_ICON_ID = "recycle-bin";
 export function RecycleBinDesktopIcon() {
   const ui = useContext(DesktopUiContext);
   const store = useContext(RecycleBinStoreContext);
+  const playSystemSound = usePlaySystemSound();
   const state = useRecycleBinState();
   const openBin = useOpenRecycleBin();
   const [confirmation, setConfirmation] = useState<DeleteConfirmation | null>(
@@ -90,6 +92,7 @@ export function RecycleBinDesktopIcon() {
                 contents.map((item) => item.id),
               ),
             );
+            playSystemSound("recycle");
             setConfirmation(null);
           }}
           onNo={() => setConfirmation(null)}
