@@ -69,6 +69,11 @@ export interface World {
   seed: number;
   /** Micro-steps simulated so far. */
   step: number;
+  /**
+   * Micro-steps this point has been in motion: it starts at 0 with the point and stands still through the countdown
+   * and a goal's freeze, when nothing moves. The arena's movers are where this says they are.
+   */
+  clock: number;
   phase: Phase;
   /** Steps left of the countdown or the zap; 0 in play and when the match is over. */
   phaseSteps: number;
@@ -146,6 +151,7 @@ export function resetPoint(world: World): void {
   ball.live = true;
   ball.touch = -1;
   world.barriers = freshBarriers(map);
+  world.clock = 0;
   world.phase = "countdown";
   world.phaseSteps = COUNTDOWN_STEPS;
   world.speed = SPEED_FULL;
@@ -167,6 +173,7 @@ export function createWorld(
     mapId,
     seed: mapId === RANDOM && isSeed(seed) ? seed : 0,
     step: 0,
+    clock: 0,
     phase: "countdown",
     phaseSteps: COUNTDOWN_STEPS,
     score: [0, 0],

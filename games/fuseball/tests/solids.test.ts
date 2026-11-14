@@ -14,7 +14,7 @@ import {
   type World,
 } from "../src/engine/index.js";
 import { apart } from "../src/engine/collide.js";
-import { boxesOf, mapOf } from "../src/engine/maps.js";
+import { boxesAt, mapOf } from "../src/engine/maps.js";
 import { SUB, abs, isqrt } from "../src/engine/math.js";
 import { BALL_R, RIDER_R } from "../src/engine/tuning.js";
 import {
@@ -40,7 +40,7 @@ function sunk(
 ): number {
   const map = mapOf(world.mapId, world.seed);
   let most = 0;
-  for (const box of boxesOf(map)) {
+  for (const box of boxesAt(map, world.clock)) {
     const { dx, dy } = apart(body.x, body.y, box.cx, box.cy, map),
       ex = abs(dx) > box.hw ? abs(dx) - box.hw : 0,
       ey = abs(dy) > box.hh ? abs(dy) - box.hh : 0,

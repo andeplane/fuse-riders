@@ -64,6 +64,8 @@ export interface WorldView {
   /** The seed the arena was rolled from when `mapId` is the random one; otherwise 0. */
   seed: number;
   step: number;
+  /** Micro-steps this point has been in motion: `moverPlace` in `view-kit.ts` has a mover where this says. */
+  clock: number;
   phase: Phase;
   /** Micro-steps left of the countdown or the zap; 0 in play and once the match is over. */
   remaining: number;
@@ -138,6 +140,7 @@ export function toView(world: World): WorldView {
     mapId: world.mapId,
     seed: world.seed,
     step: world.step,
+    clock: world.clock,
     phase: world.phase,
     remaining: world.phaseSteps,
     count:

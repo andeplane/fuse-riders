@@ -261,6 +261,31 @@ function mapThumb(map: MapDef): SVGSVGElement {
         fill: team === -1 ? GADGET : TEAM_LIGHT[team],
       });
     }
+  // A ledge is a thin mint line; a mover is a block in the same mint with the line it rides along.
+  for (const ledge of map.ledges)
+    add("rect", {
+      x: ledge.x,
+      y: ledge.y,
+      width: ledge.w,
+      height: 6,
+      class: "ledge",
+    });
+  for (const mover of map.movers) {
+    add("line", {
+      x1: mover.x + mover.w / 2,
+      y1: mover.y + mover.h / 2,
+      x2: mover.x + mover.w / 2 + mover.travel.x,
+      y2: mover.y + mover.h / 2 + mover.travel.y,
+      class: "rail",
+    });
+    add("rect", {
+      x: mover.x,
+      y: mover.y,
+      width: mover.w,
+      height: mover.h,
+      class: "mover",
+    });
+  }
   for (const bumper of map.bumpers)
     add("circle", {
       cx: bumper.x,

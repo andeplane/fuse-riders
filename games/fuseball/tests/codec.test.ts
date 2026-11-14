@@ -101,7 +101,7 @@ const part = (fields: unknown[], index: number): unknown[] => {
 test("generated checkpoint seeds are strict uint32 values, and handmade maps carry zero", () => {
   const world = createWorld("random", ["a", "b"], 0xffffffff);
   const fields = encodeWorld(world);
-  assert.equal(fields[0], 3);
+  assert.equal(fields[0], 4);
   assert.equal(fields[1], 255);
   assert.equal(fields[16], 0xffffffff);
   for (const seed of [

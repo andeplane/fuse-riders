@@ -209,6 +209,16 @@ body.fuseball-page {
 .fb-map-thumb .cloud {
   fill: #aab4ff33;
 }
+.fb-map-thumb .ledge,
+.fb-map-thumb .mover {
+  fill: #7dffc9;
+}
+.fb-map-thumb .rail {
+  stroke: #7dffc9;
+  stroke-width: 3;
+  stroke-dasharray: 6 8;
+  opacity: 0.6;
+}
 .fb-map-thumb .bumper {
   fill: #141f4f;
   stroke: #ffffff;

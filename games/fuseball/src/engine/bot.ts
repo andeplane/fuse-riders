@@ -5,7 +5,7 @@ import { SUB, abs, delta, div, isqrt } from "./math.js";
 import {
   arenaOf,
   barrierBoxesOf,
-  boxesOf,
+  boxesAt,
   isCircle,
   type Box,
   type MapDef,
@@ -114,12 +114,11 @@ function flight(
   steps: number,
   rider?: Rider,
 ): Flight {
-  const boxes = boxesOf(map);
   const ball = { x: from.x, y: from.y, vx: from.vx, vy: from.vy },
     barriers = world.barriers.map((barrier) => ({ ...barrier }));
   let meet: { x: number; y: number } | undefined;
   for (let step = 1; step <= steps; step++) {
-    drift(ball, boxes, map, barriers, false);
+    drift(ball, map, barriers, world.clock + step, false);
     const goal = map.goals.find((each) => inShape(ball.x, ball.y, each, map));
     if (goal) return { ...(meet ?? ball), into: goal.team };
     if (rider && !meet && step % STRIDE === 0) {
@@ -238,7 +237,7 @@ function barred(
   dx: number,
   dy: number,
 ): boolean {
-  for (const box of boxesOf(map)) {
+  for (const box of boxesAt(map, world.clock)) {
     const at = apart(box.cx, box.cy, bx, by, map);
     if (
       abs(dy) <= abs(dx) &&
@@ -341,7 +340,7 @@ function route(
   ball: { x: number; y: number },
   depth = 0,
 ): { dx: number; dy: number; clear: boolean; trip: number } {
-  const boxes = boxesOf(map),
+  const boxes = boxesAt(map, world.clock),
     snug = T.RIDER_R - SUB,
     body = T.RIDER_R + CLEAR;
   const solidAt = (x: number, y: number) =>
@@ -660,7 +659,7 @@ function plan(world: World, rider: Rider, map: MapDef): number {
     const stick = way & RIGHT ? 1 : way & LEFT ? -1 : 0,
       kerb =
         stick !== 0 &&
-        boxesOf(map).some((box) => {
+        boxesAt(map, world.clock).some((box) => {
           const at = apart(box.cx, box.cy, rider.x, rider.y, map);
           return (
             at.dx * stick > 0 &&
