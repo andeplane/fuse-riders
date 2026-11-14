@@ -1,3 +1,4 @@
+import type { AgentCompletion, AgentCompletionRequest } from "../llm/agentLoop";
 import type { LlmMessage } from "../llm/llmChat";
 import type { EngineFactory, LlmEngine, LoadProgress } from "../llm/webLlmChat";
 
@@ -5,6 +6,11 @@ import type { EngineFactory, LlmEngine, LoadProgress } from "../llm/webLlmChat";
 export type FakeLlmEngine = LlmEngine & {
   modelId: string;
   requests: LlmMessage[][];
+  /** Every agent-loop completion asked for, with its schema or tools. */
+  completions: Pick<
+    AgentCompletionRequest,
+    "messages" | "jsonSchema" | "tools"
+  >[];
   unloaded: boolean;
 };
 
@@ -15,6 +21,13 @@ export type FakeEngineFactory = {
   engines: FakeLlmEngine[];
   /** The pieces the engine streams for a request; default echoes the last user line. */
   reply: (messages: readonly LlmMessage[]) => string[] | Promise<string[]>;
+  /**
+   * The agent loop's replies, one per completion, in order: a string is the reply's text (a JSON tool call, say).
+   * When the script runs out (or is empty) a completion answers with the joined pieces of `reply`.
+   */
+  script: (string | AgentCompletion)[];
+  /** When set, every completion waits for this (and for an abort) before answering, so a test can cancel mid-step. */
+  completionGate: Promise<void> | undefined;
   /** Progress reports every load emits before resolving. */
   loadProgress: LoadProgress[];
   /** Set to make the next load reject with this error. */
@@ -36,6 +49,8 @@ export function createFakeEngineFactory(): FakeEngineFactory {
         .find((message) => message.role === "user");
       return [`Echo: ${last?.content ?? ""}`];
     },
+    script: [],
+    completionGate: undefined,
     loadProgress: [],
     failLoad: undefined,
     failStream: undefined,
@@ -52,6 +67,7 @@ export function createFakeEngineFactory(): FakeEngineFactory {
       const engine: FakeLlmEngine = {
         modelId,
         requests: [],
+        completions: [],
         unloaded: false,
         async *stream(messages, signal) {
           engine.requests.push([...messages]);
@@ -65,6 +81,27 @@ export function createFakeEngineFactory(): FakeEngineFactory {
             factory.failStream = undefined;
             throw error;
           }
+        },
+        async complete({ messages, signal, jsonSchema, tools }) {
+          engine.completions.push({
+            messages: [...messages],
+            jsonSchema,
+            tools,
+          });
+          if (factory.completionGate)
+            await Promise.race([
+              factory.completionGate,
+              new Promise<void>((resolve) =>
+                signal.addEventListener("abort", () => resolve(), {
+                  once: true,
+                }),
+              ),
+            ]);
+          if (signal.aborted) throw new Error("interrupted");
+          const scripted = factory.script.shift();
+          if (scripted === undefined)
+            return { text: (await factory.reply(messages)).join("") };
+          return typeof scripted === "string" ? { text: scripted } : scripted;
         },
         async unload() {
           engine.unloaded = true;

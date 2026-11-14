@@ -7,10 +7,12 @@ import {
   useState,
 } from "react";
 
+import { fromMarkerTool } from "../agenttools/agentTool";
 import { DesktopUiContext } from "../desktop/desktopUiContext";
 import { FuseGamesContext } from "../fusegames/registry";
 import type { ChatBackend, ChatMessage } from "../llm/llmChat";
-import { buildSystemPrompt } from "../llm/systemPrompt";
+import { requestChecklist } from "../llm/intent";
+import { buildAgentPrompt, buildSystemPrompt } from "../llm/systemPrompt";
 import type { AssistantTool, ToolCallEvent } from "../llm/tools";
 import { useAppState } from "../state/useAppState";
 import type { MenuPosition } from "../windows/menuPosition";
@@ -31,6 +33,9 @@ import {
 import { useRegisteredAssistantTools } from "./assistantToolsContext";
 import { useDesktopTools } from "./desktopTools";
 import type { SpriteAgent } from "./spritePlayer";
+
+/** Marker tools of windows that a typed tool already covers in the agent loop (Notepad++'s `[edit:<path>]`: `edit_file`). */
+export const SUPERSEDED_IN_AGENT: readonly string[] = ["edit"];
 
 export const NO_CHAT_REASON =
   "Clippy cannot answer questions here: no chat is wired into this desktop. The tips still work.";
@@ -140,10 +145,37 @@ export function useOfficeAssistantViewModel(): OfficeAssistantViewModel {
     () => [...desktopTools.tools, ...registeredTools],
     [desktopTools.tools, registeredTools],
   );
+  // A small model is told about a few markers only; its context is short.
   const getSystemPrompt = useCallback(
-    () => buildSystemPrompt(desktopTools.prompt, tools),
-    [desktopTools.prompt, tools],
+    () =>
+      buildSystemPrompt(desktopTools.prompt, [
+        ...desktopTools.promptTools,
+        ...registeredTools,
+      ]),
+    [desktopTools.prompt, desktopTools.promptTools, registeredTools],
   );
+  const agentLoop = useMemo(() => {
+    const agentTools = [
+      ...desktopTools.agentTools,
+      ...registeredTools
+        .filter((tool) => !SUPERSEDED_IN_AGENT.includes(tool.name))
+        .map(fromMarkerTool),
+    ];
+    return {
+      tools: agentTools,
+      getPrompt: () => buildAgentPrompt(desktopTools.prompt, agentTools),
+      timers: { setTimeout: deps.setTimeout, clearTimeout: deps.clearTimeout },
+      // The rules know what "open Paint and play music" comes to; the loop holds the model to both halves.
+      checklist: (request: string) =>
+        requestChecklist(request, desktopTools.intents),
+    };
+  }, [
+    desktopTools.agentTools,
+    desktopTools.prompt,
+    desktopTools.intents,
+    registeredTools,
+    deps,
+  ]);
   const onToolCall = useCallback(
     (event: ToolCallEvent) =>
       assistantDispatch({
@@ -157,6 +189,7 @@ export function useOfficeAssistantViewModel(): OfficeAssistantViewModel {
     getSystemPrompt,
     tools,
     onToolCall,
+    agent: agentLoop,
   });
   const available = deps.chatAvailable;
   const unavailableReason = available ? undefined : NO_CHAT_REASON;

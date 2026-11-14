@@ -60,7 +60,26 @@ describe(desktopTargets.name, () => {
     );
     expect(
       targets.filter((target) => target.kind === "app").map((t) => t.id),
-    ).toEqual(["paint", "winamp", "settings", "display", "about"]);
+    ).toEqual([
+      "paint",
+      "winamp",
+      "settings",
+      "display",
+      "about",
+      "notepad",
+      "explorer",
+      "fusteam",
+      "retro-games",
+      "defrag",
+      "screensaver",
+      "system",
+      "assistant",
+      "keyboard",
+      "games-settings",
+    ]);
+    expect(
+      targets.find((target) => target.id === "screensaver")?.content,
+    ).toEqual({ kind: "controlpanel", applet: "display", tab: "screensaver" });
     expect(new Set(targets.map((target) => target.id)).size).toBe(
       targets.length,
     );
@@ -126,7 +145,7 @@ describe(createOpenTool.name, () => {
 });
 
 describe(createMusicTool.name, () => {
-  it("presses the transport of the open Winamp", () => {
+  it("presses the transport of the open Winamp", async () => {
     const winamp = fakeWinamp();
     const registry = createWinampRegistry();
     registry.set("w1", winamp);
@@ -137,11 +156,11 @@ describe(createMusicTool.name, () => {
     expect(tool.describe()).toContain(
       "[music:<play|pause|stop|next|previous>]",
     );
-    expect(tool.run({ name: "music", arg: "play" })).toEqual({
+    expect(await tool.run({ name: "music", arg: "play" })).toEqual({
       ok: true,
       sentence: "Playing music in Winamp",
     });
-    expect(tool.run({ name: "music", arg: " NEXT " })).toEqual({
+    expect(await tool.run({ name: "music", arg: " NEXT " })).toEqual({
       ok: true,
       sentence: "Skipping to the next track",
     });
@@ -152,17 +171,17 @@ describe(createMusicTool.name, () => {
     );
   });
 
-  it("opens Winamp for play when none is open and presses Play once it has loaded; the other actions say so", () => {
+  it("opens Winamp for play when none is open and presses Play once it has loaded; the other actions say so", async () => {
     const opened: WindowContent[] = [];
     const registry = createWinampRegistry();
     const tool = createMusicTool(registry, {
       open: (content) => opened.push(content),
     });
-    expect(tool.run({ name: "music", arg: "next" })).toEqual({
+    expect(await tool.run({ name: "music", arg: "next" })).toEqual({
       ok: false,
       sentence: "Winamp is not open",
     });
-    expect(tool.run({ name: "music", arg: "play" })).toEqual({
+    expect(await tool.run({ name: "music", arg: "play" })).toEqual({
       ok: true,
       sentence: "Starting Winamp with the Fuse soundtrack",
     });
@@ -177,29 +196,44 @@ describe(createMusicTool.name, () => {
     expect(again.pressed).toEqual([]);
   });
 
-  it("refuses an action Winamp has no button for", () => {
+  it("refuses an action Winamp has no button for, and a volume it has no slider for", async () => {
     const registry = createWinampRegistry();
     registry.set("w1", fakeWinamp());
     const tool = createMusicTool(registry, { open: () => undefined });
-    expect(tool.sentence({ name: "music", arg: "louder" })).toBe(
-      'Winamp cannot "louder"',
-    );
-    expect(tool.run({ name: "music", arg: "louder" })).toEqual({
+    const refusal =
+      'music has no action "dance"; use one of: play, pause, stop, next, previous, volume';
+    expect(tool.sentence({ name: "music", arg: "dance" })).toBe(refusal);
+    expect(await tool.run({ name: "music", arg: "dance" })).toEqual({
       ok: false,
-      sentence: 'Winamp cannot "louder"; try play, pause, stop, next, previous',
+      sentence: refusal,
+    });
+    expect(await tool.run({ name: "music", arg: "volume,40" })).toEqual({
+      ok: false,
+      sentence: "This Winamp has no volume control",
     });
   });
 });
 
 describe(useDesktopTools.name, () => {
-  it("builds the tools over the desktop's registries and window commands", () => {
+  it("builds the marker tools and the typed tools over the desktop's registries and window commands", async () => {
     const context = createWrapper();
     const { result } = renderHook(() => useDesktopTools(), {
       wrapper: context.Wrapper,
     });
+    // `[open:<id>]` first, then every typed tool as a marker.
     expect(result.current.tools.map((tool) => tool.name)).toEqual([
       "open",
-      "music",
+      ...result.current.agentTools.map((tool) => tool.name),
+    ]);
+    expect(result.current.agentTools.map((tool) => tool.name)).toContain(
+      "set_display",
+    );
+    // A small model is told about two markers only, in the short form.
+    expect(result.current.promptTools.map((tool) => tool.describe())).toEqual([
+      expect.stringMatching(
+        /^\[open:<id>\] opens a game or app\. Ids: fuseball, /,
+      ),
+      "[music:<play|pause|stop|next|previous>] controls Winamp, the music player.",
     ]);
     expect(result.current.intents.gameNames).toEqual([
       "Fuseball",
@@ -219,14 +253,14 @@ describe(useDesktopTools.name, () => {
       "paint",
     ]);
 
-    const music = result.current.tools[1];
-    expect(music?.run({ name: "music", arg: "pause" })).toEqual({
+    const music = result.current.tools.find((tool) => tool.name === "music");
+    expect(await music?.run({ name: "music", arg: "pause" })).toEqual({
       ok: false,
       sentence: "Winamp is not open",
     });
     const winamp = fakeWinamp();
     context.winampRegistry.set("w9", winamp);
-    expect(music?.run({ name: "music", arg: "pause" })).toEqual({
+    expect(await music?.run({ name: "music", arg: "pause" })).toEqual({
       ok: true,
       sentence: "Pausing Winamp",
     });
