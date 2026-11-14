@@ -128,6 +128,11 @@ test("DOM components stay self-contained; browser adapters use explicit shared b
         continue;
       }
       const adapters: Record<string, readonly string[]> = {
+        // Music is a game-agnostic browser capability owned by its own workspace package.
+        "assets.ts": ["fuse-music"],
+        "music.ts": ["fuse-music"],
+        "radio.ts": ["fuse-music"],
+        "top-bar.ts": ["fuse-music"],
         "friends-client.ts": ["fuse-platform/friends-api"],
         "friends-notify.ts": ["fuse-platform/friends-api"],
         "social.ts": ["fuse-network-fe", "fuse-platform/rating"],

@@ -20,9 +20,9 @@ import {
  * checks every one against the bounds and the consistency the simulation keeps. `decodeWorld` returns a whole new
  * world or nothing; it never changes what it was given.
  */
-const VERSION = 2;
+const VERSION = 3;
 const HEAD_FIELDS = 6,
-  RIDER_FIELDS = 9;
+  RIDER_FIELDS = 10;
 
 const int = (value: unknown, low: number, high: number): value is number =>
   typeof value === "number" &&
@@ -54,6 +54,7 @@ const encodeRider = (rider: Rider): unknown[] => [
   rider.wait,
   rider.deaths,
   rider.finish,
+  rider.step,
   BIKE_KEYS.map((key) => rider.bike[key]),
 ];
 
@@ -83,11 +84,11 @@ function decodeBike(raw: unknown): Bike | undefined {
 
 function decodeRider(
   raw: unknown,
-  step: number,
+  worldStep: number,
   allApples: bigint,
 ): Rider | undefined {
   if (!Array.isArray(raw) || raw.length !== RIDER_FIELDS) return;
-  const [id, status, taken, prev, run, wait, deaths, finish, rawBike] =
+  const [id, status, taken, prev, run, wait, deaths, finish, own, rawBike] =
     raw as unknown[];
   const bike = decodeBike(rawBike);
   const apples = decodeApples(taken);
@@ -97,10 +98,12 @@ function decodeRider(
     apples === undefined ||
     apples > allApples ||
     !isInput(prev) ||
-    !int(run, 0, step) ||
+    // A rider's own clock stays within reach of the race's.
+    !int(own, 0, Math.min(T.RACE_LIMIT, worldStep + T.RIDER_AHEAD)) ||
+    !int(run, 0, own) ||
     !int(wait, 0, T.RESPAWN) ||
     !int(deaths, 0, MOST) ||
-    !int(finish, 0, step) ||
+    !int(finish, 0, own) ||
     !bike
   )
     return;
@@ -120,6 +123,7 @@ function decodeRider(
     wait,
     deaths,
     finish,
+    step: own,
   };
 }
 
@@ -136,7 +140,7 @@ export function decodeWorld(raw: unknown): World | undefined {
     !isLevel(level) ||
     !int(phaseIndex, 0, PHASES.length - 1) ||
     !int(go, 0, T.COUNTDOWN) ||
-    !int(step, 0, T.RACE_LIMIT) ||
+    !int(step, 0, T.RACE_LIMIT + T.CLOSE_LAG) ||
     !int(close, 1, T.RACE_LIMIT)
   )
     return;
@@ -144,7 +148,7 @@ export function decodeWorld(raw: unknown): World | undefined {
   if (
     (phase === "countdown") !== go > 0 ||
     (phase === "countdown" && step !== 0) ||
-    (phase === "racing" && step >= close)
+    (phase === "racing" && step >= close + T.CLOSE_LAG)
   )
     return;
   const allApples = (1n << BigInt(compile(LEVELS[level]!).apples.length)) - 1n;

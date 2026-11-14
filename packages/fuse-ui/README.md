@@ -106,6 +106,14 @@ const pad = createControllerRow({
 });
 ```
 
+## Music
+
+`fuse-music` supplies `ALL_SONGS` and `MusicPlayer` independently of any game's
+effects. Every game currently uses the full catalogue, including the Fuseball
+and Volley songs. `createTopBar` supplies radio controls by default; pass
+`music: chosenSongs` for a game's selection, or `music: false` for a custom radio
+UI backed by the same player. See [Fuse Music](../fuse-music/README.md).
+
 ## Tests
 
-`packages/fuse-ui/tests/` runs in `pnpm test` on `linkedom`: structure, hostile names rendered as text, and callbacks. It also checks that the package imports nothing outside itself.
+`packages/fuse-ui/tests/` runs in `pnpm test` on `linkedom`: structure, hostile names rendered as text, and callbacks. Its boundary check permits only explicit shared browser capabilities, including `fuse-music`.

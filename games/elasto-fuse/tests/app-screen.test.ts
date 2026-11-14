@@ -2,12 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ACTION, LEAVE, PRESENCE, SETTINGS } from "fuse-netcode";
 import {
+  CLOSE_LAG,
   FINISHED,
   GAS,
   LEVELS,
   STEPS_PER_SECOND,
   STEPS_PER_TICK,
   TURN,
+  advanceRider,
   centiseconds,
   createWorld,
   stepWorld,
@@ -16,14 +18,12 @@ import {
 } from "../src/engine/index.js";
 import { PLACE_POINTS } from "../src/basics.js";
 import {
-  MAX_AHEAD,
+  GHOST_AHEAD,
   blendViews,
   copyWorld,
-  createLeadClock,
-  forward,
-  forwardInputs,
-  stepsAhead,
-  type ForwardInputs,
+  createGhosts,
+  project,
+  type RiderPlan,
 } from "../src/app/forward.js";
 import {
   LEVEL_CHOICES,
@@ -58,12 +58,13 @@ import {
   type Store,
 } from "../src/app/session.js";
 import { PLAY, DEFAULT_SETTINGS, view, type Room } from "../src/online/game.js";
-import { fold, run, seated, started } from "./fixtures/room.js";
+import { fold, play, run, seated, started } from "./fixtures/room.js";
 
 const SINGLE = { ...DEFAULT_SETTINGS, count: 1 as const };
-const everyone = (bits: readonly number[]): ForwardInputs => ({
-  held: (_world, slot) => bits[slot] ?? 0,
-  present: () => true,
+/** A plan that draws a rider at step `to` of its own clock, holding `bits` all the way. */
+const hold = (to: number, bits: number): RiderPlan => ({
+  to,
+  bits: () => bits,
 });
 /** A two-rider race on the first level, past its countdown and `steps` into the ride with `bits` held. */
 function racing(steps = 0, bits: readonly number[] = [0, 0]): World {
@@ -80,6 +81,7 @@ function finishRace(room: Room, times: readonly number[] = [800, 960]): void {
     rider.status = FINISHED;
     rider.finish = times[slot]!;
     rider.run = times[slot]!;
+    rider.step = times[slot]!;
   });
   fold(room);
 }
@@ -95,36 +97,40 @@ const fakeStore = (): Store & { data: Map<string, string> } => {
   };
 };
 
-// ---- the forward run ----
+// ---- every bike on its own clock ----
 
-test("the forward run plays the newest world on a copy, exactly as the fold would", () => {
+test("the screen plays a rider on to its own clock on a copy, exactly as the room will", () => {
   const world = racing(40, [GAS, 0]);
   const before = structuredClone(world);
-  const drawn = forward(world, STEPS_PER_TICK, everyone([GAS, 0]));
+  const drawn = project(world, [hold(48, GAS)]);
   assert.deepEqual(world, before, "the room's world is untouched");
   const expected = copyWorld(world);
-  for (let i = 0; i < STEPS_PER_TICK; i++)
-    stepWorld(expected, [GAS, 0], [true, true]);
+  advanceRider(expected, 0, 48, GAS);
   assert.deepEqual(drawn, toView(expected));
-  assert.deepEqual(forward(world, 0, everyone([0, 0])), toView(world));
+  assert.equal(drawn.riders[0]!.step, 48);
+  assert.equal(drawn.riders[1]!.step, 40, "a rider with no plan stays put");
+  assert.deepEqual(project(world, []), toView(world));
   assert.deepEqual(
-    forward(world, 99, everyone([GAS, 0])),
-    forward(world, MAX_AHEAD, everyone([GAS, 0])),
-    "never further than two log ticks",
-  );
-  assert.deepEqual(
-    forward(world, -3, everyone([GAS, 0])),
+    project(world, [hold(12, GAS)]),
     toView(world),
     "never backwards",
   );
+  // The bits are asked for step by step: a key that went down on step 44 acts there.
+  const pressed = project(world, [
+    { to: 48, bits: (step) => (step < 44 ? GAS : GAS | TURN) },
+  ]);
+  const same = copyWorld(world);
+  advanceRider(same, 0, 44, GAS);
+  advanceRider(same, 0, 48, GAS | TURN);
+  assert.deepEqual(pressed, toView(same));
+  assert.notDeepEqual(pressed, drawn);
 });
 
 test("a fraction of a step is drawn between the two steps either side", () => {
   const world = racing(60, [GAS, 0]);
-  const hold = everyone([GAS, 0]);
-  const a = forward(world, 2, hold),
-    b = forward(world, 3, hold),
-    half = forward(world, 2.5, hold);
+  const a = project(world, [hold(62, GAS)]),
+    b = project(world, [hold(63, GAS)]),
+    half = project(world, [hold(62.5, GAS)]);
   const mid = (x: number, y: number) => (x + y) / 2;
   const ra = a.riders[0]!.bike,
     rb = b.riders[0]!.bike,
@@ -136,7 +142,7 @@ test("a fraction of a step is drawn between the two steps either side", () => {
   assert.ok(Math.abs(rh.head.x - mid(ra.head.x, rb.head.x)) < 1e-12);
   // Clocks and counts are the earlier step's until the later one is reached.
   assert.equal(half.riders[0]!.run, a.riders[0]!.run);
-  assert.equal(half.step, a.step);
+  assert.deepEqual(half.riders[1], a.riders[1], "the others are not touched");
   assert.equal(blendViews(a, b, 0), a);
   assert.equal(blendViews(a, b, 1), b);
 });
@@ -167,72 +173,58 @@ test("a blend never smears a restart, a turn-around, another level or a wrapped 
     a.riders[0]!.bike.left.rot,
   );
   // The facing is the earlier step's: the picture flips on a whole step.
-  const turned = forward(racing(30, [GAS, 0]), 0.5, everyone([GAS | TURN, 0]));
+  const turned = project(racing(30, [GAS, 0]), [hold(30.5, GAS | TURN)]);
   assert.equal(
     turned.riders[0]!.bike.flipped,
     toView(racing(30, [GAS, 0])).riders[0]!.bike.flipped,
   );
   assert.equal(
-    forward(racing(30, [GAS, 0]), 1, everyone([GAS | TURN, 0])).riders[0]!.bike
+    project(racing(30, [GAS, 0]), [hold(31, GAS | TURN)]).riders[0]!.bike
       .flipped,
     !toView(racing(30, [GAS, 0])).riders[0]!.bike.flipped,
     "a turn held now shows on the next whole step",
   );
 });
 
-test("the forward run counts a countdown down and leaves a finished race alone", () => {
-  const waiting = createWorld(["a"], 0, 40);
-  assert.equal(forward(waiting, 3, everyone([GAS])).go, 37);
+test("a finished race is drawn as the room has it", () => {
   const over = racing(10);
   over.phase = "over";
-  assert.deepEqual(forward(over, 5.5, everyone([GAS, GAS])), toView(over));
-});
-
-test("steps ahead come from the runtime's clock, clamped to a log tick", () => {
-  assert.equal(stepsAhead({ tick: 60, lead: 0.5 }, 60), 2);
-  assert.equal(stepsAhead({ tick: 58, lead: 1 }, 60), 2);
-  assert.equal(stepsAhead({ tick: 52, lead: 0 }, 60), 0);
-  assert.equal(stepsAhead({ tick: 60, lead: 1 }, 52), STEPS_PER_TICK);
-});
-
-test("while the fold is late the wall clock carries the picture on, then hands back without a jump", () => {
-  const lead = createLeadClock();
-  const stepMs = 1000 / STEPS_PER_SECOND;
-  assert.equal(lead(1, 40, 1000), 1);
-  assert.equal(lead(3, 40, 1000 + 2 * stepMs), 3);
-  // Pinned at a whole tick: the wall clock goes on from the last unpinned frame.
-  assert.equal(lead(STEPS_PER_TICK, 40, 1000 + 3 * stepMs), STEPS_PER_TICK);
-  const carried = lead(STEPS_PER_TICK, 40, 1000 + 4.5 * stepMs);
-  assert.ok(Math.abs(carried - 5.5) < 1e-9, String(carried));
-  assert.equal(lead(STEPS_PER_TICK, 40, 1000 + 99 * stepMs), MAX_AHEAD);
-  // The next tick is folded: the runtime's own timing again.
-  assert.equal(lead(1.5, 44, 1000 + 5.5 * stepMs), 1.5);
-});
-
-test("the forward run leads this device with its live keys and plays the others as last logged", () => {
-  const room = started(SINGLE);
-  while (room.world!.phase === "countdown") fold(room);
-  fold(room, { b: [[PLAY, room.matchId, GAS]] });
-  const world = room.world!;
-  const inputs = forwardInputs(room, "a", GAS | TURN);
-  assert.equal(
-    inputs.held(world, 0),
-    GAS | TURN,
-    "this device: held right now",
+  assert.deepEqual(
+    project(over, [hold(15.5, GAS), hold(20, GAS)]),
+    toView(over),
   );
-  assert.equal(inputs.held(world, 1), GAS, "the other rider: last logged");
-  assert.equal(inputs.present(world, 0), true);
-  assert.equal(inputs.present(world, 1), true);
-  // A rider whose device is gone holds nothing and is not waited for, as in the fold.
+});
+
+test("the other riders are ghosts on an eased clock a little past the last word of them; this device's bike is not one", () => {
+  const room = started(SINGLE);
+  fold(room, { b: [play(room, GAS, 0), play(room, GAS, 20)] });
+  const ghosts = createGhosts();
+  const first = ghosts(room, "a", 1000);
+  assert.equal(first[0], undefined, "this device's own bike has its own clock");
+  const ghost = first[1]!;
+  assert.ok(ghost.to >= 20 && ghost.to < 21, "from where it was last heard");
+  assert.equal(ghost.bits(25), GAS, "on what it last held");
+  // It runs on with the wall clock between words, a frame at a time, and never far past the last one.
+  let last = ghost.to;
+  for (let ms = 1016; ms < 1100; ms += 16) {
+    const to = ghosts(room, "a", ms)[1]!.to;
+    assert.ok(to > last && to - last < 2, "an even pace");
+    last = to;
+  }
+  for (let ms = 1100; ms < 2000; ms += 16) last = ghosts(room, "a", ms)[1]!.to;
+  assert.ok(last <= 20 + GHOST_AHEAD);
+  // New word of it: the clock is never behind what was heard.
+  fold(room, { b: [play(room, 0, 60)] });
+  const heard = ghosts(room, "a", 2016)[1]!;
+  assert.ok(heard.to >= 60);
+  assert.equal(heard.bits(61), 0);
+  // The drawn ghost is the room's bike played on with those bits.
+  const drawn = project(room.world!, ghosts(room, "a", 2032));
+  assert.ok(drawn.riders[1]!.step >= 60);
+  assert.equal(drawn.riders[0]!.step, 0);
+  // A rider whose device is gone is drawn where the room has it.
   fold(room, { a: [[PRESENCE, "b", false, 1]] });
-  const after = forwardInputs(room, "a", 0);
-  assert.equal(after.held(room.world!, 1), 0);
-  assert.equal(after.present(room.world!, 1), false);
-  // What the screen draws one tick ahead is what the fold then computes, when the keys do not change.
-  const live = forwardInputs(room, "a", 0);
-  const drawn = forward(room.world!, STEPS_PER_TICK, live);
-  fold(room);
-  assert.deepEqual(drawn, toView(room.world!));
+  assert.equal(ghosts(room, "a", 2048)[1], undefined);
 });
 
 // ---- the presenter ----
@@ -386,8 +378,10 @@ test("a rider who never reached the flower is listed without a time or points", 
   const world = room.world!;
   while (world.phase === "countdown") fold(room);
   world.riders[0]!.status = FINISHED;
-  world.riders[0]!.finish = world.riders[0]!.run = 400;
-  world.step = world.close = 400 + 30 * STEPS_PER_SECOND - 1;
+  world.riders[0]!.finish = world.riders[0]!.run = world.riders[0]!.step = 400;
+  // The other rider never said how far it rode: the race stops waiting a while past its close.
+  world.close = 400 + 30 * STEPS_PER_SECOND;
+  world.step = world.close + CLOSE_LAG;
   fold(room);
   assert.equal(room.stage, "over");
   const model = present(view(room), viewer("b"));
@@ -708,7 +702,10 @@ test("a muted page never opens the browser's audio; the hum follows the gas and 
   audio.setMuted(true);
   sfx.play({ kind: "go" });
   assert.equal(rig.log.oscillators, 3, "the header's mute rules the effects");
-  assert.deepEqual(ELASTO_SONGS, []);
+  assert.ok(
+    ELASTO_SONGS.length >= 18,
+    "the default radio includes every shipped song",
+  );
 
   assert.ok(humPitch(1, false) > humPitch(0, false));
   assert.ok(humPitch(0.5, true) > humPitch(0.5, false));

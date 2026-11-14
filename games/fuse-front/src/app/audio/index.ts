@@ -21,7 +21,7 @@ export function createAudio(
   muted: boolean,
   debug: HTMLElement,
 ): { audio: FrontAudio; toggles: () => HTMLElement[] } {
-  const backend = new WebAudioBackend();
+  const backend = new WebAudioBackend(true);
   const every: Repeat = (tick, ms) => void setInterval(tick, ms);
   const audio = new FrontAudio(backend, store, keys, muted, every);
   // Every button's press clicks (unless the press sounded already); a hover over one ticks softly.
@@ -85,6 +85,6 @@ export function createAudio(
   };
   return {
     audio,
-    toggles: () => [toggle("♫ MUSIC", "music"), toggle("SFX", "effects")],
+    toggles: () => [toggle("SFX", "effects")],
   };
 }

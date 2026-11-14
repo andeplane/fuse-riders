@@ -164,6 +164,7 @@ function render() {
       top.querySelector<HTMLElement>(".fui-top-bar-brand");
     if (brand) brand.textContent = "BALL BROS";
     createTopBar({
+      music: false,
       element: top,
       brand: brand ?? undefined,
       gameId: "ball-bros",

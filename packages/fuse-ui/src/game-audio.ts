@@ -615,7 +615,11 @@ export function bindAudioInput(
  * A small sound button: tap to mute or unmute, with the two volumes in a panel beside it. It belongs in a header
  * next to the portal button; `M` toggles the mute from a keyboard. The same element works on the TV and on phones.
  */
-export function createAudioControl(doc: Document, audio: GameAudio) {
+export function createAudioControl(
+  doc: Document,
+  audio: GameAudio,
+  options: { music?: boolean } = {},
+) {
   const element = doc.createElement("div"),
     button = doc.createElement("button"),
     panel = doc.createElement("div"),
@@ -641,7 +645,10 @@ export function createAudioControl(doc: Document, audio: GameAudio) {
     row.append(`${label} `, input);
     return { row, input, which };
   };
-  const sliders = [slider("music", "Music"), slider("effects", "Effects")];
+  const sliders = [
+    ...(options.music === false ? [] : [slider("music", "Music")]),
+    slider("effects", "Effects"),
+  ];
   panel.append(...sliders.map((entry) => entry.row));
   element.append(button, more, panel);
   const render = () => {

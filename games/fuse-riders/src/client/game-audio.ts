@@ -1,4 +1,5 @@
 import { el, type TopBarSound } from "fuse-ui";
+import { MusicPlayer } from "fuse-ui/music";
 import {
   AudioDirector,
   MUSIC_TRACKS,
@@ -6,7 +7,7 @@ import {
   type GameSynth,
   type SynthNote,
 } from "./audio-director.js";
-import { assetUrl } from "../render/asset-url.js";
+
 import {
   RADIO_KEY,
   RADIO_SHORTCUT_HINT,
@@ -121,20 +122,28 @@ class WebAudioSynth implements GameSynth {
   private effects?: GainNode;
   private levels = { ...DEFAULT_VOLUME };
   private voices = new Set<OscillatorNode>();
-  private element?: HTMLAudioElement;
-  private trackPath = "";
-  private loadedPath = "";
-  /** Resume point for a track whose metadata has not loaded yet; a media element cannot seek before then. */
-  private pendingSeek?: number;
-  /** Pauses and plays this synth starts itself; any other pause or play event came from the OS or the browser. */
-  private ownPause = false;
-  private ownPlay = false;
+  private readonly musicPlayer = MusicPlayer(MUSIC_TRACKS, {
+    base: import.meta.env?.BASE_URL ?? "/",
+    retryOnGesture: true,
+    createMedia: () => {
+      const element = new Audio();
+      element.preload = "auto";
+      element.className = "game-music";
+      document.body.append(element);
+      return element;
+    },
+    onEnded: () => this.trackEnded(),
+    onPause: () => this.mediaPaused(),
+    onPlay: () => this.mediaResumed(),
+  });
   constructor(
     private readonly stateChanged: (running: boolean) => void,
     private readonly trackEnded: () => void,
     private readonly mediaPaused: () => void = () => {},
     private readonly mediaResumed: () => void = () => {},
-  ) {}
+  ) {
+    this.musicPlayer.setVolume(DEFAULT_VOLUME.music);
+  }
   async unlock(): Promise<boolean> {
     try {
       if (!this.context || this.context.state === "closed") {
@@ -161,12 +170,7 @@ class WebAudioSynth implements GameSynth {
   gain(channel: AudioChannel, value: number): void {
     this.levels[channel] = value;
     if (channel === "music") {
-      if (!this.element) return;
-      this.element.volume = value;
-      // Silent music does not stream. Pausing keeps the position, so turning it back on continues the
-      // tune rather than restarting it, and a page left muted never downloads the playlist.
-      if (value <= 0) this.pauseElement();
-      else this.startTrack();
+      this.musicPlayer.setVolume(value);
       return;
     }
     if (this.context && this.effects)
@@ -206,132 +210,28 @@ class WebAudioSynth implements GameSynth {
     oscillator.start(start);
     oscillator.stop(end + 0.01);
   }
-  /**
-   * Music plays through a plain media element, never the Web Audio graph: a phone's volume keys reach it, it
-   * streams instead of holding ~60 MB of decoded PCM per track, and it plays on while iOS suspends the effects
-   * context on lock. The silent switch and playing on behind the lock screen are session matters, see `audio-session.ts`.
-   */
+  /** The common player streams music; this adapter retains Riders' radio/playlist and media-session UI. */
   music(path: string, offset: number): void {
-    const element = (this.element ??= this.createElement());
-    this.trackPath = path;
-    element.volume = this.levels.music;
-    // Resuming the loaded track where it paused must not seek: a server without range requests cannot seek,
-    // and the element would restart from the top. Only a real jump (restart, a different resume point) seeks.
-    if (
-      this.loadedPath === path &&
-      element.readyState >= HTMLMediaElement.HAVE_METADATA
-    ) {
-      // A seek queued for a track that never loaded (music was off) must not outlive it, or position() stays unknown.
-      this.pendingSeek = undefined;
-      if (Math.abs(element.currentTime - offset) > 0.5)
-        element.currentTime = offset;
-    } else this.pendingSeek = offset;
-    this.startTrack();
+    const song = MUSIC_TRACKS.find((song) => song.path === path);
+    if (song) this.musicPlayer.play(song.id, offset);
   }
   pauseMusic(): void {
-    this.trackPath = "";
-    this.pauseElement();
+    this.musicPlayer.pause();
   }
   audible(): boolean {
-    const element = this.element;
-    return (
-      !!element &&
-      !!this.trackPath &&
-      this.loadedPath === this.trackPath &&
-      !element.paused &&
-      !element.ended &&
-      element.volume > 0
-    );
-  }
-  private pauseElement(): void {
-    const element = this.element;
-    if (!element || element.paused) return;
-    this.ownPause = true;
-    element.pause();
+    return this.musicPlayer.audible;
   }
   position(): number | undefined {
-    const element = this.element;
-    // Only the track this synth is playing has a position: after a switch while music was off, the element still holds the old one.
-    return element &&
-      this.loadedPath &&
-      this.loadedPath === this.trackPath &&
-      this.pendingSeek === undefined &&
-      element.readyState >= HTMLMediaElement.HAVE_METADATA
-      ? element.currentTime
-      : undefined;
+    return this.musicPlayer.position;
   }
   duration(): number | undefined {
-    const length = this.element?.duration;
-    return this.loadedPath &&
-      this.loadedPath === this.trackPath &&
-      length !== undefined &&
-      Number.isFinite(length)
-      ? length
-      : undefined;
+    return this.musicPlayer.duration;
   }
-  private createElement(): HTMLAudioElement {
-    const element = new Audio();
-    element.preload = "auto";
-    element.className = "game-music";
-    element.addEventListener("ended", () => this.trackEnded());
-    // iOS and cars pause and resume the element directly; the radio has to hear about it (#135).
-    element.addEventListener("pause", () => {
-      if (this.ownPause) {
-        this.ownPause = false;
-        return;
-      }
-      if (!element.ended && this.trackPath) this.mediaPaused();
-    });
-    element.addEventListener("play", () => {
-      if (this.ownPlay) {
-        this.ownPlay = false;
-        return;
-      }
-      this.mediaResumed();
-    });
-    // A resume point at or past the end plays nothing and ends at once, which advances the radio.
-    element.addEventListener("loadedmetadata", () => {
-      if (this.pendingSeek === undefined) return;
-      element.currentTime = Number.isFinite(element.duration)
-        ? Math.min(this.pendingSeek, element.duration)
-        : this.pendingSeek;
-      this.pendingSeek = undefined;
-    });
-    // Attached rather than detached: some browsers are stricter about playing an orphan element, and it
-    // lives on <body> so the page swapping out its own root never takes the soundtrack with it.
-    document.body.append(element);
-    return element;
-  }
-  /** Loads the current track if it is not loaded and plays it, unless music is silent. */
   private startTrack(): void {
-    const element = this.element;
-    if (!element || !this.trackPath || this.levels.music <= 0) return;
-    // Loading a source discards queued media events, so a pause or play this synth expected will never arrive.
-    if (this.loadedPath !== this.trackPath) {
-      this.loadedPath = this.trackPath;
-      this.ownPause = false;
-      this.ownPlay = false;
-      element.src = assetUrl(this.trackPath);
-    }
-    // Autoplay refusal rejects play(); the next gesture retries, so a refused track never blocks play.
-    if (element.paused) {
-      this.ownPlay = true;
-      void element.play().catch(() => {
-        this.ownPlay = false;
-      });
-    }
+    this.musicPlayer.unlock();
   }
   private stopMusic(): void {
-    this.trackPath = "";
-    this.loadedPath = "";
-    this.pendingSeek = undefined;
-    if (!this.element) return;
-    // Dropping the source as well as pausing stops the download for a page that is going away.
-    this.pauseElement();
-    this.element.removeAttribute("src");
-    this.element.load();
-    this.ownPause = false;
-    this.ownPlay = false;
+    this.musicPlayer.stop();
   }
   stop(): void {
     for (const voice of this.voices) {
