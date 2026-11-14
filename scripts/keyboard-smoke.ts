@@ -4,6 +4,7 @@ import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { smokeTimeout } from "./smoke-timeout.js";
+import { openTopMenu } from "./lib/top-menu.js";
 const base = process.env.HOME_URL ?? "http://127.0.0.1:4188/";
 interface Snapshot {
   kind: "snapshot";
@@ -249,6 +250,7 @@ for (const { name, kind } of BOTH_ENGINES) {
         .getByText("RELEASE!", { exact: true })
         .waitFor({ state: "attached" });
       await wait(() => actor().bombChargeStartedTick !== undefined);
+      await openTopMenu(page);
       await page.getByRole("button", { name: /^(ROOM|EXIT)$/ }).click();
       await page.keyboard.up("Space");
       await page.getByRole("button", { name: "CLOSE", exact: true }).click();

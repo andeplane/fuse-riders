@@ -451,11 +451,12 @@ try {
   await close(host);
   // Refresh is a new consent boundary: no saved preference automatically reopens capture.
   await guest.reload();
-  await guest.locator(".voice-toggle").waitFor();
+  await guest.locator(".voice-toggle").waitFor({ state: "attached" }); // it is in the Game menu, shut until asked for
   assert.equal((await data(guest)).requests, 0);
   await voice(guest);
   await guest.getByRole("button", { name: "JOIN VOICE", exact: true }).click();
   await guest.getByRole("button", { name: "MUTE MIC", exact: true }).waitFor();
+  await openTopMenu(host);
   await host.getByRole("button", { name: "ROOM", exact: true }).click();
   await host.getByRole("button", { name: "END ROOM", exact: true }).click();
   await host.waitForURL((url) => !url.searchParams.has("room"));
