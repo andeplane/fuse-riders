@@ -46,7 +46,7 @@ export function briefing(slot: number, device: Device): Briefing {
       controls: [
         { keys: keys.move, action: "move" },
         { keys: queenButton, action: "tap to flap" },
-        { keys: keys.down, action: "hold to dive" },
+        { keys: keys.down, action: "hold to dive, release to stop" },
       ],
       tips: [
         `Touch enemies from above or behind to kill · Touch gates to claim them · You have ${QUEEN_EGGS} lives`,

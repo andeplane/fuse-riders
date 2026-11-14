@@ -631,8 +631,39 @@ body.kf-display .kf-seat-line {
 }
 /* A phone held sideways: the arena takes the screen and the controls lie over its lower corners. */
 @media (pointer: coarse) and (orientation: landscape) {
+  /*
+   * The page is exactly the screen: the header keeps one short row (the account buttons wait for the lobby; the menu
+   * stays), and the arena is as large as fits in whatever height the header leaves, measured as a container rather
+   * than guessed from the header's height, so the floor and the snail's lane are always on screen.
+   */
+  body:has(.kf-room[data-layout="arena"][data-screen="arena"]) #app {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+  body:has(.kf-room[data-layout="arena"][data-screen="arena"]) .kf-top {
+    flex-wrap: nowrap;
+    padding: var(--fui-space-1) 0;
+  }
+  body:has(.kf-room[data-layout="arena"][data-screen="arena"])
+    .kf-top
+    .fui-social,
+  body:has(.kf-room[data-layout="arena"][data-screen="arena"]) .kf-brand small {
+    display: none;
+  }
+  .kf-room[data-layout="arena"][data-screen="arena"] {
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
+    padding-bottom: var(--fui-space-1);
+  }
+  .kf-room[data-layout="arena"][data-screen="arena"] .kf-arena {
+    align-content: start;
+    height: 100%;
+    min-height: 0;
+    container-type: size;
+  }
   .kf-room[data-layout="arena"][data-screen="arena"] .kf-stage {
-    width: min(100%, calc((100dvh - 4.5rem) * 16 / 9));
+    width: min(100cqw, 100cqh * 16 / 9);
   }
   .kf-room[data-layout="arena"] .kf-score,
   .kf-room[data-layout="arena"] .kf-seat-line {
@@ -644,19 +675,30 @@ body.kf-display .kf-seat-line {
     right: 0;
     bottom: 0;
     width: auto;
-    padding: var(--fui-space-3)
-      max(var(--fui-space-4), env(safe-area-inset-left));
+    padding: var(--fui-space-2)
+      max(var(--fui-space-2), env(safe-area-inset-left));
     opacity: 0.7;
     pointer-events: none;
   }
   .kf-room[data-layout="arena"] .kf-touch > * {
     pointer-events: auto;
   }
+  /* Smaller thumbs, so they sit beside the arena on a wide phone and over no more than its corners on a narrow one. */
+  .kf-room[data-layout="arena"] .kf-stick,
+  .fui-app .kf-room[data-layout="arena"] .kf-flap {
+    width: 7rem;
+    height: 7rem;
+  }
+  .kf-room[data-layout="arena"] .kf-knob {
+    width: 3rem;
+    height: 3rem;
+    margin: -1.5rem 0 0 -1.5rem;
+  }
   /* The card keeps to the foot of the screen between the two thumbs, whatever of the arena the screen shows. */
   .kf-room[data-layout="arena"] .kf-brief {
     position: fixed;
     z-index: 5;
     bottom: max(var(--fui-space-2), env(safe-area-inset-bottom));
-    max-width: calc(100vw - 21rem);
+    max-width: calc(100vw - 17rem);
   }
 }

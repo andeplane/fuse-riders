@@ -1,8 +1,6 @@
 import type { ControlHint } from "fuse-ui";
 import {
   EAT_STEPS,
-  FLAP_IMPULSE,
-  FLY_GRAVITY,
   GATE_STEPS,
   MAPS,
   QUEEN_EGGS,
@@ -10,7 +8,12 @@ import {
   TICK_HZ,
   TIME_LIMIT,
 } from "../engine/index.js";
-import { frameIndex, frameRect, type ArtManifest } from "../render/manifest.js";
+import {
+  frameIndex,
+  frameRect,
+  type ArtManifest,
+  type SheetDef,
+} from "../render/manifest.js";
 
 /**
  * How to play, in the words every screen uses: the landing page, the lobby, the menu, the How to play panel and the
@@ -19,8 +22,11 @@ import { frameIndex, frameRect, type ArtManifest } from "../render/manifest.js";
  */
 const seconds = (steps: number): string =>
   `${Math.round((steps / TICK_HZ) * 10) / 10} s`;
-/** Presses a second that hold a flying unit level: each flap cancels this many steps of gravity. */
-export const HOVER_TAPS = Math.round((FLY_GRAVITY * TICK_HZ) / FLAP_IMPULSE);
+/**
+ * Presses a second that hold a flying unit level. The engine's flight is being retuned so that each tap is a short
+ * burst of thrust and about three a second hover; once the engine exports that figure (`HOVER_HZ`), read it here.
+ */
+export const HOVER_TAPS = 3;
 /** Holes in each hive (every map has the same comb). */
 export const HIVE_HOLES = MAPS[1].holes[0].length;
 
@@ -75,7 +81,7 @@ export const UNITS: readonly UnitGuide[] = [
   {
     art: "queen",
     name: "Queen",
-    can: "Fly, kill on contact, dive by holding down in the air, claim gates by touching them.",
+    can: "Fly, kill on contact, dive (hold down in the air, release to stop), claim gates by touching them.",
     cannot: `Carry berries, use gates or ride the snail. She has ${QUEEN_EGGS} lives; losing the last loses the game.`,
   },
 ];
@@ -122,7 +128,7 @@ export const RULES: readonly GuideSection[] = [
     title: "FLYING",
     lines: [
       `Queens and Warriors flap once per tap. About ${HOVER_TAPS} taps a second hold your height; tap faster to climb, slower to sink.`,
-      "A Queen holding down in the air dives straight down.",
+      "As the Queen, hold down in the air to dive straight down; release to stop.",
       "The screen wraps: leave on one side, come back on the other.",
     ],
   },
@@ -159,12 +165,15 @@ export const DEVICE_CONTROLS: Record<Device, readonly ControlHint[]> = {
       action:
         "Jump as a Worker (hold for higher), flap as a Queen or Warrior, hop off the snail",
     },
-    { keys: "S or ↓", action: "Dive as the Queen, in the air" },
+    {
+      keys: "S or ↓",
+      action: "Hold to dive as the Queen, in the air; release to stop",
+    },
   ],
   pad: [
     {
       keys: "Left stick or D-pad",
-      action: "Move; push down to dive as the Queen",
+      action: "Move; hold down to dive as the Queen",
     },
     { keys: "A, B, X or Y", action: "Jump or flap; hop off the snail" },
   ],
@@ -188,23 +197,39 @@ export interface UnitIcon {
   size: string;
   position: string;
 }
-/** The idle frame of `art` for `team` from the art manifest, at the integer scale nearest `height`; undefined if absent. */
-export function unitIcon(
+const sheetOf = (manifest: ArtManifest, art: UnitArt, team: number) =>
+  manifest.assets[`${art}-${team === 1 ? "pink" : "cyan"}`];
+/** Art pixels from a sheet's frame top down to the feet (its anchor): the unit standing, without the rows under it. */
+const standing = (sheet: SheetDef): number =>
+  Math.min(sheet.frameHeight, sheet.anchor[1] + 1);
+
+/**
+ * Every unit's idle frame for `team`, all drawn at one whole scale: the largest at which the tallest unit, measured
+ * from its frame top to its feet, fits in `height` CSS pixels. Sizes come from the manifest, so redrawn art keeps its
+ * proportions (a Queen stays taller than a Worker). A unit the manifest lacks has no icon.
+ */
+export function unitIcons(
   manifest: ArtManifest,
   artUrl: string,
-  art: UnitArt,
   team: number,
   height: number,
-): UnitIcon | undefined {
-  const sheet = manifest.assets[`${art}-${team === 1 ? "pink" : "cyan"}`];
-  if (!sheet) return undefined;
-  const scale = Math.max(1, Math.round(height / sheet.frameHeight)),
-    frame = frameRect(sheet, frameIndex(sheet, "idle"));
-  return {
-    url: `${artUrl}${sheet.file}`,
-    width: frame.sw * scale,
-    height: frame.sh * scale,
-    size: `${sheet.width * scale}px ${sheet.height * scale}px`,
-    position: `${-frame.sx * scale}px ${-frame.sy * scale}px`,
-  };
+): Partial<Record<UnitArt, UnitIcon>> {
+  const sheets = UNITS.flatMap((unit) => {
+    const sheet = sheetOf(manifest, unit.art, team);
+    return sheet ? [{ art: unit.art, sheet }] : [];
+  });
+  const tallest = Math.max(1, ...sheets.map(({ sheet }) => standing(sheet))),
+    scale = Math.max(1, Math.floor(height / tallest)),
+    icons: Partial<Record<UnitArt, UnitIcon>> = {};
+  for (const { art, sheet } of sheets) {
+    const frame = frameRect(sheet, frameIndex(sheet, "idle"));
+    icons[art] = {
+      url: `${artUrl}${sheet.file}`,
+      width: frame.sw * scale,
+      height: standing(sheet) * scale,
+      size: `${sheet.width * scale}px ${sheet.height * scale}px`,
+      position: `${-frame.sx * scale}px ${-frame.sy * scale}px`,
+    };
+  }
+  return icons;
 }

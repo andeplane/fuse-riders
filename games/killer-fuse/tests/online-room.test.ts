@@ -23,6 +23,8 @@ import {
   BETWEEN_TICKS,
   CAPACITY,
   COUNTDOWN_TICKS,
+  FIRST_COUNTDOWN_TICKS,
+  countdownTicks,
   DEFAULT_SETTINGS as SETUP,
   MAX_WATCHERS,
   OUTRO_TICKS,
@@ -153,7 +155,7 @@ test("start: people keep their slots, bots play the rest, the game counts down a
   const room = started({ ...SETUP, botLevel: "hard", map: 2 });
   assert.deepEqual(
     [room.stage, room.round, room.matchId, room.startAt],
-    ["running", 1, "m1", room.tick + COUNTDOWN_TICKS],
+    ["running", 1, "m1", room.tick + FIRST_COUNTDOWN_TICKS],
   );
   const world = room.world!;
   assert.deepEqual(
@@ -577,4 +579,13 @@ test("the view is a copy in game time, seats in order, with every step's events 
   assert.deepEqual(shown, kept);
   assert.deepEqual(decided.world!.winner, { team: 1, kind: "military" });
   assert.notEqual(decided.world!.winner, room.world!.winner);
+});
+
+test("the first game of a set counts down 6 s, every later one 3 s", () => {
+  assert.deepEqual(
+    [countdownTicks(1), countdownTicks(2), countdownTicks(3)],
+    [FIRST_COUNTDOWN_TICKS, COUNTDOWN_TICKS, COUNTDOWN_TICKS],
+  );
+  assert.equal(FIRST_COUNTDOWN_TICKS, 120);
+  assert.equal(COUNTDOWN_TICKS, 60);
 });

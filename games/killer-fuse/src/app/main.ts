@@ -49,7 +49,7 @@ import {
   TOUCH_CONTROLS,
   UNITS,
   WINS,
-  unitIcon,
+  unitIcons,
   type Device,
 } from "./guide.js";
 import { createGameMetrics } from "./metrics.js";
@@ -193,8 +193,9 @@ function howToPlay(): HTMLElement {
     close.focus();
     void loadManifest().then((art) => {
       if (!art) return;
+      const drawn = unitIcons(art, ART_URL, 0, 48);
       for (const { art: name, slot } of icons) {
-        const icon = unitIcon(art, ART_URL, name, 0, 56);
+        const icon = drawn[name];
         if (!icon || slot.style.backgroundImage) continue;
         Object.assign(slot.style, {
           width: `${icon.width}px`,

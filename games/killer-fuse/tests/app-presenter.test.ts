@@ -223,7 +223,7 @@ test("a game: the countdown banner, then the controls, then the pause banner and
   assert.equal(model.arena.line, "CYAN 0 · 0 PINK · FIRST TO 2");
   assert.deepEqual(model.arena.banner, {
     title: `GAME 1: ${MAPS[1].name.toUpperCase()}`,
-    detail: "Starts in 3",
+    detail: "Starts in 6",
   });
   assert.equal(model.playing, false, "nothing to steer during the countdown");
   assert.equal(

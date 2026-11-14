@@ -11,7 +11,7 @@ import {
 import { INPUT_HELD, INPUT_LEFT, INPUT_RIGHT } from "../src/engine/index.js";
 import {
   BETWEEN_TICKS,
-  COUNTDOWN_TICKS,
+  countdownTicks,
   DEFAULT_SETTINGS,
   OUTRO_TICKS,
   PLAY,
@@ -280,7 +280,14 @@ const cases: [string, string, (fields: Fields, room: Room) => void][] = [
   ["stats of the wrong length", "over", (f) => (at(f, STATS, 0)[1] = [1, 1])],
   ["stats past the bound", "over", (f) => (at(f, STATS, 0, 1)[2] = 100_001)],
   ["more games than were played", "over", (f) => (at(f, STATS, 0, 1)[0] = 9)],
-  ["more wins than games", "over", (f) => (at(f, STATS, 0, 1)[1] = 3)],
+  [
+    "more wins than games",
+    "over",
+    (f) => {
+      const stats = at(f, STATS, 0, 1);
+      stats[1] = (stats[0] as number) + 1;
+    },
+  ],
   [
     "a crew member without stats",
     "over",
@@ -339,7 +346,7 @@ const cases: [string, string, (fields: Fields, room: Room) => void][] = [
   [
     "a countdown longer than one",
     "countdown",
-    (f, r) => (f[START] = r.tick + COUNTDOWN_TICKS + 1),
+    (f, r) => (f[START] = r.tick + countdownTicks(r.round) + 1),
   ],
   ["a countdown with steps", "countdown", (f) => (at(f, WORLD).step = 3)],
   [

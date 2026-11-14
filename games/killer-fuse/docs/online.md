@@ -41,7 +41,7 @@ A settings entry carries exactly these four keys. With `map` 0 the rotation star
 ## Match flow
 
 1. **Lobby.** The first person to join gets the lowest free slot; anyone moves or swaps with `SEAT`. A watcher can take a free seat (JOIN THE GAME). The host changes the settings and presses START. A set needs one seated person; bots take the rest.
-2. **Countdown.** Each game shows its arena for 60 ticks (3 s) before the first step. Its seed is a hash of the match id and the game's number.
+2. **Countdown.** Each game shows its arena for 60 ticks (3 s) before the first step; the first game of a set for 120 ticks (6 s), so the controls card can be read (`countdownTicks` in `src/online/game.ts`). Its seed is a hash of the match id and the game's number.
 3. **Play.** Three engine steps a tick on the pilots' controls, until the engine names a winner by military, economic or snail victory. The engine has no time limit.
 4. **Victory.** The arena stays for 60 ticks (3 s), then the game is recorded: map, winning team and kind, steps, who sat in each slot and who was connected.
 5. **Between games.** If no team has the wins yet, the next game starts after 100 ticks (5 s).

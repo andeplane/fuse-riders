@@ -106,6 +106,10 @@ export const CAPACITY = MAX_PLAYERS;
 export const MAX_WATCHERS = 6;
 /** Log ticks (of 50 ms) a game shows its arena before its first step; then the victory, then the pause between games. */
 export const COUNTDOWN_TICKS = 60;
+/** The first game of a set counts down longer, so players can read the controls card before they play. */
+export const FIRST_COUNTDOWN_TICKS = 120;
+export const countdownTicks = (round: number): number =>
+  round === 1 ? FIRST_COUNTDOWN_TICKS : COUNTDOWN_TICKS;
 export const OUTRO_TICKS = 60;
 export const BETWEEN_TICKS = 100;
 /** What a `PLAY` entry may hold; the press edge travels as `PRESS`. */
@@ -269,7 +273,7 @@ function startGame(room: Room): void {
   room.stage = "running";
   room.held = {};
   room.asks = {};
-  room.startAt = room.tick + 1 + COUNTDOWN_TICKS;
+  room.startAt = room.tick + 1 + countdownTicks(room.round);
   room.endAt = room.resumeAt = 0;
   room.world = createRound({
     seed: roundSeed(room.matchId, room.round),
@@ -723,7 +727,7 @@ export function decode(
   if (stage === "running") {
     const stepped = Math.max(0, tick - startAt + 1) * STEPS_PER_TICK;
     return results.length === round - 1 &&
-      startAt <= tick + COUNTDOWN_TICKS &&
+      startAt <= tick + countdownTicks(round) &&
       (world.winner
         ? world.step > 0 && decidedAt <= tick && room.endAt > tick
         : world.step === stepped)

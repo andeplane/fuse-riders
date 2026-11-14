@@ -33,7 +33,7 @@ test("a Queen on the keyboard: flap, dive, kill from above, claim gates, her liv
   assert.deepEqual(card.controls, [
     { keys: "A D / ← →", action: "move" },
     { keys: "Space / W / ↑", action: "tap to flap" },
-    { keys: "S / ↓", action: "hold to dive" },
+    { keys: "S / ↓", action: "hold to dive, release to stop" },
   ]);
   assert.deepEqual(card.tips, [
     `Touch enemies from above or behind to kill · Touch gates to claim them · You have ${QUEEN_EGGS} lives`,

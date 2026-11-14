@@ -1,13 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  EAT_STEPS,
-  FLAP_IMPULSE,
-  FLY_GRAVITY,
-  MAPS,
-  QUEEN_EGGS,
-  TICK_HZ,
-} from "../src/engine/index.js";
+import { EAT_STEPS, MAPS, QUEEN_EGGS, TICK_HZ } from "../src/engine/index.js";
 import type { ArtManifest, SheetDef } from "../src/render/manifest.js";
 import {
   CONTROLS,
@@ -20,7 +13,7 @@ import {
   UNITS,
   WINS,
   WIN_LINE,
-  unitIcon,
+  unitIcons,
 } from "../src/app/guide.js";
 
 const sheet = (patch: Partial<SheetDef>): SheetDef => ({
@@ -51,8 +44,7 @@ const art = (assets: Record<string, SheetDef>): ArtManifest => ({
 });
 
 test("the figures come from the engine's tuning", () => {
-  assert.equal(HOVER_TAPS, Math.round((FLY_GRAVITY * TICK_HZ) / FLAP_IMPULSE));
-  assert.ok(HOVER_TAPS >= 1);
+  assert.equal(HOVER_TAPS, 3, "about three taps a second hover");
   assert.equal(HIVE_HOLES, MAPS[1].holes[0].length);
   for (const id of [1, 2, 3] as const)
     assert.equal(MAPS[id].holes[0].length, HIVE_HOLES, "every hive alike");
@@ -102,21 +94,47 @@ test("the controls name the bindings of controls.ts and no platform drop", () =>
   assert.deepEqual(Object.keys(DEVICE_KEYS), ["keys", "pad", "touch"]);
 });
 
-test("a unit icon is the idle frame of the team's sheet at a whole scale", () => {
+test("unit icons share one whole scale that fits the tallest unit, cropped at the feet", () => {
   const manifest = art({
-    "queen-pink": sheet({
-      file: "units/queen-pink.png",
-      frames: { walk: 0, idle: 5 },
+    "worker-cyan": sheet({
+      file: "units/worker-cyan.png",
+      width: 112,
+      height: 28,
+      frameWidth: 14,
+      frameHeight: 14,
+      frameCount: 16,
+      anchor: [7, 13],
+      frames: { walk: 0, idle: 9 },
     }),
+    "queen-cyan": sheet({
+      file: "units/queen-cyan.png",
+      width: 230,
+      height: 24,
+      frameWidth: 23,
+      frameHeight: 24,
+      anchor: [11, 18],
+    }),
+    "queen-pink": sheet({ file: "units/queen-pink.png" }),
   });
-  assert.deepEqual(unitIcon(manifest, "/art/", "queen", 1, 56), {
-    url: "/art/units/queen-pink.png",
-    width: 48,
-    height: 56,
-    size: "192px 112px",
-    position: "-48px -56px",
+  const icons = unitIcons(manifest, "/art/", 0, 48);
+  // The Queen stands 19 art pixels to her feet: 48 / 19 rounds down to 2, and every icon is drawn at 2.
+  assert.deepEqual(icons.queen, {
+    url: "/art/units/queen-cyan.png",
+    width: 46,
+    height: 38,
+    size: "460px 48px",
+    position: "0px 0px",
   });
-  // Too small a box still draws one art pixel to the pixel.
-  assert.equal(unitIcon(manifest, "/art/", "queen", 1, 4)?.height, 28);
-  assert.equal(unitIcon(manifest, "/art/", "queen", 0, 56), undefined);
+  assert.deepEqual(icons.worker, {
+    url: "/art/units/worker-cyan.png",
+    width: 28,
+    height: 28,
+    size: "224px 56px",
+    position: "-28px -28px",
+  });
+  assert.deepEqual(Object.keys(icons).sort(), ["queen", "worker"]);
+  // Too small a box still draws one art pixel to the pixel; a team without sheets has none.
+  assert.equal(unitIcons(manifest, "/art/", 0, 4).queen?.height, 19);
+  assert.deepEqual(Object.keys(unitIcons(manifest, "/art/", 1, 48)), ["queen"]);
+  assert.deepEqual(unitIcons(art({}), "/art/", 0, 48), {});
 });
