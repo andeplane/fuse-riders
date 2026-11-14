@@ -58,6 +58,19 @@ export interface WinampWindowContent {
   kind: "winamp";
 }
 
+/** Explorer over My Computer: `location` is "" (My Computer), "C:", "C:/packages/fuseos", "A:" (see disk/diskPath.ts). */
+export interface ExplorerWindowContent {
+  kind: "explorer";
+  location: string;
+}
+
+/** Notepad++ with its open tabs (repository paths or "A:/..." locations); drafts live in the window, saves in the overlay. Reused when already open. */
+export interface NotepadPlusPlusWindowContent {
+  kind: "notepadpp";
+  paths: string[];
+  activePath?: string;
+}
+
 /** Fusteam, the game launcher (`src/launcher`): opens on every boot, one instance, focused rather than duplicated. */
 export interface LauncherWindowContent {
   kind: "launcher";
@@ -73,6 +86,8 @@ export type WindowContent =
   | DialogWindowContent
   | PaintWindowContent
   | WinampWindowContent
+  | ExplorerWindowContent
+  | NotepadPlusPlusWindowContent
   | LauncherWindowContent;
 
 export type WindowKind = WindowContent["kind"];
@@ -120,10 +135,11 @@ export function nextWindowId(windows: readonly WindowState[]): string {
 
 /**
  * Whether `content` would open the same window as `existing`: the single-instance programs (Winamp, the
- * wallpaper picker, About, the Retro Games folder, the Fusteam launcher), one window per retro game, per Fuse
- * game and per Control Panel applet. Paint and dialogs open as many times as asked. `open` focuses the existing
- * window instead of adding another, whatever asked: an icon, the Start menu, Clippy or a `?open=` deep link over
- * a stored desktop that already holds it (the boot's launcher, say).
+ * wallpaper picker, About, the Retro Games folder, the Fusteam launcher, Notepad++ with its tabs), one window per
+ * retro game, per Fuse game, per Control Panel applet, per Explorer location and per picture. Paint and dialogs
+ * open as many times as asked. `open` focuses the existing window instead of adding another, whatever asked: an
+ * icon, the Start menu, Clippy or a `?open=` deep link over a stored desktop that already holds it (the boot's
+ * launcher, say).
  */
 export function sameInstance(
   content: WindowContent,
@@ -144,10 +160,42 @@ export function sameInstance(
       return (
         existing.kind === "controlpanel" && existing.applet === content.applet
       );
+    case "notepadpp":
+      return existing.kind === "notepadpp";
+    case "explorer":
+      return (
+        existing.kind === "explorer" && existing.location === content.location
+      );
     case "paint":
     case "dialog":
       return false;
   }
+}
+
+/**
+ * What re-opening an instance asks of the window it already has: the Display dialog switches to the tab
+ * named (Start > Settings > Screen Saver while it is up), Notepad++ gains the files as tabs and shows the
+ * one asked for; everything else keeps the window as it is.
+ */
+export function mergeInstance(
+  existing: WindowState,
+  content: WindowContent,
+): WindowState {
+  if (existing.kind === "controlpanel" && content.kind === "controlpanel")
+    return content.tab === undefined
+      ? existing
+      : { ...existing, tab: content.tab };
+  if (existing.kind === "notepadpp" && content.kind === "notepadpp") {
+    const added = content.paths.filter(
+      (path) => !existing.paths.includes(path),
+    );
+    return {
+      ...existing,
+      paths: [...existing.paths, ...added],
+      activePath: content.activePath ?? content.paths[0] ?? existing.activePath,
+    };
+  }
+  return existing;
 }
 
 function toFront(windows: WindowState[], id: string): WindowState[] {
@@ -178,14 +226,12 @@ export function appStateReducer(state: AppState, action: AppAction): AppState {
           ? undefined
           : state.windows.find((window) => window.id === options.id));
       if (existing) {
-        // The content asked for wins (a Display window re-opened on its Screen Saver tab), the window stays.
         return {
           ...state,
           windows: toFront(
-            patchWindow(state.windows, existing.id, (window) => ({
-              ...window,
-              ...action.content,
-            })),
+            patchWindow(state.windows, existing.id, (window) =>
+              mergeInstance(window, action.content),
+            ),
             existing.id,
           ),
         };
@@ -302,6 +348,14 @@ function isWindowContent(
       return (
         (value.fileName === undefined || typeof value.fileName === "string") &&
         (value.sourceUrl === undefined || typeof value.sourceUrl === "string")
+      );
+    case "explorer":
+      return typeof value.location === "string";
+    case "notepadpp":
+      return (
+        Array.isArray(value.paths) &&
+        value.paths.every((path) => typeof path === "string") &&
+        (value.activePath === undefined || typeof value.activePath === "string")
       );
     default:
       return false;

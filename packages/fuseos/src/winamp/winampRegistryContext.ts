@@ -1,12 +1,13 @@
 import { createContext } from "react";
 
-import type { WinampControls } from "./winampControls";
+import type { WinampRegistry } from "./winampRegistry";
+import { createWinampRegistry } from "./winampRegistry";
 
 /**
- * Playback is transient (not host-synced), so every mounted Winamp window publishes its
- * live controls here by window id: the agent bridge reads its status for `look` and
- * presses the same transport the mouse does. Mirrors `PaintRegistryContext`.
+ * Playback is transient (not stored), so the running Winamp publishes its live controls here by
+ * window id: the Office Assistant reads the queue for its status and presses the same transport
+ * the mouse does. Mirrors `PaintRegistryContext`.
  */
-export const WinampRegistryContext = createContext<Map<string, WinampControls>>(
-  new Map(),
+export const WinampRegistryContext = createContext<WinampRegistry>(
+  createWinampRegistry(),
 );

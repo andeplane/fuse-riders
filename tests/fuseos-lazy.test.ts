@@ -137,8 +137,16 @@ function staticClosure(roots: readonly string[]): Set<string> {
  */
 function bootChunks(dist: string): string[] {
   const html = readFileSync(path.join(dist, "index.html"), "utf8");
+  // The src carries the build's base (`/assets/...`, `/fuse-games/assets/...` or `./assets/...`); the file is under dist/assets either way.
   const scripts = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map(
-    (match) => path.join(dist, (match[1] ?? "").replace(/^\.?\//, "")),
+    (match) => {
+      const src = match[1] ?? "";
+      const assets = src.lastIndexOf("assets/");
+      return path.join(
+        dist,
+        assets >= 0 ? src.slice(assets) : src.replace(/^\.?\//, ""),
+      );
+    },
   );
   const page = staticClosure(scripts);
   const os = staticClosure(

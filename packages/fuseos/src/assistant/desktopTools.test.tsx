@@ -6,6 +6,7 @@ import {
 } from "../__mocks__/renderWithProviders";
 import type { WindowContent } from "../state/appState";
 import type { WinampControls } from "../winamp/winampControls";
+import { createWinampRegistry } from "../winamp/winampRegistry";
 
 import {
   createMusicTool,
@@ -127,8 +128,10 @@ describe(createOpenTool.name, () => {
 describe(createMusicTool.name, () => {
   it("presses the transport of the open Winamp", () => {
     const winamp = fakeWinamp();
+    const registry = createWinampRegistry();
+    registry.set("w1", winamp);
     const opened: WindowContent[] = [];
-    const tool = createMusicTool(() => winamp, {
+    const tool = createMusicTool(registry, {
       open: (content) => opened.push(content),
     });
     expect(tool.describe()).toContain(
@@ -149,24 +152,35 @@ describe(createMusicTool.name, () => {
     );
   });
 
-  it("opens Winamp for play when none is open, and says so for the other actions", () => {
+  it("opens Winamp for play when none is open and presses Play once it has loaded; the other actions say so", () => {
     const opened: WindowContent[] = [];
-    const tool = createMusicTool(() => undefined, {
+    const registry = createWinampRegistry();
+    const tool = createMusicTool(registry, {
       open: (content) => opened.push(content),
     });
-    expect(tool.run({ name: "music", arg: "play" })).toEqual({
-      ok: true,
-      sentence: "Opened Winamp",
-    });
-    expect(opened).toEqual([{ kind: "winamp" }]);
     expect(tool.run({ name: "music", arg: "next" })).toEqual({
       ok: false,
       sentence: "Winamp is not open",
     });
+    expect(tool.run({ name: "music", arg: "play" })).toEqual({
+      ok: true,
+      sentence: "Starting Winamp with the Fuse soundtrack",
+    });
+    expect(opened).toEqual([{ kind: "winamp" }]);
+    // The player registers once Webamp has loaded: that is when Play is pressed, and only that once.
+    const winamp = fakeWinamp();
+    registry.set("w1", winamp);
+    expect(winamp.pressed).toEqual(["play"]);
+    registry.delete("w1");
+    const again = fakeWinamp();
+    registry.set("w2", again);
+    expect(again.pressed).toEqual([]);
   });
 
   it("refuses an action Winamp has no button for", () => {
-    const tool = createMusicTool(fakeWinamp, { open: () => undefined });
+    const registry = createWinampRegistry();
+    registry.set("w1", fakeWinamp());
+    const tool = createMusicTool(registry, { open: () => undefined });
     expect(tool.sentence({ name: "music", arg: "louder" })).toBe(
       'Winamp cannot "louder"',
     );

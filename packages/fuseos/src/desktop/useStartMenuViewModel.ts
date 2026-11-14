@@ -110,7 +110,7 @@ export function useStartMenuViewModel(): {
           id: "accessories",
           label: "Accessories",
           icon: "programs",
-          // Paint, Winamp, Notepad++ and the wallpaper picker are registrations too (`startMenuRegistry.ts`).
+          // Paint, Winamp, Explorer, Notepad++ and the wallpaper picker are registrations (`startMenuRegistry.ts`).
           children: registered("accessories"),
         },
         {

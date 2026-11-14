@@ -4,6 +4,7 @@ import {
   advance,
   createPlayer,
   finish,
+  itemEdge,
   press,
   release,
   type Player,
@@ -134,7 +135,9 @@ export function ranking(library: Library, world: World): number[] {
 }
 
 function contexts(library: Library, world: World): PlayContext[] {
-  const order = ranking(library, world);
+  const ratings = world.players.map((player) =>
+    rating(stepsOf(library, world, player), player.score),
+  );
   return world.players.map((player, slot) => {
     const steps = stepsOf(library, world, player);
     return {
@@ -142,13 +145,12 @@ function contexts(library: Library, world: World): PlayContext[] {
       seed: world.seed,
       slot,
       ...(world.mode === BATTLE_MODE ? { items: itemNotes(steps) } : {}),
-      place: order.indexOf(slot),
+      edge: itemEdge(ratings, slot),
       of: world.players.length,
     };
   });
 }
 
-/** The rider in `slot` uses what it holds, at the room's song time `now`. */
 function useItem(world: World, slot: number, now: number): void {
   const player = world.players[slot]!,
     item = player.item;

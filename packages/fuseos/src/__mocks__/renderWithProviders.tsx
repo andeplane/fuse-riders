@@ -15,6 +15,7 @@ import { MediaDepsContext } from "../controlpanel/mediaDepsContext";
 import type { SystemProbe } from "../controlpanel/systemInfo";
 import { SystemProbeContext } from "../controlpanel/systemProbeContext";
 import type { DesktopDeps } from "../desktop/desktopDepsContext";
+import { DiskDepsContext } from "../disk/diskDepsContext";
 import { DesktopDepsContext } from "../desktop/desktopDepsContext";
 import {
   DisplayPrefsStoreContext,
@@ -51,6 +52,7 @@ import {
   MemoryPaintPrefsStore,
   PaintPrefsStoreContext,
 } from "../paint/paintPrefsStore";
+import { EditorDepsContext } from "../notepadpp/editorDeps";
 import { PaintRegistryContext } from "../paint/paintRegistryContext";
 import type { GamesDeps } from "../retro/gamesDepsContext";
 import { GamesDepsContext } from "../retro/gamesDepsContext";
@@ -73,15 +75,19 @@ import type { AppStateDeps } from "../state/appStateContext";
 import { AppStateDepsContext } from "../state/appStateContext";
 import type { StateStore } from "../state/stateStore";
 import { MemoryStateStore } from "../state/stateStore";
-import type { WinampControls } from "../winamp/winampControls";
 import type { WinampDeps } from "../winamp/winampDepsContext";
 import { WinampDepsContext } from "../winamp/winampDepsContext";
+import { createWinampRegistry } from "../winamp/winampRegistry";
 import { WinampRegistryContext } from "../winamp/winampRegistryContext";
 import { PlainWindowFrame } from "../windows/PlainWindowFrame";
 import type { WindowsDeps } from "../windows/windowsDepsContext";
 import { WindowsDepsContext } from "../windows/windowsDepsContext";
 
 import type { TestAssistantDeps } from "./assistantDeps";
+import type { TestDiskDeps, TestDiskOptions } from "./disk";
+import { createTestDiskDeps } from "./disk";
+import type { FakeEditor } from "./editor";
+import { createFakeEditorDeps } from "./editor";
 import { createTestAssistantDeps } from "./assistantDeps";
 import type { FakeEngineFactory } from "./llmEngine";
 import { createFakeEngineFactory } from "./llmEngine";
@@ -175,6 +181,9 @@ export type ProviderOptions = {
   screenSaverStore?: MemoryScreenSaverStore;
   /** Defaults to timers that never fire and a pipes loader that never resolves (no three.js in tests). */
   screenSaverDeps?: Partial<ScreenSaverDeps>;
+  /** Defaults to the fixture repository with an empty overlay and an instant floppy seek. */
+  disk?: TestDiskOptions;
+  diskDeps?: TestDiskDeps;
 };
 
 export const immediateAppStateDeps: AppStateDeps = {
@@ -299,8 +308,6 @@ export function createTestWinampDeps(
       players.push(player);
       return player;
     }),
-    createObjectURL: vi.fn((file: File) => `blob:${file.name}`),
-    revokeObjectURL: vi.fn(),
     // Never fires spontaneously; a test simulating a playback failure overrides this and calls the callback itself.
     subscribeMediaErrors: vi.fn(() => () => undefined),
     base: TEST_BASE,
@@ -386,7 +393,7 @@ export function createWrapper(options: ProviderOptions = {}) {
     options.assistantOptions ?? new MemoryAssistantOptionsStore();
   const winampPlayers: FakeWebampPlayer[] = [];
   const winampDeps = createTestWinampDeps(winampPlayers, options.winampDeps);
-  const winampRegistry = new Map<string, WinampControls>();
+  const winampRegistry = createWinampRegistry();
   const systemProbe = options.systemProbe ?? TEST_SYSTEM_PROBE;
   const llmFactory: FakeEngineFactory = createFakeEngineFactory();
   const modelCache = new MemoryModelCache();
@@ -398,6 +405,9 @@ export function createWrapper(options: ProviderOptions = {}) {
   const screenSaverStore =
     options.screenSaverStore ?? new MemoryScreenSaverStore();
   const screenSaverDeps = createTestScreenSaverDeps(options.screenSaverDeps);
+  const diskDeps = options.diskDeps ?? createTestDiskDeps(options.disk);
+  const editors: FakeEditor[] = [];
+  const editorDeps = createFakeEditorDeps(editors);
 
   /** Outermost first; each entry wraps everything after it. */
   const providers: readonly ProviderEntry[] = [
@@ -425,6 +435,8 @@ export function createWrapper(options: ProviderOptions = {}) {
     provider(AssistantOptionsStoreContext, assistantOptions),
     provider(SystemProbeContext, () => systemProbe),
     provider(LlmDepsContext, llmDeps),
+    provider(DiskDepsContext, diskDeps),
+    provider(EditorDepsContext, editorDeps),
     provider(LauncherDepsContext, launcherDeps),
   ];
 
@@ -464,6 +476,8 @@ export function createWrapper(options: ProviderOptions = {}) {
     winampRegistry,
     llmFactory,
     modelCache,
+    diskDeps,
+    editors,
     launcherDeps,
   };
 }

@@ -7,8 +7,23 @@ every piece of music the Fuse games ship as a file, one playlist, nothing
 playing until the user presses something. It can also play files picked from the
 user's own machine, which never leave the device.
 
-Source: `packages/fuseos/src/winamp/`. The window is `WinampWindow.tsx` over
+Source: `packages/fuseos/src/winamp/`. The player is `WinampPlayer.tsx` over
 `useWinampViewModel.ts`; the catalogue is `fuseTracks.ts`.
+
+## Frameless, like the real thing
+
+Winamp is the one program on the desktop without a FuseOS window around it.
+Webamp draws its own main, equalizer and playlist windows, with its own title
+bars, dragging, docking and shade mode, onto a desktop-sized layer
+(`WinampPlayer.tsx`, `winamp.css`) that lets the pointer through everywhere
+except Webamp's windows. The layer sits above every FuseOS window (Winamp's own
+"always on top") and under the taskbar and the Start menu. The desktop still
+keeps one `winamp` entry in its window list: that is the taskbar button, the
+single-instance rule and what `?open=winamp` restores. Webamp's own close button
+closes that entry (and disposes the player); its own minimize button minimizes
+it, the player keeps playing out of sight and the taskbar button brings it back.
+While Webamp loads, or when it cannot, a small Win98 panel says so in the middle
+of the desktop.
 
 ## The Fuse soundtrack
 
@@ -58,31 +73,31 @@ renames or drops a track fails that test until the catalogue follows.
 
 ## Playback rules
 
-- Opening Winamp queues the soundtrack and stops there. Browsers block sound
-  before a user gesture, and a desktop that starts singing on its own is not
-  what anyone opened it for.
-- **Fuse soundtrack** replaces whatever is queued with the catalogue and plays
-  it from the top. It is a button press, so autoplay rules allow it. Local files
-  leave the playlist and their object URLs are revoked.
-- **Open files...** opens the browser's own `<input type="file" accept="audio/*"
-multiple>`. The files join the end of the queue as Blob object URLs; the first
-  of them starts unless something is already playing. Nothing is uploaded
-  anywhere. Object URLs are revoked when the window closes.
-- Closing the window disposes the player; reopening builds a fresh one with the
+- Opening Winamp queues the twenty tracks of the soundtrack (`initialTracks`
+  in effect: appended before the first render) and stops there. Browsers block
+  sound before a user gesture, and a desktop that starts singing on its own is
+  not what anyone opened it for.
+- Local files come in the Winamp way: the eject button on the main window and
+  the playlist's ADD button open the browser's file dialog, and files can be
+  dropped on the player. Webamp queues them as Blob object URLs it manages
+  itself; nothing is uploaded anywhere.
+- Closing Winamp disposes the player; reopening builds a fresh one with the
   soundtrack queued again. Webamp's own documentation says a full teardown is
   not possible, so this is as clean as it gets.
-- Every open Winamp window publishes its transport in `WinampRegistryContext`
-  (`winampControls.ts`): the Office Assistant's "play music" presses the same
-  Play/Pause/Stop/Next/Previous a user sees and reads the queue by name
-  ("Sandy Rally (Fuse Volley)").
+- The running player publishes its transport in `WinampRegistryContext`
+  (`winampRegistry.ts`, `winampControls.ts`): the Office Assistant's "play music"
+  presses the same Play/Pause/Stop/Next/Previous a user sees and reads the queue
+  by name ("Sandy Rally (Fuse Volley)"; a picked file by its file name). With no
+  Winamp open, `[music:play]` opens it and presses Play the moment Webamp has
+  loaded, so the soundtrack starts from the top.
 
 ## Errors
 
 A track that fails to load looks identical through Webamp's API whether the file
 is broken, missing or the browser refused it. `mediaErrorReporting.ts` listens
 for the page's `securitypolicyviolation` events and media `error` events and the
-view model shows one Win98 message box per failing track naming the likely
-cause: a content security policy that does not allow `blob:` under `media-src`
+view model shows one Win98 message box per failing track (a soundtrack track by
+title and game, a picked file by name) naming the likely cause: a content security policy that does not allow `blob:` under `media-src`
 for a local file, or a generic "blocked or failed to load" otherwise.
 
 ## Why Webamp needs no vendoring
@@ -91,7 +106,8 @@ The `webamp` npm package ships as one self-contained ES module with the classic
 skin's sprites inlined as data URIs, so nothing is copied into `public/` and no
 skin is fetched at runtime. `main.tsx` constructs it inside `WinampDeps.createPlayer`
 through a dynamic `import("webamp")`, so its ~250 KB gzipped stays out of the
-initial bundle until a Winamp window opens. The embedded layout
-(`webampLayout.ts`) pins the main, equalizer and playlist panels in a 275x348
-stack with hotkeys and double-size mode off, so the player never grabs the
-desktop's keyboard.
+initial bundle until Winamp opens. The layout (`webampLayout.ts`) starts the
+main, equalizer and playlist windows docked in one 275x464 column, the playlist
+four rows taller than Webamp's default so eight tracks show at once, with
+hotkeys and double-size mode off, so the player never grabs the desktop's
+keyboard.

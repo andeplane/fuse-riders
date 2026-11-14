@@ -3,7 +3,7 @@
  * on song-time milliseconds, and chance is a hash of the match's seed, so every device folds the same match. A
  * change to what any of it does, the bundled charts included, must bump `RULES`.
  */
-export const RULES = "fusemania-2";
+export const RULES = "fusemania-3";
 export * from "./rules.js";
 export {
   MAX_SIMFILE_BYTES,
@@ -44,8 +44,11 @@ export {
   createPlayer,
   finish,
   hash,
+  itemEdge,
+  itemWeights,
   press,
   release,
+  rollItem,
   turnedMine,
   under,
   wasHit,

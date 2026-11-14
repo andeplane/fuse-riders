@@ -19,6 +19,8 @@ pnpm dev          # builds, then serves every game; open the printed URL plus /f
 
 **The song select** is a carousel of covers, the selected song in the middle. Left/Right (A/D, J/L), a swipe, a sideways scroll, the arrows at its sides or a click on a cover turn it; Up/Down (W/S, I/K) change the level; PageUp/PageDown or a pack's tab jump to another pack. Songs are grouped in **packs** (`src/app/packs.ts`), shown in pack order with a tab each: FUSEMANIA is the Fuse soundtrack, and DDR JAZZ MIX and ITG JAZZ MIX have their place in the order and appear when their first song is added (see "Adding a song" in `charts/README.md`). Each bundled song has a cover image in `public/music/covers/<id>.jpg`; a song without one, and a player's own simfile, wears a cover drawn from its id.
 
+**The other players' fields.** With more than one player, a device shows every field: its own lit and framed in the player's colour (in the middle of three or five players, on the left of two or four) and the others' smaller beside it, so an attack can be seen landing. Their judgments, combos, attacks and power-ups are shown as they are, but their arrows are not there to be read: every column is drawn in another column's place, the same shuffle for every opponent, changing from match to match (`src/render/scramble.ts`). It is only the picture; the Shared TV and a watcher see every field as it is.
+
 **Your speed.** The song select shows every player's own speed as chips (0.5x, 1x, 1.5x, 2x, 2.5x, 3x, 4x, 5x), and the Settings slider reaches the values between. It is saved on the device and only spreads that player's arrows apart on their own screen: the engine never sees it, so the beat, the judging and every other player are unchanged.
 
 ## Sessions
@@ -45,7 +47,9 @@ A step is judged by how far the press is from the note: Marvelous within 22 ms, 
 
 ## Battle mode
 
-Every few seconds one arrow glows. Hitting it puts a power-up in your slot, better ones the further behind you are; Space throws it.
+Every few seconds one arrow glows. Hitting it puts a power-up in your slot; Space throws it.
+
+The drops rubber-band on the score. Each power-up has a power from 1 to 10 (`ITEM_POWER` in `src/engine/rules.ts`): for an attack, how hard it is to keep playing through (Flip 10, Blackout 8, Mines and Lag 7, down to Wave 2); for your own items, how much they are worth (Star 9, Double 8, Shield 2). A rider behind the others draws the high-power ones more often and a rider ahead the low-power ones, in proportion to the gap: your rating against the others' average, as a share of the best rating, with 20% counting as a full gap. At a full gap Flip is about one drop in 150 for the leader and one in 8 for the rider behind; level riders get the plain `ITEM_BASE` table. `ITEM_BASE`, `ITEM_POWER`, `ITEM_TILT`, `ITEM_GAP_FULL_PCT` and `ITEM_GAP_FLOOR` are the knobs.
 
 | Power-up                                                       | What it does                                                |
 | -------------------------------------------------------------- | ----------------------------------------------------------- |
