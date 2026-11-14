@@ -16,7 +16,7 @@ const chunk = (await readdir(`${directory}/assets`)).find(
 );
 assert.ok(chunk, "Phaser chunk exists");
 const server = await preview({
-  base: "/fuse-riders/",
+  base: "/fuse-games/",
   build: { outDir: directory },
   preview: { port: 0, host: "127.0.0.1" },
 });

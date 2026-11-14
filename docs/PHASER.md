@@ -107,7 +107,7 @@ BROWSER=webkit pnpm exec tsx scripts/phaser-browser.ts
 DURATION_MS=30000 pnpm exec tsx scripts/phaser-benchmark.ts
 BROWSER=webkit DURATION_MS=30000 pnpm exec tsx scripts/phaser-benchmark.ts
 pnpm exec vite build --outDir artifacts/phaser-dist
-pnpm exec vite build --base /fuse-riders/ --outDir artifacts/phaser-pages-dist
+pnpm exec vite build --base /fuse-games/ --outDir artifacts/phaser-pages-dist
 pnpm exec tsx scripts/phaser-pages-smoke.ts
 ```
 
