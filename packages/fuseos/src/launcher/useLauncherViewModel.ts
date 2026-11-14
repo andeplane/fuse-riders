@@ -69,6 +69,9 @@ export type LauncherViewModel = {
   /** PLAY, Enter or a double click: the selected game, through `useFuseGameLauncher` (a window here or a browser tab). */
   play: () => void;
   playGame: (gameId: string) => void;
+  /** PLAY IN NEW TAB or Shift+Enter: the selected game's own page in a browser tab, whatever the launch preference. */
+  playInNewTab: () => void;
+  playGameInNewTab: (gameId: string) => void;
   /** ADD A GAME...: the joke message box. */
   addGame: () => void;
 };
@@ -171,6 +174,19 @@ export function useLauncherViewModel(): LauncherViewModel {
     },
     [openFriends, online, commands],
   );
+  const playGameInNewTab = useCallback(
+    (gameId: string) => {
+      const game = games.find((candidate) => candidate.id === gameId);
+      if (!game) return;
+      desktopDeps.openExternal(game.url);
+      launcherDeps.lastPlayed.record(game.id, desktopDeps.now());
+      setLastPlayed(launcherDeps.lastPlayed.get());
+    },
+    [games, launcherDeps, desktopDeps],
+  );
+  const playInNewTab = useCallback(() => {
+    if (selected) playGameInNewTab(selected.id);
+  }, [selected, playGameInNewTab]);
 
   const addGame = useCallback(
     () => commands.showInfo(LAUNCHER_TITLE, ADD_GAME_MESSAGE),
@@ -200,6 +216,8 @@ export function useLauncherViewModel(): LauncherViewModel {
     selectPrevious,
     play,
     playGame,
+    playInNewTab,
+    playGameInNewTab,
     addGame,
   };
 }

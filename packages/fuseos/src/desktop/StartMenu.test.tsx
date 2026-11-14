@@ -309,7 +309,7 @@ describe("StartMenu", () => {
     await choose(user, "Help", "About FuseOS");
     expect(
       await screen.findByRole("dialog", { name: "About FuseOS" }),
-    ).toHaveTextContent("A Windows 95 desktop for the Fuse games");
+    ).toHaveTextContent("A Windows 98 desktop for the Fuse games");
   });
 
   it("shuts down, wakes up and restarts through the injected reload", async () => {

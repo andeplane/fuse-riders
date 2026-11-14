@@ -98,3 +98,39 @@ it("does not maximize a fixed-size utility by double-clicking its title", async 
     screen.queryByRole("button", { name: "Maximize" }),
   ).not.toBeInTheDocument();
 });
+
+it("draws extra title-bar buttons before the controls, and none by default", () => {
+  const { rerender } = render(
+    <WindowChrome
+      title="t"
+      icon="computer"
+      active
+      maximized={false}
+      onMinimize={() => undefined}
+      onToggleMaximize={() => undefined}
+      onClose={() => undefined}
+      onActivate={() => undefined}
+      extraTitleButtons={<button type="button" aria-label="Extra" />}
+    >
+      <p>x</p>
+    </WindowChrome>,
+  );
+  const labels = () =>
+    screen.getAllByRole("button").map((b) => b.getAttribute("aria-label"));
+  expect(labels()).toEqual(["Extra", "Minimize", "Maximize", "Close"]);
+  rerender(
+    <WindowChrome
+      title="t"
+      icon="computer"
+      active
+      maximized={false}
+      onMinimize={() => undefined}
+      onToggleMaximize={() => undefined}
+      onClose={() => undefined}
+      onActivate={() => undefined}
+    >
+      <p>x</p>
+    </WindowChrome>,
+  );
+  expect(labels()).toEqual(["Minimize", "Maximize", "Close"]);
+});

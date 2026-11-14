@@ -484,6 +484,34 @@
   color: var(--fst-text-dim);
 }
 
+/* Beside PLAY: the same bar, a size down. */
+.fst-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.fst-play.fst-play-tab {
+  min-width: 0;
+  min-height: 24px;
+  padding: 3px 12px;
+  background: var(--fst-bg);
+  color: var(--fst-text);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  box-shadow:
+    inset -1px -1px var(--fst-border-dark),
+    inset 1px 1px var(--fst-border-light);
+}
+
+.fst-play.fst-play-tab:not(:disabled):active {
+  background: var(--fst-bg);
+  box-shadow:
+    inset 1px 1px var(--fst-border-dark),
+    inset -1px -1px var(--fst-border-light);
+}
+
 /* Bottom bar: the wordmark where VALVE's logo sat, the buttons at the right. */
 .fst-footer {
   display: flex;

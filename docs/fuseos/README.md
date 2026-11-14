@@ -1,6 +1,6 @@
 # FuseOS
 
-FuseOS is the Windows 95 desktop at the root of the Fuse games site
+FuseOS is the Windows 98 desktop at the root of the Fuse games site
 (`packages/fuseos`, mounted by `site/main.ts`). Every game listed in
 `games/<id>/portal.json` is an icon on the desktop and opens in a window of its
 own; Paint, Winamp, Clippy, a Control Panel and the retro games under
@@ -57,7 +57,7 @@ the state of the desktop lives under the `fuseos.state` key in `localStorage`.
 name spelled from a 5x7 pixel font and a four-pane mark in the games' portal
 accents (`assets/fuseOsMark.ts`), over a night sky and a synth floor grid,
 drawn as SVG rectangles so it needs no font or bitmap. Along the bottom edge a
-neon band scrolls forever, the way the Windows 95 boot screen's did
+neon band scrolls forever, the way the Windows 98 boot screen's did
 (`BootScreens.css`; a still band under `prefers-reduced-motion`). `App` keeps
 the screen up for `BOOT_HOLD_MS` (1.5 s) so a cached load still boots visibly;
 its `<main>` is labelled "Starting FuseOS" for screen readers and tests.
