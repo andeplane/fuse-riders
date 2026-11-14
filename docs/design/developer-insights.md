@@ -1,7 +1,7 @@
 # Developer insights and playtest reporting
 
-Status: implementation in progress on `codex/developer-insights`, building on
-PR #687. This document is the implementation contract and task ledger, not a
+Status: all seven epics are implemented on `codex/developer-insights`, building on
+PR #687; integrated verification is in progress. This document is the implementation contract and task ledger, not a
 claim of deployment. No merge or production provisioning is authorized yet.
 
 ## Intended behavior
@@ -13,7 +13,10 @@ idea, other) and text. Submission is acknowledged only after durable storage.
 Native cut remains available in editable controls. Opening the dialog cancels
 held gameplay input; closing it must not restore a held control.
 
-`?record` and `?report` are aliases for a visible microphone-recording prompt.
+Verified admins can start and stop recording from the shared game menu during
+play without changing the URL. The option is hidden until the server approves
+the signed-in account; signing out stops capture. `?record` and `?report` remain
+aliases for a visible microphone-recording prompt.
 Recording requires a developer to sign in, explicitly start, and grant browser
 microphone permission. Only the device that starts recording captures audio;
 this does not tap remote players' microphones or room voice streams. The
@@ -125,7 +128,8 @@ unique users and sessions use their own membership sets, not summed days.
 
 Choose OpenAI `gpt-transcribe`, configurable on the server. Official model
 documentation recommends it for new transcription integrations and lists
-$0.0045/minute (~$0.27/hour), excluding hosting/storage. It supports multilingual
+$0.0045/minute (~$0.27/hour for transcription; action extraction and
+hosting/storage cost extra). It supports multilingual
 input and multiple language hints. Use Norwegian/English hints (`no`, `en`)
 and preserve spoken language. Norwegian dialect/code-switch quality and account
 access still require a real evaluation sample before production acceptance.

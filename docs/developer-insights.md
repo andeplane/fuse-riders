@@ -13,8 +13,12 @@ email and code-owned allowlist in
 `andreas@bonito.no`, `andreassolbra@gmail.com`, `aasmund.eldhuset@gmail.com`,
 `richard.rormark@gmail.com`, `sindre@scrimba.com`.
 
-Only these admins can create recordings or upload audio. `?record` and its
-`?report` alias expose the opt-in recording UI; neither grants authorization.
+Only these admins can create recordings or upload audio. After server-verified
+sign-in, the shared game menu offers Start recording / Stop recording without
+a URL flag. Starting explicitly requests microphone permission; signing out
+stops capture. FuseOS owns a single microphone recording across embedded games,
+including when their menus control it. `?record` and its `?report` alias remain
+optional shortcuts to the opt-in recording UI; neither grants authorization.
 Ctrl+X reporting remains available without audio or admin sign-in. Reports
 associated with a recording require its authenticated owner. Screenshots,
 reports, audio, transcripts and extracted actions are private. Keep them out
@@ -177,10 +181,13 @@ push delivery, worker authentication and transcription failure evidence private.
 Action evidence links at most 20 ready, unexpired reports per transcript segment,
 ordered by recording offset, expiry and ID. This bounds extraction context even
 when many reports cover the same speech. The recording's paginated reports list
-remains the complete source; the evidence list is a bounded selection.
+remains the complete source; the evidence list is a bounded selection. Reports
+submitted after extraction stay on the session page; they do not retroactively
+refresh an action's evidence links.
 
 `OPENAI_TRANSCRIPTION_MODEL` defaults to `gpt-transcribe`, documented at
-$0.0045/minute (about $0.27/hour), excluding storage/hosting. Preserve Norwegian
+$0.0045/minute (about $0.27/hour for transcription; action extraction,
+storage and hosting cost extra). Preserve Norwegian
 and English speech. `OPENAI_ACTION_MODEL` defaults to `gpt-6.1-sol` with medium
 reasoning for structured extraction. Model/account availability, billing and
 real Norwegian dialect/code-switch quality still need acceptance evidence.
