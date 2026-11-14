@@ -158,7 +158,7 @@ def notes_text(rows) -> str:
 def ssc(head: str, charts) -> str:
     out = [head.rstrip() + "\n"]
     for diff, meter, rows in charts:
-        out.append(f"\n#NOTEDATA:;\n#STEPSTYPE:dance-single;\n#DESCRIPTION:ChartNet {diff};\n#DIFFICULTY:{diff};\n"
+        out.append(f"\n#NOTEDATA:;\n#STEPSTYPE:dance-single;\n#DESCRIPTION:ChartNet;\n#DIFFICULTY:{diff};\n"
                    f"#METER:{meter};\n#CREDIT:ChartNet;\n#NOTES:\n{notes_text(rows)}\n;\n")
     return "".join(out)
 

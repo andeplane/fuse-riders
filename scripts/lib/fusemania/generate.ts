@@ -1257,7 +1257,7 @@ export function chartStats(analysis: Analysis, chart: Chart): ChartStats {
 
 /**
  * The four charts of a song, easiest first. `placement` (beats, per difficulty) swaps in another rhythm, such as a learned
- * model's (`scripts/chartnet`); the arrows, jumps, freezes and mines are still this generator's.
+ * model's (`scripts/chartnet`, for its evaluation); the arrows, jumps, freezes and mines are still this generator's.
  */
 export function generateCharts(
   analysis: Analysis,

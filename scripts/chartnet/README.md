@@ -11,8 +11,8 @@ generator in `scripts/lib/fusemania/generate.ts`. It follows Dance Dance Convolu
    images of every chart. Holds, rolls and mines are not generated.
 
 `gen.py` snaps the placed steps to the song's grid (16ths, triplets where the song swings) and enforces the rule
-generator's minimum gaps. The charts the game offers are a **hybrid**: that learned rhythm, with the rule generator's
-arrows, jumps, freezes and mines (`generateCharts(analysis, placement)`, run by `hybrid.ts`).
+generator's minimum gaps. A **hybrid** (that learned rhythm with the rule generator's arrows, jumps, freezes and mines,
+`generateCharts(analysis, placement)`) is evaluated for comparison. The game offers ChartNet v2, below.
 
 ## Data stays local
 
@@ -36,8 +36,9 @@ $P scripts/chartnet/steps.py              # arrow model + perplexity vs a bigram
 $P scripts/chartnet/extract.py test-audio && pnpm exec tsx scripts/chartnet/rule-baseline.ts $CHARTNET_WORK/rulegen/jobs.json $CHARTNET_WORK/rulegen/out.json
 $P scripts/chartnet/gen.py placement-eval && pnpm exec tsx scripts/chartnet/rule-baseline.ts $CHARTNET_WORK/rulegen/jobs.json $CHARTNET_WORK/rulegen/out_hybrid.json $CHARTNET_WORK/rulegen/placement.json
 $P scripts/chartnet/gen.py eval           # held-out songs: human vs learned vs rule-based vs hybrid
-$P scripts/chartnet/gen.py placement games/fusemania/charts/chartnet/placement.json   # learned rhythm for the Fuse songs
-pnpm exec tsx scripts/chartnet/hybrid.ts  # → games/fusemania/charts/chartnet/<id>.ssc and the game's chartnet-data.ts
+$P scripts/chartnet/onset.py --phase 1 --density 1 --name onset_dens && $P scripts/chartnet/arrows.py   # v2 models
+$P scripts/chartnet/gen2.py eval && $P scripts/chartnet/gen2.py fuse   # v2 held-out metrics, Fuse charts
+pnpm exec tsx scripts/chartnet/bundle.ts $CHARTNET_WORK/out_fuse2    # → games/fusemania/charts/chartnet and the game
 ```
 
 ## Results (48 held-out pack songs, 190 charts)
@@ -77,9 +78,50 @@ On Easy and Medium the learned arrows look like the human ones. On Hard and Chal
 too many crossovers, so the game's ChartNet charts take the rule generator's arrows. With the learned (denser) rhythm
 the rule generator's arrows cross over more than on its own rhythm; playtesting decides whether that matters.
 
+## ChartNet v2 (what the game offers)
+
+v2 learns the arrows too, and makes Hard and Challenge busier:
+
+- **Placement** (`onset.py --density 1`): the same model, also told the density the chart should have (log steps per
+  second). Asked for 6 steps a second it writes streams where the music carries them, not just more scattered
+  steps. Told the human chart's density, its F1 is Easy 0.78, Medium 0.79, Hard 0.77 and Challenge 0.73.
+- **Arrows** (`arrows.py`): a causal transformer over the last 64 rows. Each row it sees the previous arrows, the gaps
+  to the neighbouring rows, the beat phase, the difficulty, the density, the audio, and where the feet are
+  (`feet.py`). It chooses taps and freeze heads (80 tokens). It is trained on all four mirror images, in about
+  4 minutes on MPS.
+- **Foot flow**: sampling subtracts a per-difficulty penalty for crossovers, jacks, hands and stepping on a held
+  panel, plus a small cost for repeating a four-row pattern from the last 32 rows (`CHARTNET_REPEAT`). Freeze tails
+  end before the held panel is needed again.
+
+On the held-out songs, with placement told the human chart's density (`gen2.py eval`). Crossovers are counted with the
+better starting foot for every run of steps (`crossover_best_parity`); jacks and jumps are shares of steps:
+
+| Difficulty | Chart      | F1   | Steps/s | 4-gram variety | Crossovers | Jacks | Jumps | Freezes |
+| ---------- | ---------- | ---- | ------- | -------------- | ---------- | ----- | ----- | ------- |
+| Hard       | human      |      | 3.73    | 0.54           | 0.078      | 0.042 | 0.080 | 0.022   |
+| Hard       | v2         | 0.75 | 3.55    | 0.66           | 0.032      | 0.015 | 0.125 | 0.018   |
+| Hard       | rule-based | 0.60 | 3.17    | 0.73           | 0.037      | 0.027 | 0.075 | 0.043   |
+| Challenge  | human      |      | 4.30    | 0.58           | 0.068      | 0.034 | 0.074 | 0.065   |
+| Challenge  | v2         | 0.69 | 4.08    | 0.67           | 0.040      | 0.025 | 0.137 | 0.052   |
+| Challenge  | rule-based | 0.59 | 4.52    | 0.65           | 0.056      | 0.051 | 0.080 | 0.041   |
+
+v2 is more varied than the human charts, with fewer crossovers and jacks, and somewhat more jumps. At human density
+its runs of 16ths are short (longest 4.9 on average against 28.7 in the human Challenge charts); they come with
+density, below.
+
 ## Fuse songs
 
-`games/fusemania/charts/chartnet/<id>.ssc` reuses each song's measured `#OFFSET`/`#BPMS`. Density is fixed at the packs'
-median notes per second (Easy 1.5, Medium 2.3, Hard 3.2, Challenge 4.7), the model chooses where the steps go
-(`placement.json`), and the rule generator adds the arrows. The game offers them after each song's own charts as
-"Easy ChartNet" … "Challenge ChartNet"; the default chart is unchanged.
+`games/fusemania/charts/chartnet/<id>.ssc` keeps each song's own header and timing (`bundle.ts`). The charts aim at
+about the packs' 75th to 90th percentile of steps per second: Easy 1.8, Medium 2.8, Hard 4.3 and Challenge 6.0. Over the
+20 songs (`gen2.py fuse`):
+
+| Difficulty | Steps/s | 16th-stream share | Longest 16th run | 4-gram variety | Crossovers | Jacks | Jumps | Freezes |
+| ---------- | ------- | ----------------- | ---------------- | -------------- | ---------- | ----- | ----- | ------- |
+| Easy       | 1.68    | 0                 | 1                | 0.68           | 0.029      | 0     | 0.084 | 0.013   |
+| Medium     | 2.57    | 0                 | 1                | 0.60           | 0.030      | 0.005 | 0.110 | 0.008   |
+| Hard       | 3.96    | 0.14              | 5.9              | 0.44           | 0.038      | 0.023 | 0.077 | 0.010   |
+| Challenge  | 5.52    | 0.53              | 21.3             | 0.44           | 0.033      | 0.028 | 0.084 | 0.032   |
+
+The game offers them after each song's own charts as "Easy ChartNet" … "Challenge ChartNet"; the default chart is
+unchanged. To rebuild: train (`onset.py --density 1 --name onset_dens`, `arrows.py`), then `gen2.py fuse` and
+`pnpm exec tsx scripts/chartnet/bundle.ts $CHARTNET_WORK/out_fuse2`.

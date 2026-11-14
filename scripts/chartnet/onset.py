@@ -34,19 +34,24 @@ class Res(nn.Module):
 class OnsetNet(nn.Module):
     """Conv front end over (time) on log-mel, then a dilated residual stack (~+-1.3 s context)."""
 
-    def __init__(self, n_in: int, use_phase: bool, h: int = 160):
+    def __init__(self, n_in: int, use_phase: bool, h: int = 160, use_density: bool = False):
         super().__init__()
         self.use_phase = use_phase
-        extra = (6 if use_phase else 0) + len(DIFFS)
+        self.use_density = use_density
+        extra = (6 if use_phase else 0) + len(DIFFS) + (1 if use_density else 0)
         self.front = nn.Sequential(nn.Conv1d(n_in, h, 7, padding=3), nn.GELU(), nn.BatchNorm1d(h))
         self.mix = nn.Conv1d(h + extra, h, 1)
         self.body = nn.Sequential(*[Res(h, d) for d in (1, 2, 4, 8, 16, 32, 64, 1, 2, 4)])
         self.head = nn.Conv1d(h, 1, 1)
 
-    def forward(self, x: torch.Tensor, phase: torch.Tensor, diff: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, phase: torch.Tensor, diff: torch.Tensor,
+                density: torch.Tensor | None = None) -> torch.Tensor:
         z = self.front(x.transpose(1, 2))
         d = torch.nn.functional.one_hot(diff, len(DIFFS)).float()[:, :, None].expand(-1, -1, z.shape[2])
         parts = [z, d] + ([phase.transpose(1, 2)] if self.use_phase else [])
+        if self.use_density:  # the chart's steps per second, log-scaled: asks for a sparser or busier chart
+            assert density is not None
+            parts.append(torch.log(density)[:, None, None].expand(-1, 1, z.shape[2]))
         return self.head(self.body(self.mix(torch.cat(parts, 1)))).squeeze(1)
 
 
@@ -54,8 +59,13 @@ def examples(songs):
     return [(s, c) for s in songs for c in s.meta["charts"]]
 
 
+def chart_nps(c) -> float:
+    ts = [t for _, t, r in c["rows"] if any(x in "124" for x in r)]
+    return len(ts) / max(ts[-1] - ts[0], 1.0) if len(ts) > 1 else 1.0
+
+
 def batch(exs, L: int):
-    xs, ps, ds, ys = [], [], [], []
+    xs, ps, ds, ys, ns = [], [], [], [], []
     for s, c in exs:
         n = len(s.feats)
         st = random.randint(0, max(0, n - L))
@@ -66,17 +76,19 @@ def batch(exs, L: int):
         ps.append(np.pad(s.phase[st:st + L], ((0, pad), (0, 0))))
         ys.append(np.pad(y, (0, pad)))
         ds.append(diff_index(c["difficulty"]))
+        ns.append(chart_nps(c))
     t = lambda a: torch.tensor(np.stack(a)).to(DEV)  # noqa: E731
-    return t(xs), t(ps), torch.tensor(ds).to(DEV), t(ys)
+    return t(xs), t(ps), torch.tensor(ds).to(DEV), t(ys), torch.tensor(ns, dtype=torch.float32).to(DEV)
 
 
 @torch.no_grad()
-def predict(model: OnsetNet, song, difficulty: str) -> np.ndarray:
+def predict(model: OnsetNet, song, difficulty: str, nps: float | None = None) -> np.ndarray:
     model.eval()
     x = torch.tensor(song.feats)[None].to(DEV)
     p = torch.tensor(song.phase)[None].to(DEV)
     d = torch.tensor([diff_index(difficulty)]).to(DEV)
-    return torch.sigmoid(model(x, p, d))[0].cpu().numpy()
+    n = torch.tensor([nps or 3.0], dtype=torch.float32).to(DEV)
+    return torch.sigmoid(model(x, p, d, n))[0].cpu().numpy()
 
 
 def peaks(prob: np.ndarray, thr: float) -> np.ndarray:
@@ -146,12 +158,13 @@ def main() -> None:
     ap.add_argument("--phase", type=int, default=1)
     ap.add_argument("--steps", type=int, default=4000)
     ap.add_argument("--name", default="onset")
+    ap.add_argument("--density", type=int, default=0)
     a = ap.parse_args()
     songs, stats = load("cache")
     np.savez(ROOT / "feat_stats.npz", mean=stats[0], std=stats[1])
     tr, va, te = split(songs)
     print(len(tr), len(va), len(te), "songs", DEV, flush=True)
-    model = OnsetNet(songs[0].feats.shape[1], bool(a.phase)).to(DEV)
+    model = OnsetNet(songs[0].feats.shape[1], bool(a.phase), use_density=bool(a.density)).to(DEV)
     opt = torch.optim.AdamW(model.parameters(), 1e-3, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, 2e-3, total_steps=a.steps)
     lossf = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(4.0, device=DEV))
@@ -159,8 +172,8 @@ def main() -> None:
     t0 = time.time()
     for step in range(a.steps):
         model.train()
-        x, p, d, y = batch(random.sample(trex, 32), 800)
-        loss = lossf(model(x, p, d), y)
+        x, p, d, y, n = batch(random.sample(trex, 32), 800)
+        loss = lossf(model(x, p, d, n), y)
         opt.zero_grad()
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -174,7 +187,7 @@ def main() -> None:
         return [(fn(s, c), np.where(targets(c, len(s.feats)) > 0)[0]) for s in ss for c in s.meta["charts"]]
 
     res = {}
-    learned = lambda s, c: predict(model, s, c["difficulty"])  # noqa: E731
+    learned = lambda s, c: predict(model, s, c["difficulty"], chart_nps(c))  # noqa: E731
     def flux(s, c):
         o = np.r_[s.onset[3:], np.zeros(3)]  # flux peaks ~30 ms after the charted onset; correct the lag
         return o / (o.max() + 1e-9)

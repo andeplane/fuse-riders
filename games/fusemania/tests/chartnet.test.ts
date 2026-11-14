@@ -8,19 +8,9 @@ import { createLibrary } from "../src/engine/library.js";
 import { parseSimfile } from "../src/engine/simfile.js";
 import { SONGS_DATA } from "../src/engine/songs-data.js";
 import { LIBRARY } from "../src/songs.js";
-import { parseAnalysis } from "../../../scripts/lib/fusemania/analysis.js";
-import {
-  DIFFICULTIES,
-  generateCharts,
-  type Difficulty,
-} from "../../../scripts/lib/fusemania/generate.js";
-import { noteData } from "../../../scripts/lib/fusemania/ssc.js";
 
 const repo = fileURLToPath(new URL("../../../", import.meta.url));
 const read = (file: string): string => readFileSync(`${repo}${file}`, "utf8");
-const placement = JSON.parse(
-  read("games/fusemania/charts/chartnet/placement.json"),
-) as Record<string, Record<Difficulty, number[]>>;
 const OWN = ["Easy", "Medium", "Hard", "Challenge"];
 
 test("every song has ChartNet charts, bundled as they are on disk", () => {
@@ -39,62 +29,46 @@ test("every song has ChartNet charts, bundled as they are on disk", () => {
     assert.equal(
       `${head}\n${CHARTNET_DATA[song.id]}`,
       file,
-      `${song.id}: the bundle is stale; run scripts/chartnet/hybrid.ts`,
+      `${song.id}: the bundle is stale; run scripts/chartnet/bundle.ts`,
     );
   }
 });
 
-test("ChartNet charts are the learned rhythm with the generator's arrows, regenerated exactly", () => {
+test("ChartNet charts are well formed: four difficulties, each busier, no hands, freezes that end", () => {
   for (const song of SONGS_DATA) {
-    const analysis = parseAnalysis(
-      read(`games/fusemania/charts/analysis/${song.id}.json`),
-    );
-    const beats = placement[song.id]!;
     const sim = parseSimfile(
       read(`games/fusemania/charts/chartnet/${song.id}.ssc`),
     );
-    const charts = generateCharts(analysis, beats);
     assert.deepEqual(
       sim.charts.map((chart) => [chart.difficulty, chart.description]),
-      DIFFICULTIES.map((difficulty) => [difficulty, "ChartNet"]),
+      OWN.map((difficulty) => [difficulty, "ChartNet"]),
+      song.id,
     );
-    let rows = 0;
-    sim.charts.forEach((chart, index) => {
+    let rows = 0,
+      meter = 0;
+    for (const chart of sim.charts) {
       const where = `${song.id} ${chart.difficulty}`;
-      const generated = charts[index]!;
-      assert.equal(chart.meter, generated.meter, where);
-      assert.equal(
-        noteData(generated, analysis.slotsPerBeat).trim(),
-        read(`games/fusemania/charts/chartnet/${song.id}.ssc`)
-          .split("#NOTES:\n")
-          [index + 1]!.split("\n;")[0]!
-          .trim(),
-        where,
-      );
-      // Every row is on a beat the model placed, rounded to the song's grid; never a hand.
-      const slotOf = (beat: number): number =>
-        Math.round(beat * analysis.slotsPerBeat);
-      const placed = new Set(beats[chart.difficulty as Difficulty].map(slotOf));
+      assert.equal(chart.stepsType, "dance-single", where);
       const byBeat = new Map<number, number>();
-      for (const note of chart.notes)
-        if (note.kind !== "mine")
-          byBeat.set(
-            slotOf(note.beat),
-            (byBeat.get(slotOf(note.beat)) ?? 0) + 1,
+      for (const note of chart.notes) {
+        if (note.kind === "mine") continue;
+        byBeat.set(note.beat, (byBeat.get(note.beat) ?? 0) + 1);
+        if (note.kind === "hold")
+          assert.ok(
+            note.endBeat !== undefined && note.endBeat > note.beat,
+            `${where}: freeze at ${note.beat} has no tail`,
           );
-      for (const [beat, arrows] of byBeat) {
-        assert.ok(
-          placed.has(beat),
-          `${where}: row at slot ${beat} was not placed`,
-        );
-        assert.ok(arrows <= 2, `${where}: ${arrows} arrows at slot ${beat}`);
       }
+      for (const [beat, arrows] of byBeat)
+        assert.ok(arrows <= 2, `${where}: ${arrows} arrows at beat ${beat}`);
       assert.ok(
         byBeat.size > rows,
         `${where}: ${byBeat.size} rows after ${rows}`,
       );
+      assert.ok(chart.meter > meter, `${where}: meter ${chart.meter}`);
       rows = byBeat.size;
-    });
+      meter = chart.meter;
+    }
   }
 });
 
