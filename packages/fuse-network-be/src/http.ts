@@ -69,10 +69,11 @@ export interface RoomHttpOptions {
 }
 
 /**
- * `/ice` and `/end` read the room for any caller, member or not, so each address has a budget of them: 30 at once and
+ * `/ice` and `/end` read the room for any caller, member or not, so each address has a budget of each: 30 at once and
  * one more every two seconds. A page asks for ICE servers once per admission (never on a resumed socket) and ends a
  * room once, so a whole room of devices behind one address joining together is well inside it. A refused `/ice`
- * costs the page nothing: it falls back to the same STUN servers this service would have named.
+ * costs the page nothing: it falls back to the same STUN servers this service would have named. The two are counted
+ * apart, so a venue's worth of pages asking for ICE servers cannot keep a creator from ending their room.
  */
 export const ROOM_LOOKUP_BURST = 30,
   ROOM_LOOKUP_PER_SECOND = 0.5;
@@ -160,11 +161,10 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
       code: (error as { code?: unknown })?.code,
     });
   const admissions = new AdmissionGate(store.database, now);
-  const lookups = new AddressBudget(
-    now,
-    ROOM_LOOKUP_BURST,
-    ROOM_LOOKUP_PER_SECOND,
-  );
+  const lookup = () =>
+    new AddressBudget(now, ROOM_LOOKUP_BURST, ROOM_LOOKUP_PER_SECOND);
+  const iceLookups = lookup(),
+    endLookups = lookup();
   const handle = async (
     req: IncomingMessage,
     res: ServerResponse,
@@ -249,11 +249,13 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
         return;
       }
       const route = url.pathname.match(ROOM_ROUTE);
-      if (
-        ((route?.[2] === "end" && req.method === "POST") ||
-          route?.[2] === "ice") &&
-        !lookups.take(options.clientAddress(req))
-      ) {
+      const budget =
+        route?.[2] === "ice"
+          ? iceLookups
+          : route?.[2] === "end" && req.method === "POST"
+            ? endLookups
+            : undefined;
+      if (budget && !budget.take(options.clientAddress(req))) {
         json({ error: "Too many requests; try later" }, 429);
         return;
       }

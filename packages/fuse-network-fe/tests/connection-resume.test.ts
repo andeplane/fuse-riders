@@ -13,6 +13,7 @@ async function pump(
   h: TransportHarness,
   links: [FakePeerConnection, string][],
   ms: number,
+  self = "c-a",
 ): Promise<void> {
   for (let elapsed = 0; elapsed < ms; elapsed += 200) {
     await h.run(200);
@@ -30,7 +31,7 @@ async function pump(
           JSON.stringify({
             id: 1_000_000 + ++pongs,
             sender: connection,
-            receiver: "c-a",
+            receiver: self,
             data: {
               type: "linkPong",
               probeId: (probe.data as { probeId: number }).probeId,
@@ -149,7 +150,7 @@ test("a resume reconciles who came, went or reloaded while the socket was down, 
   const [toB, toC, toD] = h.connections;
   h.recorded.peers.length = h.recorded.links.length = 0;
   h.socket.drop(1006);
-  await h.run(1500);
+  await pump(h, links, 1500);
   h.socket.open();
   // While the socket was down: c left, d reloaded into a new connection, and e joined.
   await h.socket.deliver(welcome("c-a", { b: "c-b", d: "c-d2", e: "c-e" }));
@@ -188,10 +189,10 @@ test("a resume reconciles who came, went or reloaded while the socket was down, 
 
 test("a service that no longer holds the seat answers with a new connection, and the mesh is rebuilt as before", async () => {
   const h = new TransportHarness({ random: () => 0 });
-  await playing(h, ["b"]);
+  const links = await playing(h, ["b"]);
   const pc = h.connections[0]!;
   h.socket.drop(1006);
-  await h.run(1500);
+  await pump(h, links, 1500);
   h.socket.open();
   assert.equal(h.socket.sent[0]!.resume, "c-a");
   await h.socket.deliver(welcome("c-a2", { b: "c-b" }, false));
@@ -203,11 +204,57 @@ test("a service that no longer holds the seat answers with a new connection, and
     ["a", "a"],
   ]);
   assert.equal(h.transport.connectionId, "c-a2");
-  // The next drop offers the connection the page holds now.
+  // The next drop offers the connection the page holds now, once the rebuilt link is carrying.
+  const again = h.connections[1]!;
+  again.connectionBecomes("connected");
+  again.created.get("game")!.open();
+  again.created.get("input")!.open();
+  const rebuilt: [FakePeerConnection, string][] = [[again, "c-b"]];
+  await pump(h, rebuilt, 400, "c-a2");
+  assert.equal(h.transport.linked("b"), true);
   h.socket.drop(1012);
-  await h.run(1500);
+  await pump(h, rebuilt, 1500, "c-a2");
   h.socket.open();
   assert.equal(h.socket.sent[0]!.resume, "c-a2");
+  h.transport.close();
+});
+
+test("a page whose links all died with the socket asks for a new connection, which its peers rebuild at once", async () => {
+  const h = new TransportHarness({ random: () => 0 });
+  await playing(h, ["b", "c"]);
+  // The phone changed networks: the socket is gone and no probe is answered on any link.
+  h.socket.drop(1006);
+  await h.run(1500);
+  assert.equal(h.transport.linked("b"), false);
+  assert.equal(h.transport.linked("c"), false);
+  h.socket.open();
+  assert.deepEqual(h.socket.sent[0], { type: "auth", token: "token" });
+  // The service gives the seat a new connection, as it did before resumption, and the mesh is rebuilt on it.
+  await h.socket.deliver(welcome("c-a2", { b: "c-b", c: "c-c" }, false));
+  await h.flush();
+  assert.equal(h.connections[0]!.closeCalls, 1);
+  assert.equal(h.connections[1]!.closeCalls, 1);
+  assert.equal(h.connections.length, 4);
+  // One offer to each, on the new socket.
+  assert.equal(h.descriptionsTo("b").length, 1);
+  assert.equal(h.descriptionsTo("c").length, 1);
+  h.transport.close();
+});
+
+test("one link still carrying is enough to resume: the dead one is left to its own restart policy", async () => {
+  const h = new TransportHarness({ random: () => 0 });
+  const links = await playing(h, ["b", "c"]);
+  h.socket.drop(1006);
+  // Only b answers its probes while the socket is down.
+  await pump(h, links.slice(0, 1), 1500);
+  assert.equal(h.transport.linked("c"), false);
+  h.socket.open();
+  assert.equal(h.socket.sent[0]!.resume, "c-a");
+  await h.socket.deliver(welcome("c-a", { b: "c-b", c: "c-c" }));
+  await pump(h, links.slice(0, 1), 400);
+  assert.equal(h.connections.length, 2, "neither link was rebuilt");
+  assert.equal(h.connections[1]!.closeCalls, 0);
+  assert.equal(h.transport.linked("b"), true);
   h.transport.close();
 });
 

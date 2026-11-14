@@ -19,6 +19,7 @@ import { existsSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import type { Page } from "playwright";
 import { launchSelected } from "./lib/browser.js";
+import { openPlayOptions, takeHostSeat } from "./lib/main-menu.js";
 import { ridersPageUrl } from "./lib/riders-url.js";
 import { readyRoom } from "./lib/ready-room.js";
 import { instrument } from "./p2p-measure.js";
@@ -119,8 +120,10 @@ try {
   entrance.searchParams.set("benchmark", "1");
   entrance.searchParams.set("renderer", "phaser-canvas");
   await host.goto(entrance.href);
+  await openPlayOptions(host);
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await host.waitForURL(/room=/);
+  await takeHostSeat(host, "Anchor");
   await host
     .locator(".room-rider strong")
     .filter({ hasText: "Anchor" })
@@ -128,7 +131,10 @@ try {
   const invite = new URL(host.url());
   for (const [key, value] of entrance.searchParams)
     invite.searchParams.set(key, value);
-  if (host.url() !== invite.href) await host.goto(invite.href);
+  if (host.url() !== invite.href) {
+    await host.goto(invite.href);
+    await takeHostSeat(host, "Anchor");
+  }
   await guest.goto(invite.href);
   await host
     .locator(".room-rider strong")

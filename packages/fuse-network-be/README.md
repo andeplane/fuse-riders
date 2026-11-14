@@ -38,14 +38,14 @@ an unhosted game cannot create a room. An absent `gameId` means `LEGACY_GAME_ID`
 services from before rooms carried a game keep working with each other.
 
 A dropped socket does not cost a member its seat. A socket that ends without a close frame, and every socket of
-an instance that is stopping, leaves its seat held for `RESUME_GRACE_MS` (15 s); a page that reconnects naming its
+an instance that is stopping, leaves its seat held for `RESUME_GRACE_MS` (8 s); a page that reconnects naming its
 connection id (`resume` in the first frame) is welcomed back under it and no other member is told, so the WebRTC
 links that page has stay up. A seat nobody resumed lapses with its lease and is pruned by any instance serving the
 room, which is when the others hear of it. See "Resuming a connection" in
 [PROTOCOL.md](../../docs/online/PROTOCOL.md).
 
 Origin checks are not authentication; tokens are. Requests, query strings and frames are never logged. `/ice` and
-`/end` read the room for any caller, so each address may make 30 of them at once and one more every two seconds
+`/end` read the room for any caller, so each address may make 30 of each at once and one more every two seconds
 (`AddressBudget`, kept per instance with no database call); past that they answer `429`. A page refused `/ice`
 uses the same STUN servers it would have been given.
 

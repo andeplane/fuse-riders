@@ -292,8 +292,7 @@ export class PeerTransport implements RoomTransport {
       this.token,
       (url) => this.deps.socket(url),
       this.gameId,
-      // The connection this page already holds, if any: the service keeps its seat for a while after a socket drops.
-      this.connectionId || undefined,
+      this.resumable(),
     );
     this.socket = ws;
     ws.onmessage = async (event) => {
@@ -434,6 +433,22 @@ export class PeerTransport implements RoomTransport {
    * this page left, so every link that still names a current connection is kept as it is, with whatever it was
    * carrying, and the room above hears only of the members that came or went meanwhile.
    */
+  /**
+   * The connection to ask the service for again, if any: it keeps the seat for a while after a socket drops. A socket
+   * cut on its own (the platform's hourly cut, a stopped instance) leaves the links carrying, and those are what a
+   * resume keeps. When this page has links and none is carrying, the network path went with the socket (a phone that
+   * changed networks, a page back from suspension): a new connection, which every peer rebuilds its link to at once,
+   * recovers sooner than waiting out each dead link's restart policy, so that is what the page asks for, as before.
+   */
+  private resumable(): string | undefined {
+    if (this.connectionId === "") return undefined;
+    if (
+      this.links.size > 0 &&
+      ![...this.links.keys()].some((id) => this.linked(id))
+    )
+      return undefined;
+    return this.connectionId;
+  }
   private async resume(
     ws: RoomServiceSocket,
     message: {
@@ -462,7 +477,8 @@ export class PeerTransport implements RoomTransport {
         this.connections.set(id, connectionId);
         this.callbacks.peer(id, true);
       }
-      // A link that has its channels is left alone; one the drop interrupted before its offer is offered now.
+      // A link that has its channels is left alone, and a member with no link yet is offered one now. A link the drop
+      // caught half negotiated lost the frames sent meanwhile; the restart policy offers it again (`checkLinks`).
       if (this.initiator(id)) await this.offer(id);
     }
   }

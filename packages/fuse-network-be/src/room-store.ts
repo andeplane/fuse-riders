@@ -120,10 +120,12 @@ export const CONNECTION_TTL_MS = 30_000;
 /**
  * How long a seat is kept for its page after the page's socket dropped without a goodbye: Cloud Run cuts every
  * socket after an hour and whenever an instance stops, and a phone changes networks. The page reconnects after 1.1
- * to 1.5 s, then 2.3 to 3 s, then 4.5 to 6 s (`ReconnectBackoff`), so this covers three attempts. Until it runs out
- * the other members are told nothing and keep their links to the page; after it the seat lapses like any lease.
+ * to 1.5 s and then 2.3 to 3 s later (`ReconnectBackoff`), so this covers two attempts and their handshakes. Until
+ * it runs out the other members are told nothing and keep their links to the page; after it the seat lapses like any
+ * lease. It is also how long a page that died with a reset (a crashed browser) goes on looking present, which a
+ * round waits out, so it is no longer than those two attempts need: a later attempt is admitted as a new connection.
  */
-export const RESUME_GRACE_MS = 15_000;
+export const RESUME_GRACE_MS = 8_000;
 /** A lapsed seat is pruned this long after its lease ran out, so one instance's clock running ahead cannot end a lease early. */
 export const LAPSE_MARGIN_MS = 1_000;
 /** Any admitted member renews the room; an empty room has this long to reconnect. */

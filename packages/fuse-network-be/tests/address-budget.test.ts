@@ -52,23 +52,28 @@ test("the room lookups an outsider can ask for are bounded per address; other ro
       token: string;
     };
     const stranger = { Authorization: `Bearer ${"e".repeat(64)}` };
-    const statuses: number[] = [];
-    for (let n = 0; n < ROOM_LOOKUP_BURST + 2; n++)
-      statuses.push(
-        (
-          await call(
-            n % 2
-              ? `/api/rooms/${room.code}/ice`
-              : `/api/rooms/${room.code}/end`,
-            { method: n % 2 ? "GET" : "POST", headers: stranger },
-          )
-        ).status,
+    // Not a member, not the creator: refused on the merits thirty times, then without a room read at all. Each
+    // route has its own allowance, so the address that spent its ICE lookups can still ask to end a room.
+    for (const [path, method] of [
+      ["ice", "GET"],
+      ["end", "POST"],
+    ] as const) {
+      const statuses: number[] = [];
+      for (let n = 0; n < ROOM_LOOKUP_BURST + 2; n++)
+        statuses.push(
+          (
+            await call(`/api/rooms/${room.code}/${path}`, {
+              method,
+              headers: stranger,
+            })
+          ).status,
+        );
+      assert.deepEqual(
+        statuses,
+        [...Array.from({ length: ROOM_LOOKUP_BURST }, () => 403), 429, 429],
+        path,
       );
-    // Not a member, not the creator: refused on the merits thirty times, then without a room read at all.
-    assert.deepEqual(statuses.slice(0, ROOM_LOOKUP_BURST), [
-      ...Array.from({ length: ROOM_LOOKUP_BURST / 2 }, () => [403, 403]).flat(),
-    ]);
-    assert.deepEqual(statuses.slice(ROOM_LOOKUP_BURST), [429, 429]);
+    }
     // Health and room creation are other budgets.
     assert.equal((await call("/api/health")).status, 200);
     assert.equal((await call("/api/rooms", { method: "POST" })).status, 201);
