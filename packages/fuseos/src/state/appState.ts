@@ -79,7 +79,7 @@ export interface NotepadPlusPlusWindowContent {
   activePath?: string;
 }
 
-/** Fusteam, the game launcher (`src/launcher`): opens on every boot, one instance, focused rather than duplicated. */
+/** Fusteam, the game launcher (`src/launcher`): opens on every boot (above Winamp), one instance, focused rather than duplicated. */
 export interface LauncherWindowContent {
   kind: "launcher";
 }

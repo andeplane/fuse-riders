@@ -213,7 +213,7 @@ describe(Desktop.name, () => {
     expect(launcher).toHaveAttribute("data-active", "true");
   });
 
-  it("boots with Fusteam focused when the store is wrapped for boot, under the deep link's windows", () => {
+  it("boots with Winamp open and Fusteam focused above it when the store is wrapped for boot, under the deep link's windows", () => {
     renderWithProviders(<Desktop />, {
       store: withLauncherOnBoot(
         new MemoryStateStore({
@@ -246,9 +246,15 @@ describe(Desktop.name, () => {
     expect(
       taskbar
         .getAllByRole("button")
-        .slice(0, 4)
+        .slice(0, 5)
         .map((button) => button.textContent),
-    ).toEqual(["Start", "untitled - Paint", "Fusteam", "About FuseOS"]);
+    ).toEqual([
+      "Start",
+      "untitled - Paint",
+      "Winamp",
+      "Fusteam",
+      "About FuseOS",
+    ]);
   });
 
   it("opens the deep link's windows on top of the stored ones", () => {

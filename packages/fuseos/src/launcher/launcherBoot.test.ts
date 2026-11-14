@@ -2,7 +2,11 @@ import type { AppState, WindowState } from "../state/appState";
 import { activeWindowId, DEFAULT_STATE } from "../state/appState";
 import { MemoryStateStore } from "../state/stateStore";
 
-import { withLauncherOnBoot, withLauncherOnTop } from "./launcherBoot";
+import {
+  withBootWindows,
+  withLauncherOnBoot,
+  withLauncherOnTop,
+} from "./launcherBoot";
 import { LAUNCHER_WINDOW_ID } from "./launcherFacts";
 
 const LAPTOP = { width: 1280, height: 800 };
@@ -90,6 +94,52 @@ describe(withLauncherOnTop.name, () => {
   });
 });
 
+describe(withBootWindows.name, () => {
+  it("opens Winamp with the launcher focused above it on an empty desktop", () => {
+    const state = withBootWindows(DEFAULT_STATE, LAPTOP);
+    expect(state.windows).toEqual([
+      { id: "w1", kind: "winamp", minimized: false, maximized: false },
+      {
+        id: LAUNCHER_WINDOW_ID,
+        kind: "launcher",
+        minimized: false,
+        maximized: false,
+      },
+    ]);
+    expect(activeWindowId(state)).toBe(LAUNCHER_WINDOW_ID);
+  });
+
+  it("brings up the stored Winamp and launcher instead of adding second ones, above the other windows", () => {
+    const stored: AppState = {
+      version: 1,
+      windows: [
+        window("w3", { kind: "winamp", minimized: true }),
+        window(LAUNCHER_WINDOW_ID, { kind: "launcher" }),
+        window("w1"),
+      ],
+    };
+    const state = withBootWindows(stored, LAPTOP);
+    expect(state.windows.map((item) => [item.id, item.minimized])).toEqual([
+      ["w1", false],
+      ["w3", false],
+      [LAUNCHER_WINDOW_ID, false],
+    ]);
+    // Booting again changes nothing: one of each.
+    expect(withBootWindows(state, LAPTOP)).toEqual(state);
+  });
+
+  it("boots a phone with the launcher alone, maximized", () => {
+    expect(withBootWindows(DEFAULT_STATE, PHONE).windows).toEqual([
+      {
+        id: LAUNCHER_WINDOW_ID,
+        kind: "launcher",
+        minimized: false,
+        maximized: true,
+      },
+    ]);
+  });
+});
+
 describe(withLauncherOnBoot.name, () => {
   it("decorates load and passes save through untouched", () => {
     const inner = new MemoryStateStore({
@@ -100,16 +150,19 @@ describe(withLauncherOnBoot.name, () => {
     const loaded = store.load();
     expect(loaded.windows.map((item) => item.id)).toEqual([
       "w1",
+      "w2",
       LAUNCHER_WINDOW_ID,
     ]);
+    expect(loaded.windows[1]).toMatchObject({ kind: "winamp" });
     const closed: AppState = { version: 1, windows: [window("w1")] };
     store.save(closed);
     expect(inner.saved).toBe(1);
     expect(inner.load()).toEqual(closed);
-    // The next boot brings it back.
-    expect(store.load().windows.map((item) => item.id)).toEqual([
-      "w1",
-      LAUNCHER_WINDOW_ID,
+    // The next boot brings them back.
+    expect(store.load().windows.map((item) => item.kind)).toEqual([
+      "paint",
+      "winamp",
+      "launcher",
     ]);
   });
 });

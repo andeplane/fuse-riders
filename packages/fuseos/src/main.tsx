@@ -81,7 +81,8 @@ if (!redirect && initialOpen.length > 0)
     withoutOpenParam(window.location.href),
   );
 
-// Fusteam, the game launcher, opens focused on every boot; the deep link's windows land on top of it.
+// Winamp (queued, not playing) and Fusteam, the game launcher, open on every boot, Fusteam focused; the deep
+// link's windows land on top of them.
 const store = withLauncherOnBoot(
   new LocalStorageStateStore(),
   defaultWindowsDeps.getViewport,
