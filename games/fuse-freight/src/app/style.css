@@ -99,6 +99,7 @@ body.fui-app button {
 .ff-alert {
   margin: 0.75rem auto 0;
   padding: 0 1rem;
+  color: var(--ff-red);
   font-size: 0.875rem;
   line-height: 1.5;
   text-align: center;
@@ -1205,7 +1206,7 @@ body:has(.ff-lobby:not([hidden])) .ff-live {
   color: var(--ff-muted);
 }
 
-/* A narrow phone: a two-row header, the status line below the brand. */
+/* A narrow phone: a tighter header, and a smaller status line in the strip below it. */
 @media (max-width: 30rem) {
   .ff-top {
     gap: 0.4rem 0.5rem;
@@ -1216,8 +1217,6 @@ body:has(.ff-lobby:not([hidden])) .ff-live {
     font-size: 0.8rem;
   }
   .ff-live {
-    order: 5;
-    flex-basis: 100%;
     font-size: 0.7rem;
   }
 }
