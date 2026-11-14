@@ -2,6 +2,8 @@ import type { GameRegistration, PlayerResult } from "fuse-platform";
 import {
   CAPACITY,
   CLASSIC_TARGET,
+  KINGS_CLASSIC_TARGET,
+  KINGS_RALLY_TARGET,
   MOST_HITS,
   RALLY_TARGET,
   SCORE_CAP,
@@ -90,11 +92,13 @@ export function parseFuseVolleyStats(
   if (!COUNTERS.every((key) => count(raw[key], MOST[key]))) return;
   const number = (key: Counter) => raw[key] as number;
   if (number("roundsPlayed") !== 1) return;
-  // The winner, and only the winner, has the round and first place; nobody wins short of the lower target.
-  const won = number("roundWins") === 1;
+  // The winner, and only the winner, has the round and first place (the others second, or third of three teams);
+  // nobody wins short of the lowest target.
+  const won = number("roundWins") === 1,
+    placement = number("matchPlacement");
   if (
-    number("matchPlacement") !== (won ? 1 : 2) ||
-    (won && number("matchScoreUnits") < RALLY_TARGET) ||
+    (won ? placement !== 1 : placement !== 2 && placement !== 3) ||
+    (won && number("matchScoreUnits") < KINGS_CLASSIC_TARGET) ||
     number("points") !== number("matchScoreUnits")
   )
     return;
@@ -112,11 +116,79 @@ export function parseFuseVolleyStats(
   };
 }
 
+/** Players by team: slot % `teams`. Each team must agree with itself on the points and the result. */
+function teamsOf(
+  players: readonly FuseVolleyStats[],
+  teams: number,
+): FuseVolleyStats[] | undefined {
+  const firsts: FuseVolleyStats[] = [];
+  for (let team = 0; team < teams; team++) {
+    const [first, ...rest] = players.filter(
+      (player) => player.slot % teams === team,
+    );
+    if (
+      !first ||
+      rest.some(
+        (mate) =>
+          mate.points !== first.points ||
+          mate.roundWins !== first.roundWins ||
+          mate.matchPlacement !== first.matchPlacement,
+      )
+    )
+      return;
+    firsts.push(first);
+  }
+  return firsts;
+}
+
 /**
- * The whole field: two, four or six blobs on the two sides (even slots on the left, odd ones on the right),
- * one side of which won by two (or at the score cap) ahead of the other. Teammates share their side's points and
- * result.
+ * Two sides (one, two or three a side; even slots left, odd right), one of which won by two (or at the score cap)
+ * ahead of the other, the other second.
  */
+function twoSides(players: readonly FuseVolleyStats[]): boolean {
+  const sides = teamsOf(players, 2);
+  if (!sides) return false;
+  const [a, b] = sides as [FuseVolleyStats, FuseVolleyStats];
+  if (a.roundWins + b.roundWins !== 1) return false;
+  const [winner, loser] = a.roundWins === 1 ? [a, b] : [b, a];
+  if (loser.matchPlacement !== 2) return false;
+  // A finished match under either rule: the winner reached the target at least two clear, or went past it by
+  // exactly two after a deuce, or stopped at the cap.
+  const w = winner.points,
+    l = loser.points;
+  if (w === SCORE_CAP) return l < w;
+  return [RALLY_TARGET, CLASSIC_TARGET].some(
+    (target) =>
+      (w === target && l <= target - 2) || (w > target && w - l === 2),
+  );
+}
+
+/**
+ * Three teams of two (slot % 3 is the team), king of the court: one reached the target first and the others are
+ * below it, placed second and third by points (level ones both second).
+ */
+function threeTeams(players: readonly FuseVolleyStats[]): boolean {
+  const teams = teamsOf(players, 3);
+  if (!teams) return false;
+  const winners = teams.filter((team) => team.roundWins === 1);
+  if (winners.length !== 1) return false;
+  const winner = winners[0]!,
+    others = teams.filter((team) => team !== winner);
+  return (
+    [KINGS_RALLY_TARGET, KINGS_CLASSIC_TARGET].some(
+      (target) =>
+        winner.points === target &&
+        others.every((other) => other.points < target),
+    ) &&
+    others.every(
+      (other) =>
+        other.matchPlacement ===
+        2 + others.filter((rival) => rival.points > other.points).length,
+    )
+  );
+}
+
+/** The whole field: two, four or six blobs on two sides, or six in three teams of two. */
 export function validFuseVolleyField(
   players: readonly FuseVolleyStats[],
 ): boolean {
@@ -128,33 +200,7 @@ export function validFuseVolleyField(
     [...slots].some((slot) => slot >= players.length)
   )
     return false;
-  const sides = [0, 1].map((side) =>
-    players.filter((player) => player.slot % 2 === side),
-  );
-  // Each side agrees with itself on the points and the result.
-  for (const team of sides) {
-    const [first, ...rest] = team;
-    if (
-      !first ||
-      rest.some(
-        (mate) =>
-          mate.points !== first.points || mate.roundWins !== first.roundWins,
-      )
-    )
-      return false;
-  }
-  const [a, b] = [sides[0]![0]!, sides[1]![0]!];
-  if (a.roundWins + b.roundWins !== 1) return false;
-  const [winner, loser] = a.roundWins === 1 ? [a, b] : [b, a];
-  // A finished match under either rule: the winner reached the target at least two clear, or went past it by
-  // exactly two after a deuce, or stopped at the cap.
-  const w = winner.points,
-    l = loser.points;
-  if (w === SCORE_CAP) return l < w;
-  return [RALLY_TARGET, CLASSIC_TARGET].some(
-    (target) =>
-      (w === target && l <= target - 2) || (w > target && w - l === 2),
-  );
+  return twoSides(players) || (players.length === 6 && threeTeams(players));
 }
 
 export const emptyFuseVolleyTotals = (): FuseVolleyTotalsRecord => ({

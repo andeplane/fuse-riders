@@ -1,6 +1,6 @@
 import type { MatchResult } from "fuse-platform";
 import type { FuseVolleyStats } from "../platform.js";
-import { sideOf, type Room } from "./game.js";
+import { teamOfSlot, type Room } from "./game.js";
 
 /**
  * A finished match as every replica computes it, for the room service (`parseFuseVolleyStats` in `../platform.ts` is
@@ -14,21 +14,35 @@ function players(room: Room): FuseVolleyPlayerResult[] | undefined {
   if (room.stage !== "over" || !world || !decided) return;
   const winner = roster.find((entrant) => entrant.id === decided.winner);
   if (!winner) return;
+  const format = world.format,
+    kings = format === "2v2v2";
+  /** A team's points: its side's, or three teams of two, its own. */
+  const pointsOf = (team: number): number =>
+    kings ? world.points[team]! : world.score[team === 1 ? 1 : 0];
+  const winning = teamOfSlot(winner.slot, format);
   return roster.map((entrant) => {
     const blob = world.blobs[entrant.slot]!,
-      side = sideOf(entrant.slot);
-    // Two or three a side: every blob of the winning side wins, and each reports its side's points.
-    const won = side === sideOf(winner.slot);
+      team = teamOfSlot(entrant.slot, format);
+    // Every blob of the winning team wins, and each reports its team's points. Three teams of two, the other two place
+    // second and third by points, level ones both second.
+    const won = team === winning,
+      points = pointsOf(team);
+    const ahead = kings
+      ? [0, 1, 2].filter(
+          (other) =>
+            other !== team && other !== winning && pointsOf(other) > points,
+        ).length
+      : 0;
     return {
       playerId: entrant.id,
       name: entrant.name,
       slot: entrant.slot,
       roundsPlayed: 1,
       roundWins: won ? 1 : 0,
-      matchScoreUnits: world.score[side],
-      matchPlacement: won ? 1 : 2,
+      matchScoreUnits: points,
+      matchPlacement: won ? 1 : 2 + ahead,
       earlyExits: entrant.bot || decided.finishers.includes(entrant.id) ? 0 : 1,
-      points: world.score[side],
+      points,
       hits: blob.hits,
     };
   });
