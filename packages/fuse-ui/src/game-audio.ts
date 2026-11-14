@@ -177,6 +177,11 @@ export interface AudioClock {
    * else 0. A browser reports 0 for `outputLatency` until its context has run, so 0 counts as missing.
    */
   latency(): number;
+  /**
+   * `baseLatency` and `outputLatency` as the browser reports them, in seconds; undefined where it reports nothing
+   * (or 0). For diagnostics: `latency()` is the one to schedule with.
+   */
+  latencies?(): { base: number | undefined; output: number | undefined };
   /** Whether the clock is advancing (context running, page unlocked and visible). */
   readonly running: boolean;
 }
@@ -655,6 +660,10 @@ export function createGameAudio(
         now: () => audio.currentTime,
         latency: () =>
           known(audio.outputLatency) ?? known(audio.baseLatency) ?? 0,
+        latencies: () => ({
+          base: known(audio.baseLatency),
+          output: known(audio.outputLatency),
+        }),
         get running() {
           return unlocked && !hidden && audio.state === "running";
         },
