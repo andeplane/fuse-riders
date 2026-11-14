@@ -1,9 +1,14 @@
 import { social } from "./social.js";
 import { createModalInputGate } from "fuse-ui/modal-input";
+import {
+  playtestInputBlocked,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 import "fuse-ui/portal.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import { reportPlay } from "./analytics.js";
+import { observeConfirmedPlay } from "fuse-ui/play-metrics";
 import "./style.css";
 import "./presentation.css";
 import { createAppPortal } from "fuse-ui/portal";
@@ -478,7 +483,8 @@ touch = createTouchControls(
   clear,
 );
 const modalInput = createModalInputGate({
-  isOpen: () => !!document.querySelector("dialog[open]"),
+  isOpen: () =>
+    playtestInputBlocked(document) || !!document.querySelector("dialog[open]"),
   observe: (change) => {
     const observer = new MutationObserver(change);
     observer.observe(document.body, {
@@ -490,6 +496,7 @@ const modalInput = createModalInputGate({
   },
   cancel: clear,
 });
+const stopPlaytestInput = registerPlaytestInput(document, { cancel: clear });
 function touchLayout() {
   clear();
   const enabled = touchToggle.checked;
@@ -767,22 +774,33 @@ const enterRoom = async () => {
           status.textContent = text;
         },
         state(frame, settings) {
-          reportPlay({
-            matchId: frame.matchId,
-            active:
-              frame.stage === "running" &&
-              (frame.contest.phase === "countdown" ||
-                frame.contest.phase === "active"),
-            ended:
-              frame.contest.rules !== "free" && frame.contest.phase === "over",
-            round: frame.round,
-            playerCount: frame.seats.filter((seat) => !seat.watcher).length,
-            botCount: frame.seats.filter((seat) => seat.bot).length,
-            seated: frame.seats.some(
-              (seat) => seat.id === selfId && !seat.watcher,
-            ),
-            mode: frame.contest.rules,
-          });
+          observeConfirmedPlay(
+            reportPlay,
+            frame,
+            () => runtime?.confirmedFrame(),
+            (frame) => ({
+              matchId: frame.matchId,
+              roundActive:
+                frame.stage === "running" && frame.contest.phase === "active",
+              roundEnded:
+                frame.contest.rules !== "free" &&
+                frame.contest.phase === "over",
+              active:
+                frame.stage === "running" &&
+                (frame.contest.phase === "countdown" ||
+                  frame.contest.phase === "active"),
+              ended:
+                frame.contest.rules !== "free" &&
+                frame.contest.phase === "over",
+              round: frame.round,
+              playerCount: frame.seats.filter((seat) => !seat.watcher).length,
+              botCount: frame.seats.filter((seat) => seat.bot).length,
+              seated: frame.seats.some(
+                (seat) => seat.id === selfId && !seat.watcher,
+              ),
+              mode: frame.contest.rules,
+            }),
+          );
           latest = localView(frame);
           host.dataset.logTick = String(frame.logTick);
           const c = frame.contest;
@@ -1198,7 +1216,7 @@ el<HTMLInputElement>("atmosphere").checked = !matchMedia(
 el<HTMLInputElement>("atmosphere").onchange = (e) =>
   scene?.setAtmosphere((e.target as HTMLInputElement).checked);
 host.addEventListener("keydown", (e) => {
-  if (menu.isOpen()) return;
+  if (menu.isOpen() || modalInput.blocked()) return;
   if (!keyboard.accepts(e.code)) return;
   e.preventDefault();
   if (e.repeat) return;
@@ -1241,7 +1259,7 @@ function mouseButtons(mask: number): void {
 }
 host.addEventListener("contextmenu", (e) => e.preventDefault());
 host.addEventListener("pointerdown", (e) => {
-  if (menu.isOpen()) return;
+  if (menu.isOpen() || modalInput.blocked()) return;
   if ((e.button !== 0 && e.button !== 2) || e.pointerType !== "mouse") return;
   if (touchDeck.dataset.active === "true") clear();
   e.preventDefault();
@@ -1290,6 +1308,7 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("pagehide", () => {
   modalInput.dispose();
+  stopPlaytestInput();
   effects.destroy();
   radio.destroy();
   disposed = true;

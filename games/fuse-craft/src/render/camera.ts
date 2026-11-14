@@ -1,4 +1,8 @@
 import { hexCenter } from "./board.js";
+import {
+  playtestInputBlocked,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 
 export interface Size {
   width: number;
@@ -240,6 +244,8 @@ export function createCameraFactory(
   dependencies: CameraDependencies,
 ): CameraFactory {
   return (svg, viewport) => {
+    const blocked = () =>
+      !!viewport.ownerDocument && playtestInputBlocked(viewport.ownerDocument);
     const numbers = (svg.getAttribute("viewBox") ?? "0 0 1 1")
       .split(/\s+/)
       .map(Number);
@@ -278,6 +284,10 @@ export function createCameraFactory(
     let lastFrame: number | null = null;
     function tick(now: number) {
       frame = null;
+      if (blocked()) {
+        lastFrame = null;
+        return;
+      }
       const rect = viewport.getBoundingClientRect();
       const direction = scrollDirection(
         held,
@@ -312,6 +322,24 @@ export function createCameraFactory(
     }
     const touches = new Map<number, { x: number; y: number }>();
     let pinch: { x: number; y: number; distance: number } | null = null;
+    const stopPlaytestInput = viewport.ownerDocument
+      ? registerPlaytestInput(viewport.ownerDocument, {
+          cancel: () => {
+            held.clear();
+            pointer = null;
+            for (const id of touches.keys())
+              if (viewport.hasPointerCapture(id))
+                viewport.releasePointerCapture(id);
+            if (gesture && viewport.hasPointerCapture(gesture.id))
+              viewport.releasePointerCapture(gesture.id);
+            touches.clear();
+            pinch = null;
+            gesture = null;
+            suppressClick = true;
+            viewport.classList.remove("is-panning");
+          },
+        })
+      : () => {};
     function touchPair() {
       const [a, b] = [...touches.values()];
       return a && b
@@ -337,6 +365,7 @@ export function createCameraFactory(
       }
     }
     function down(event: PointerEvent) {
+      if (blocked()) return;
       if (event.button !== 0 && event.button !== 2) return;
       const panOnly = event.button === 2 || event.ctrlKey;
       if (event.pointerType === "touch") {
@@ -377,6 +406,10 @@ export function createCameraFactory(
       );
     }
     function pointerAt(next: Point | null) {
+      if (blocked()) {
+        pointer = null;
+        return;
+      }
       pointer = next;
       if (pointer && edgeScroll) wake();
     }
@@ -385,6 +418,7 @@ export function createCameraFactory(
     }
     const stopPointer = dependencies.screen?.watch(pointerAt);
     function move(event: PointerEvent) {
+      if (blocked()) return;
       hover(event);
       // A mouse can leave the viewport before crossing the drag threshold.
       // Its release then happens outside our listeners, so hover must cancel it.
@@ -457,6 +491,11 @@ export function createCameraFactory(
         viewport.releasePointerCapture(event.pointerId);
     }
     function click(event: MouseEvent) {
+      if (blocked()) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       if (!suppressClick && event.button !== 2 && !event.ctrlKey) return;
       suppressClick = false;
       event.preventDefault();
@@ -466,6 +505,7 @@ export function createCameraFactory(
       event.preventDefault();
     }
     function wheel(event: WheelEvent) {
+      if (blocked()) return;
       event.preventDefault();
       const rect = viewport.getBoundingClientRect();
       const unit =
@@ -502,6 +542,7 @@ export function createCameraFactory(
         refresh();
       },
       hold(direction, on) {
+        if (on && blocked()) return;
         if (on) held.add(direction);
         else held.delete(direction);
         if (held.size) wake();
@@ -511,6 +552,7 @@ export function createCameraFactory(
         if (!enabled) pointer = null;
       },
       dispose() {
+        stopPlaytestInput();
         disposed = true;
         stopResize();
         stopPointer?.();

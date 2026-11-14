@@ -19,6 +19,8 @@
  * 1 start and missed match 2's start would otherwise report match 1's clock as match 2's length.
  */
 import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
+import { createRoundMetrics } from "fuse-ui/play-metrics";
+import type { Analytics } from "fuse-ui/analytics";
 import type { MatchPlayerStats } from "../engine/match-stats.js";
 import type { DecidedRound } from "../engine/shot-log.js";
 import type { RoomSettings } from "../engine/room-settings.js";
@@ -50,6 +52,8 @@ export interface FunnelDevice {
   playerId: string;
   host: boolean;
   confirmedTick: number;
+  /** Detached rollback-closed history for irreversible round completion. */
+  confirmedRoundFrame?: FunnelView;
   rules: Pick<RoomSettings, "mode" | "match" | "length"> & {
     weights?: RoomSettings["weights"];
   };
@@ -63,10 +67,7 @@ export interface FunnelOptions {
   warn?: (message: string, error: unknown) => void;
 }
 
-export type Track = (
-  event: string,
-  properties?: Record<string, unknown>,
-) => void;
+export type Track = Analytics["track"];
 
 export interface Funnel {
   onFrame(view: FunnelView, device: FunnelDevice): void;
@@ -80,6 +81,7 @@ export function createFunnel(
     warn = (message, error) => console.warn(message, error),
   }: FunnelOptions,
 ): Funnel {
+  const observeRound = createRoundMetrics(track);
   // The in-memory copies are the real guard: storage can refuse, and a round-over snapshot arrives twenty times a second.
   let seatTracked = false,
     matchStartedAt = 0,
@@ -93,6 +95,37 @@ export function createFunnel(
     const botCount = view.players.filter((player) =>
       player.id.startsWith(BOT_ID_PREFIX),
     ).length;
+
+    observeRound({
+      matchId: view.matchId,
+      round: view.round,
+      active: view.phase === "playing",
+      ended: view.phase === "matchOver",
+      roundActive: view.phase === "playing",
+      playerCount: view.players.length,
+      botCount,
+      seated:
+        device.playerId !== "" &&
+        view.players.some((player) => player.id === device.playerId),
+      mode: device.rules.mode,
+    });
+    const final = device.confirmedRoundFrame;
+    if (final?.decidedRound && final.decidedRound.matchId === final.matchId)
+      observeRound({
+        matchId: final.matchId,
+        round: final.decidedRound.round,
+        active: false,
+        ended: false,
+        roundEnded: true,
+        playerCount: final.players.length,
+        botCount: final.players.filter((player) =>
+          player.id.startsWith(BOT_ID_PREFIX),
+        ).length,
+        seated:
+          device.playerId !== "" &&
+          final.players.some((player) => player.id === device.playerId),
+        mode: device.rules.mode,
+      });
 
     const startKey = matchStartKey(view.matchId, view.phase, view.round);
     // Every once-only flag below is set after its event has been handed to `track`, never before: a throw while

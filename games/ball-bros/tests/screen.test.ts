@@ -293,6 +293,7 @@ function screen(online = true, display = false, shared = false, fail = "") {
       return true;
     },
     frameTiming: () => ({ newer: current, tick: current.tick, lead: 0 }),
+    confirmedFrame: () => current,
   };
   const options: ScreenOptions = {
     observePlay: (observed) => metrics.push(observed),

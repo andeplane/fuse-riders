@@ -71,6 +71,9 @@ importers:
       fuse-riders-game:
         specifier: workspace:*
         version: link:games/fuse-riders
+      fuse-telemetry:
+        specifier: workspace:*
+        version: link:packages/fuse-telemetry
       fuse-volley:
         specifier: workspace:*
         version: link:games/fuse-volley
@@ -80,6 +83,9 @@ importers:
       fusemania:
         specifier: workspace:*
         version: link:games/fusemania
+      google-auth-library:
+        specifier: ^11.0.2
+        version: 11.0.2
       graveyard-shift:
         specifier: workspace:*
         version: link:games/graveyard-shift
@@ -168,9 +174,6 @@ importers:
       fuse-ui:
         specifier: workspace:*
         version: link:packages/fuse-ui
-      google-auth-library:
-        specifier: ^11.0.2
-        version: 11.0.2
       happy-dom:
         specifier: ^21.0.4
         version: 21.0.4
@@ -180,9 +183,6 @@ importers:
       linkedom:
         specifier: ^0.18.13
         version: 0.18.13
-      mixpanel-browser:
-        specifier: ^2.83.0
-        version: 2.83.0
       phaser:
         specifier: 4.2.1
         version: 4.2.1
@@ -682,6 +682,21 @@ importers:
         specifier: ^6.2.12
         version: 6.2.12
 
+  packages/fuse-telemetry:
+    dependencies:
+      '@google-cloud/firestore':
+        specifier: ^9.1.0
+        version: 9.1.0
+      fuse-network-be:
+        specifier: workspace:*
+        version: link:../fuse-network-be
+      google-auth-library:
+        specifier: ^11.0.2
+        version: 11.0.2
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
+
   packages/fuse-ui:
     dependencies:
       firebase:
@@ -696,9 +711,12 @@ importers:
       fuse-platform:
         specifier: workspace:*
         version: link:../fuse-platform
-      mixpanel-browser:
-        specifier: ^2.83.0
-        version: 2.83.0
+      fuse-telemetry:
+        specifier: workspace:*
+        version: link:../fuse-telemetry
+      html-to-image:
+        specifier: ^1.11.13
+        version: 1.11.13
 
   packages/fuseos:
     dependencies:
@@ -1481,27 +1499,6 @@ packages:
 
   '@marijn/find-cluster-break@1.0.4':
     resolution: {integrity: sha512-Wy0V7+SGUjnF9/TkiM1hKVDPj7jKXduPNboMVtHTA8dySMURWqfg/JZ9E2Sq8JgSJmkl7k7Qe9FLeMSrSraWmQ==}
-
-  '@mixpanel/rrdom@2.0.0-alpha.18.6':
-    resolution: {integrity: sha512-JY1Kr8c5pPmFBdPMLIEm1e0/hw2xvsS515Qqf+5Lpm0AW+2e/ZvA6P6M+z4fXeuachfZZv06UhTvixiUJv355Q==}
-
-  '@mixpanel/rrweb-plugin-console-record@2.0.0-alpha.18.6':
-    resolution: {integrity: sha512-qfRNGfWLHZHnMQ4IFQMObxf7ctX8YrRf205hppwb9yXwjZHyBsKkK+Gm3aot2pUMu1BEFeXSvFS38Nf3vKg4Qw==}
-    peerDependencies:
-      '@mixpanel/rrweb': ^2.0.0-alpha.18
-      '@mixpanel/rrweb-utils': ^2.0.0-alpha.18
-
-  '@mixpanel/rrweb-snapshot@2.0.0-alpha.18.6':
-    resolution: {integrity: sha512-8c8TArw8l0mmYPvKc3asq3hIzQ7uVrNVQ4xsVt+ESxHohW8r47ua/YLDpd2jV30FZj4Y3KvGTQl5sXLDI+02Zw==}
-
-  '@mixpanel/rrweb-types@2.0.0-alpha.18.6':
-    resolution: {integrity: sha512-KvaTcbZR4mJ3w1b1fEq4AeSg9rUqvQ1gKko9r56ANUw4fqWam23xoXrLJ8Og+hPYTwIDQ99TkZBVXFTGJqYwpQ==}
-
-  '@mixpanel/rrweb-utils@2.0.0-alpha.18.6':
-    resolution: {integrity: sha512-1eEcOunlnv27oqHRhaK9F2fo5kB97M98+3VoZz6CCq816J37wveGQIiXDvb5qUOgMqjwJ9GCNRMUhrxSyM0C5w==}
-
-  '@mixpanel/rrweb@2.0.0-alpha.18.6':
-    resolution: {integrity: sha512-9DOB723vDEy8zP88nrEmA2dFmVa+z0tc2AGTVrxHl1pJcnyhT3Z7SASWQxgcT4KGsqTIorJJ/D1sNI7j597Z9g==}
 
   '@mlc-ai/web-llm@0.2.88':
     resolution: {integrity: sha512-nuLT7aGC5VEjzu03TG7CVhlesMjtBiHsj0w/odz4XqcWlyr6tw564LTL5OyhEZ+F+1RugwpFbsRIRplZdgHBVw==}
@@ -2646,9 +2643,6 @@ packages:
   '@types/chrome@0.0.266':
     resolution: {integrity: sha512-QSQWJTL7NjZElvq/6/E5C1+pHgEP8UAJzwoz7M4vSJ7AECt6NNehJ+tU6snnvuTqZOBjFCivvitYo5+8tNPmhg==}
 
-  '@types/css-font-loading-module@0.0.7':
-    resolution: {integrity: sha512-nl09VhutdjINdWyXxHWN/w9zlNCfr60JUqJbd24YXUuCwgeL0TpFSdElCwb6cxfB6ybE19Gjj4g0jsgkXxKv1Q==}
-
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
 
@@ -2674,9 +2668,6 @@ packages:
 
   '@types/istanbul-lib-coverage@2.0.6':
     resolution: {integrity: sha512-2QF/t/auWm0lsy8XtKVPG19v3sSOQlJe/YHZgfjb/KBBHOGSV+J2q/S671rcq9uTBrLAXmZpqJiaQbMT+zNU1w==}
-
-  '@types/json-logic-js@2.0.5':
-    resolution: {integrity: sha512-hu/FTi0zwCjQEFfbPur275cNoZj6NsuOBhhYNzqoSdfmMhuxFr58OZ957lyIOWc9+kO+2tFlBthRjcxuytD4HA==}
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
@@ -2822,9 +2813,6 @@ packages:
   '@webgpu/types@0.1.74':
     resolution: {integrity: sha512-lgiI4hbuLcI9unnm2cL/tvCaQU45dp0xcLWJh5uB/9MBGvIA4F8XIk7nSiBeg+K4xWGYwgZKn80LmERI5CxoTA==}
 
-  '@xstate/fsm@1.6.5':
-    resolution: {integrity: sha512-b5o1I6aLNeYlU/3CPlj/Z91ybk1gUsKT+5NAJI+2W4UjvS5KLG28K9v5UvNoFVjHV8PajVZ00RH3vnjyQO7ZAw==}
-
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
     peerDependencies:
@@ -2886,10 +2874,6 @@ packages:
   balanced-match@4.0.4:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
     engines: {node: 18 || 20 || >=22}
-
-  base64-arraybuffer@1.0.2:
-    resolution: {integrity: sha512-I3yl4r9QB5ZRY3XuJVEPfc2XhZO6YweFPI+UovAzn+8/hb3oJ6lnysaFcjVpkCPfVWFUDvoZ8kmVDP7WyRtYtQ==}
-    engines: {node: '>= 0.6.0'}
 
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
@@ -3372,6 +3356,9 @@ packages:
   html-escaper@3.0.3:
     resolution: {integrity: sha512-RuMffC89BOWQoY0WKGpIhn5gX3iI54O6nRA0yC124NYVtzjmFWBIiFd8M0x+ZdX0P9R4lADg1mgP8C7PxGOWuQ==}
 
+  html-to-image@1.11.13:
+    resolution: {integrity: sha512-cuOPoI7WApyhBElTTb9oqsawRvZ0rHhaHwghRLlTuffoD1B2aDemlCruLeZrUIIdvG7gs9xeELEPm6PhuASqrg==}
+
   htmlparser2@10.1.0:
     resolution: {integrity: sha512-VTZkM9GWRAtEpveh7MSF6SjjrpNVNNVJfFup7xTY3UpFtm67foy9HDVXneLtFVt4pMz5kZtgNcvCniNFb1hlEQ==}
 
@@ -3471,9 +3458,6 @@ packages:
 
   json-bigint@1.0.0:
     resolution: {integrity: sha512-SiPv/8VpZuWbvLSMtTDU8hEfrZWg/mH/nV/b4o0CYbSxu1UIQPLdwKOCIyLQX+VIPO5vrLX3i8qtqFyhdPSUSQ==}
-
-  json-logic-js@2.0.5:
-    resolution: {integrity: sha512-rTT2+lqcuUmj4DgWfmzupZqQDA64AdmYqizzMPWj3DxGdfFNsxPpcNVSaTj4l8W2tG/+hg7/mQhxjU3aPacO6g==}
 
   json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
@@ -3655,12 +3639,6 @@ packages:
   minipass@7.1.3:
     resolution: {integrity: sha512-tEBHqDnIoM/1rXME1zgka9g6Q2lcoCkxHLuc7ODJ5BxbP5d4c2Z5cGgtXAku59200Cx7diuHTOYfSBD8n6mm8A==}
     engines: {node: '>=16 || 14 >=14.17'}
-
-  mitt@3.0.1:
-    resolution: {integrity: sha512-vKivATfr97l2/QBCYAkXYDbrIWPM2IIKEl7YPhjCvKlG3kE2gm+uBo6nEXK3M5/Ffh/FLpKExzOQ3JJoJGFKBw==}
-
-  mixpanel-browser@2.83.0:
-    resolution: {integrity: sha512-TuAh1+6iLv5BB4v9D9qS/QAGeDVOv2r78vFNi36Uy/RAYanOXw2ncXDmvq1BKHdV0vtw3K3YgJJ1i03V3U3qkg==}
 
   ms@2.0.0:
     resolution: {integrity: sha512-Tpp60P6IUJDTuOq/5Z8cdskzJujfwqfOTkrwIwj7IRISpnkJnT6SyJ4PCPnGMoFjC9ddhal5KVIYtAt97ix05A==}
@@ -5204,34 +5182,6 @@ snapshots:
 
   '@marijn/find-cluster-break@1.0.4': {}
 
-  '@mixpanel/rrdom@2.0.0-alpha.18.6':
-    dependencies:
-      '@mixpanel/rrweb-snapshot': 2.0.0-alpha.18.6
-
-  '@mixpanel/rrweb-plugin-console-record@2.0.0-alpha.18.6(@mixpanel/rrweb-utils@2.0.0-alpha.18.6)(@mixpanel/rrweb@2.0.0-alpha.18.6)':
-    dependencies:
-      '@mixpanel/rrweb': 2.0.0-alpha.18.6
-      '@mixpanel/rrweb-utils': 2.0.0-alpha.18.6
-
-  '@mixpanel/rrweb-snapshot@2.0.0-alpha.18.6':
-    dependencies:
-      postcss: 8.5.28
-
-  '@mixpanel/rrweb-types@2.0.0-alpha.18.6': {}
-
-  '@mixpanel/rrweb-utils@2.0.0-alpha.18.6': {}
-
-  '@mixpanel/rrweb@2.0.0-alpha.18.6':
-    dependencies:
-      '@mixpanel/rrdom': 2.0.0-alpha.18.6
-      '@mixpanel/rrweb-snapshot': 2.0.0-alpha.18.6
-      '@mixpanel/rrweb-types': 2.0.0-alpha.18.6
-      '@mixpanel/rrweb-utils': 2.0.0-alpha.18.6
-      '@types/css-font-loading-module': 0.0.7
-      '@xstate/fsm': 1.6.5
-      base64-arraybuffer: 1.0.2
-      mitt: 3.0.1
-
   '@mlc-ai/web-llm@0.2.88':
     dependencies:
       '@mlc-ai/web-runtime': 0.28.0-dev2
@@ -6409,8 +6359,6 @@ snapshots:
       '@types/filesystem': 0.0.36
       '@types/har-format': 1.2.16
 
-  '@types/css-font-loading-module@0.0.7': {}
-
   '@types/deep-eql@4.0.2': {}
 
   '@types/esrecurse@4.3.1': {}
@@ -6431,8 +6379,6 @@ snapshots:
       hoist-non-react-statics: 3.3.2
 
   '@types/istanbul-lib-coverage@2.0.6': {}
-
-  '@types/json-logic-js@2.0.5': {}
 
   '@types/json-schema@7.0.15': {}
 
@@ -6636,8 +6582,6 @@ snapshots:
 
   '@webgpu/types@0.1.74': {}
 
-  '@xstate/fsm@1.6.5': {}
-
   acorn-jsx@5.3.2(acorn@8.18.0):
     dependencies:
       acorn: 8.18.0
@@ -6684,8 +6628,6 @@ snapshots:
   balanced-match@1.0.2: {}
 
   balanced-match@4.0.4: {}
-
-  base64-arraybuffer@1.0.2: {}
 
   base64-js@1.5.1: {}
 
@@ -7267,6 +7209,8 @@ snapshots:
 
   html-escaper@3.0.3: {}
 
+  html-to-image@1.11.13: {}
+
   htmlparser2@10.1.0:
     dependencies:
       domelementtype: 2.3.0
@@ -7368,8 +7312,6 @@ snapshots:
   json-bigint@1.0.0:
     dependencies:
       bignumber.js: 9.3.1
-
-  json-logic-js@2.0.5: {}
 
   json-schema-traverse@0.4.1: {}
 
@@ -7517,16 +7459,6 @@ snapshots:
       brace-expansion: 2.1.4
 
   minipass@7.1.3: {}
-
-  mitt@3.0.1: {}
-
-  mixpanel-browser@2.83.0:
-    dependencies:
-      '@mixpanel/rrweb': 2.0.0-alpha.18.6
-      '@mixpanel/rrweb-plugin-console-record': 2.0.0-alpha.18.6(@mixpanel/rrweb-utils@2.0.0-alpha.18.6)(@mixpanel/rrweb@2.0.0-alpha.18.6)
-      '@mixpanel/rrweb-utils': 2.0.0-alpha.18.6
-      '@types/json-logic-js': 2.0.5
-      json-logic-js: 2.0.5
 
   ms@2.0.0: {}
 

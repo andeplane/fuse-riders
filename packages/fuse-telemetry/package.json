@@ -1,0 +1,40 @@
+{
+  "name": "fuse-telemetry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contracts": "./src/contracts.ts",
+    "./metrics": "./src/metrics.ts",
+    "./metrics-database": "./src/metrics-database.ts",
+    "./metrics-http": "./src/metrics-http.ts",
+    "./metrics-memory": "./src/metrics-memory.ts",
+    "./metrics-firestore": "./src/metrics-firestore.ts",
+    "./limits": "./src/limits.ts",
+    "./developer-access": "./src/developer-access.ts",
+    "./debug-contracts": "./src/debug-contracts.ts",
+    "./debug-http": "./src/debug-http.ts",
+    "./debug-store": "./src/debug-store.ts",
+    "./debug-memory": "./src/debug-memory.ts",
+    "./debug-service": "./src/debug-service.ts",
+    "./debug-firestore": "./src/debug-firestore.ts",
+    "./debug-file": "./src/debug-file.ts",
+    "./storage": "./src/storage.ts",
+    "./gcp-storage": "./src/gcp-storage.ts",
+    "./transcription": "./src/transcription.ts",
+    "./worker": "./src/worker.ts",
+    "./openai": "./src/openai.ts",
+    "./action-contracts": "./src/action-contracts.ts",
+    "./action-store": "./src/action-store.ts",
+    "./action-service": "./src/action-service.ts",
+    "./action-adapters": "./src/action-adapters.ts",
+    "./action-extractor": "./src/action-extractor.ts",
+    "./action-http": "./src/action-http.ts"
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "^9.1.0",
+    "google-auth-library": "^11.0.2",
+    "fuse-network-be": "workspace:*",
+    "jose": "^6.2.12"
+  }
+}

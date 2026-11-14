@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { registerPhaserPlaytestCapture } from "fuse-ui/playtest-renderer";
 import {
   CHUNK,
   UNIT,
@@ -93,6 +94,7 @@ export function createArena(
   };
   canvas.addEventListener("webglcontextlost", onLost);
   canvas.addEventListener("webglcontextrestored", onRestored);
+  const stopCapture = registerPhaserPlaytestCapture(canvas.ownerDocument, game);
   return {
     ready,
     emit(fact, scope, now) {
@@ -113,6 +115,7 @@ export function createArena(
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      stopCapture();
       canvas.removeEventListener("webglcontextlost", onLost);
       canvas.removeEventListener("webglcontextrestored", onRestored);
       game.destroy(false);

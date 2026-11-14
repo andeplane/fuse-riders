@@ -276,6 +276,7 @@ export function readPads(source: PadSource): readonly (PadLike | null)[] {
  * flaps. One device plays one seat, so the first connected pad is the one that plays and the rest are ignored.
  */
 export class Pads {
+  private needNeutral = false;
   /** The buttons of the pad in use that were down at the last poll, so each press counts once. */
   private was = new Set<number>();
   /** Which slot of `getGamepads()` is being played, so swapping pads arms the new one's buttons afresh. */
@@ -321,6 +322,12 @@ export class Pads {
     }
     for (const button of standard ? ATTACK_STANDARD : ATTACK_BASIC)
       if (on(button)) now.add(button);
+    if (this.needNeutral) {
+      this.controls.set("pad", 0);
+      this.was.clear();
+      if (!bits && !now.size) this.needNeutral = false;
+      return;
+    }
     this.controls.set("pad", bits);
     for (const button of now)
       if (!this.was.has(button)) {
@@ -338,6 +345,11 @@ export class Pads {
     this.slot = undefined;
     this.was = new Set();
     this.controls.set("pad", 0);
+  }
+  /** A report takes focus: a held stick/button must first return to neutral. */
+  cancel(): void {
+    this.release();
+    this.needNeutral = true;
   }
 }
 

@@ -261,29 +261,36 @@ Tests should use typed injected clocks, schedulers, transports and seeded random
 
 ## Product analytics
 
-Every game reports Mixpanel product events with the shared `fuse.` prefix and a `gameId` property for cross-game dashboards.
-Opening, seating, match starts and match ends are tracked from real play; Fuse Riders also reports one `Kill` per kill
+Every game reports first-party product events with the shared `fuse.` prefix and a `gameId` for cross-game dashboards.
+Opening, seating, match and round starts/ends are tracked from real play; Fuse Riders also reports one `Kill` per kill
 and one `Miss` per shot that killed nobody, sent by the shooter's own device once each round is decided and confirmed.
-The rename from `FlowRiders.*` intentionally breaks existing dashboards; there is no dual reporting.
+The in-house transport replaces Mixpanel; existing provider history is not migrated or deleted.
 Local dev (any address with a port, a LAN address included) is off
 by default, `?analytics=1` forces them on and `?analytics=0` forces them off; either choice sticks for the
 browser, so it survives the navigation into a room. See [product analytics](docs/ANALYTICS.md)
 for the event list and what is deliberately not tracked.
 
 After `pnpm build`, `pnpm exec tsx scripts/all-games-analytics-smoke.ts` starts a local room service on a free port
-and verifies the real SDK's opening event, shared prefix, game id and URL exclusions on every game page.
-All Mixpanel requests are intercepted; results go to `artifacts/all-games-analytics.json`.
+and verifies the real client's opening event, shared prefix, game id and URL exclusions on every game page.
+All event requests are intercepted; results go to `artifacts/all-games-analytics.json`.
 
 `HOME_URL=http://127.0.0.1:8899/ pnpm exec tsx scripts/analytics-smoke.ts` (and `BROWSER=webkit`) takes the site root, enters `/fuse-riders/` and plays a one-round
-solo match with Mixpanel intercepted — never delivered — and asserts what each event carried, writing
-`artifacts/analytics-<browser>.json`. It exists because the failure mode is silent: Mixpanel answers `200` to a
-request whose properties it dropped, so a bad payload looks exactly like a good one from inside the game. It ends
+solo match with first-party events intercepted and asserts what each event carried, writing
+`artifacts/analytics-<browser>.json`. It ends
 by opening a second tab, switching analytics off there, and asserting that neither tab makes a further request —
 the first tab's already-queued batch included — before or after a reload.
 
+The private `/dev/` workspace combines sortable game metrics and period charts with reports,
+recording transcripts/audio and explicit proposed work. Ctrl+X or the shared game menu opens
+a screenshot report for any player. Verified admins can start/stop microphone recording from
+the same menu; `?record` and `?report` are optional shortcuts. See the
+[operations guide](docs/developer-insights.md) for the allowlist, API/agent CLI,
+retention and production setup. Uploads are progressive; an unfinished audio chunk can be lost
+on forced browser closure. Production activation remains pending configuration and deployment.
+
 ## Hosting and deployment status
 
-The online beta is deployed on **GitHub Pages, Cloud Run, Firestore (room metadata and [match history](#login-and-match-history)), Pub/Sub signalling and Firebase Authentication only**; the deployed client additionally reports [product analytics](docs/ANALYTICS.md) to Mixpanel, which carries no gameplay and no room credentials. See the [verified GCP inventory](docs/online/GCP-INVENTORY.md). `dev:online` and CI run the same room service code locally with in-memory rooms. It requires no provisioned always-running game simulation server. Gameplay requires WebRTC; the service does not relay gameplay traffic. Failed direct connections show a retry state. The GCP target does not provision TURN. Some networks cannot establish a direct connection; the UI must report that failure instead of silently relaying the game.
+The online beta uses **GitHub Pages, Cloud Run, Firestore (room metadata and [match history](#login-and-match-history)), Pub/Sub signalling and Firebase Authentication**. Developer insights additionally requires a private GCS media bucket, a separate authenticated transcription queue and server-side OpenAI access; these are not provisioned by this branch. See the [verified GCP inventory](docs/online/GCP-INVENTORY.md). `dev:online` and CI run the same room service code locally with in-memory rooms. It requires no provisioned always-running game simulation server. Gameplay requires WebRTC; the service does not relay gameplay traffic. Failed direct connections show a retry state. The GCP target does not provision TURN. Some networks cannot establish a direct connection; the UI must report that failure instead of silently relaying the game.
 
 The supported hosting model is GitHub Pages plus the Cloud Run room service; consult the deployment inventory for recorded endpoints and verify current external state before claiming publication. Local server processes and LAN addresses are ephemeral; read startup output rather than reusing a recorded PID or IP.
 
@@ -646,7 +653,7 @@ How the implementation holds the line:
   `uid`. An account binds to the seat the sender's own room token proves, one account per seat and one seat per
   account per match. History responses show which seat was the caller's and never anyone else's account id.
 - **Credentials stay in headers**, to the gateway origin only: never a URL, an invite, a WebRTC message, a log line or
-  a Mixpanel property. The gateway logs an error's name and code, nothing from the request. Authenticated responses
+  an analytics property. The gateway logs an error's name and code, nothing from the request. Authenticated responses
   are `no-store`.
 - **Stored data is re-validated on the way out** as well as on the way in, and the account dialog writes everything
   with `textContent`; a colour is applied only if it is `#rrggbb`.

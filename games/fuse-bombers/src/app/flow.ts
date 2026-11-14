@@ -192,7 +192,10 @@ export class Flow implements RoundSource {
     const { runner, seats, screen } = this;
     if (screen.kind !== "lobby")
       this.options.playMetrics?.({
-        matchId: `local:${this.playMatch}`,
+        matchId: `local:${this.options.seed}:${this.playMatch}`,
+        roundKey: runner.view.config.seed,
+        roundActive: screen.kind === "playing" && runner.view.phase !== "over",
+        roundEnded: screen.kind === "results" || screen.kind === "winner",
         active: screen.kind === "countdown" || screen.kind === "playing",
         ended: screen.kind === "winner",
         playerCount: seats.length,

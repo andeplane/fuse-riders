@@ -20,10 +20,13 @@ export function birdsPlayFrame(
   return {
     // Practice maps share an id; NEW MAP advances the round and starts a new observation scope.
     matchId: world
-      ? `${world.id}:${world.round}`
+      ? `${context.practice ? context.roomScope + ":" : ""}${world.id}:${world.round}`
       : frame.matchId || context.roomScope,
     active: !!world && !["preparing", "over", "fault"].includes(world.phase),
     ended: world?.phase === "over",
+    roundActive:
+      !!world && !["preparing", "over", "fault"].includes(world.phase),
+    roundEnded: !context.practice && world?.phase === "over",
     playerCount: players.length,
     botCount: players.filter((seat) => seat.bot).length,
     seated:

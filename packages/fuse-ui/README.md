@@ -4,7 +4,7 @@
 Supply native dialog observation and the game's cancellation callback; cancel held controls when a dialog opens,
 and check `blocked()` before dispatching gameplay keys or pointer inputs. Dispose the observer with the game.
 
-Shared menus, social controls and neon/pixel styles for the room games in this repo. DOM components import no game or network code. The separate browser adapters use the shared network/platform contracts; sign-in downloads Firebase lazily, and analytics downloads `mixpanel-browser` only when analytics is enabled.
+Shared menus, social controls and neon/pixel styles for the room games in this repo. DOM components import no game or network code. The separate browser adapters use shared contracts; sign-in downloads Firebase lazily, and first-party analytics sends bounded batches only when enabled.
 
 ## Shared accounts and friends
 
@@ -23,7 +23,8 @@ current players. Games never import another game's client for these features.
 
 Each game starts one client with `startGameAnalytics(gameId)` from `fuse-ui/play-metrics`, which reports `fuse.App Opened`.
 Pass its `track` and an injected clock to `createPlayMetrics` and feed it actual rendered match state for seat/start/end events.
-The shared `fuse-ui/analytics` client attaches `gameId` on every event and owns consent, SDK loading and text scrubbing.
+Supply explicit `roundActive` and `roundEnded` boundaries for actual participation, excluding countdowns and spectators.
+The shared `fuse-ui/analytics` client attaches `gameId` on every event and owns consent, anonymous browser/session identity, bounded retry delivery and text scrubbing.
 Fuse Riders uses its more detailed funnel with that same client. See [the event contract](../../docs/ANALYTICS.md).
 
 ## Styles

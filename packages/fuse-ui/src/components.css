@@ -1,6 +1,7 @@
 @import "@fontsource/press-start-2p/latin.css";
 @import "./top-bar.css";
 @import "./play-menu.css";
+@import "./playtest.css";
 /*
  * Styles for the fuse-ui components (their default `fui-*` classes), in the Fuse Riders look. Needs tokens.css first.
  *

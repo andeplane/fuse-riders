@@ -8,12 +8,8 @@ import {
   SETTINGS_KEY,
 } from "../games/fuse-riders/src/engine/room-settings.js";
 /**
- * Analytics evidence: a one-round solo match plays to completion with Mixpanel intercepted, and the events it
- * reported are checked against what they are supposed to carry.
- *
- * This exists because the failure mode is silent by construction. Mixpanel answers `200` to a request whose
- * properties it dropped, so a bad payload looks exactly like a good one from inside the game — a property named
- * `length` once erased every property on `Match Started`, including the super properties, and nothing noticed.
+ * Analytics evidence: a real one-round solo match, with first-party event ingestion intercepted.
+ * Inspect the actual envelope and acknowledge IDs without writing smoke data into production.
  * HOME_URL is the served site root; BROWSER=webkit selects WebKit.
  */
 const base = ridersPageUrl(process.env.HOME_URL ?? "http://127.0.0.1:4188/");
@@ -41,21 +37,32 @@ const context = await browser.newContext({
 const page = await context.newPage();
 const reported: Reported[] = [];
 const requestUrls: string[] = [];
+const acknowledged = new Set<string>();
 // Intercepted, never delivered: a smoke must not write into the production project.
-await context.route("**/*mixpanel.com/**", async (route) => {
+await context.route("**/api/telemetry/events", async (route) => {
   requestUrls.push(route.request().url());
-  try {
-    for (const event of JSON.parse(
-      new URLSearchParams(route.request().postData() ?? "").get("data")!,
-    ))
-      reported.push(event);
-  } catch {
-    /* not a track payload */
+  const payload: {
+    events: {
+      id: string;
+      name: string;
+      gameId: string;
+      properties: Record<string, unknown>;
+    }[];
+  } = JSON.parse(route.request().postData() ?? "{}");
+  for (const event of payload.events) {
+    if (acknowledged.has(event.id)) continue;
+    acknowledged.add(event.id);
+    reported.push({
+      event: event.name,
+      properties: { ...event.properties, gameId: event.gameId },
+    });
   }
   await route.fulfill({
     status: 200,
     contentType: "application/json",
-    body: '{"error":null,"status":1}',
+    body: JSON.stringify({
+      acknowledgedIds: payload.events.map((event) => event.id),
+    }),
   });
 });
 await page.addInitScript(
@@ -116,8 +123,7 @@ await page.waitForTimeout(6000);
 // What the solo match reported, before the second tab below adds an App Opened of its own.
 const soloReported = [...reported];
 
-// Switching analytics off stops every request at once — in EVERY tab, the SDK's queued batch and its unload flush
-// included — and the choice survives a reload, where the SDK is not even downloaded.
+// Switching analytics off clears queued events in every tab, and survives a reload.
 const closeDialog = () =>
   page
     .getByRole("dialog")
@@ -144,7 +150,7 @@ await other
 await other.locator("details.settings-privacy > summary").click();
 const otherToggle = other.locator("details.settings-privacy > button");
 assert.equal(await otherToggle.textContent(), "ANALYTICS ON");
-// Tab A queues an event in its own SDK batch, and tab B opts out before A's five-second flush.
+// Tab A queues an event in its own client batch, and tab B opts out before A's five-second flush.
 await page.getByRole("button", { name: "RESULTS", exact: true }).click();
 await otherToggle.focus();
 await other.keyboard.press("Enter");
@@ -189,9 +195,13 @@ await page.waitForTimeout(6000);
 assert.equal(
   requestUrls.length,
   requestsAtOptOut,
-  "no request reaches Mixpanel after the opt-out, before or after a reload",
+  "no request reaches the first-party metrics endpoint after the opt-out, before or after a reload",
 );
-assert.deepEqual(sdkFetches, [], "an opted-out page never downloads the SDK");
+assert.deepEqual(
+  sdkFetches,
+  [],
+  "no removed third-party analytics SDK is downloaded",
+);
 await browser.close();
 
 const named = (name: string) =>
@@ -210,6 +220,8 @@ const opened = only("App Opened");
 assert.equal(opened.role, "solo");
 // Solo starts its match before the first snapshot reaches the UI, so a gate keyed on leaving the lobby misses it.
 const started = only("Match Started");
+only("Round Started");
+only("Round Ended");
 for (const key of [
   "matchNumber",
   "playerCount",
@@ -280,17 +292,16 @@ for (const kill of named("Kill")) {
 only("Seat Taken");
 only("Recap Reopened");
 
-// `ip: false` at init becomes `ip=0` on every request: Mixpanel derives no city, region or country from it.
 assert.ok(requestUrls.length > 0);
 for (const url of requestUrls)
-  assert.match(url, /[?&]ip=0(&|$)/, `geolocation is not switched off: ${url}`);
+  assert.equal(new URL(url).pathname, "/api/telemetry/events");
 
 // A room page is `?room=CODE` and that code is the join credential: no event may carry a page URL.
 const payload = JSON.stringify(reported);
 for (const forbidden of ["$current_url", "$referrer", "$initial_referrer"]) {
   assert.ok(
     !payload.includes(forbidden),
-    `${forbidden} would ship the room invite link to Mixpanel`,
+    `${forbidden} would ship the room invite link to the first-party metrics endpoint`,
   );
 }
 for (const event of reported) {

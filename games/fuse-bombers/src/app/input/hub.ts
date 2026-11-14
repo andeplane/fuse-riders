@@ -29,6 +29,7 @@ export function deviceLabel(device: DeviceId): string {
 
 /** A device source attached to the hub: polled once per frame (gamepads) and disposed with the hub. */
 export interface InputSource {
+  cancel?(): void;
   poll?(): void;
   dispose?(): void;
 }
@@ -172,6 +173,13 @@ export class InputHub {
 
   /** Drop latched presses, e.g. when a match starts, so lobby presses do not leak into the first step. */
   clearPresses(): void {
+    this.pending.clear();
+  }
+
+  /** Cancel rather than release: no held fire or queued press survives a modal. */
+  cancel(): void {
+    for (const source of this.sources) source.cancel?.();
+    this.held.clear();
     this.pending.clear();
   }
 

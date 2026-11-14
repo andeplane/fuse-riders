@@ -16,6 +16,21 @@ ARTIFACT_LOCATION="${ARTIFACT_LOCATION:-$GCP_REGION}"
 BUILD_SOURCE_BUCKET="${BUILD_SOURCE_BUCKET:-andershaf-87-fuse-riders-build}"
 export GCP_REGION FIRESTORE_DATABASE_ID PUBSUB_TOPIC ROOM_COLLECTION_PREFIX ALLOWED_ORIGINS
 
+# Secret Manager references only. Secret values are never copied into build input, environment JSON or logs.
+telemetry_secret_flags=()
+if [[ "${TELEMETRY_ENABLED:-0}" == "1" ]]; then
+  : "${TELEMETRY_BUCKET:?Set the private insights bucket before enabling telemetry}"
+  : "${TRANSCRIPTION_PUSH_AUDIENCE:?Set the authenticated transcription delivery audience}"
+  : "${TRANSCRIPTION_PUSH_SERVICE_ACCOUNT:?Set the Pub/Sub push service account}"
+  for reference in "${OPENAI_API_KEY_SECRET:-}" "${TELEMETRY_RATE_LIMIT_KEY_SECRET:-}"; do
+    [[ -z "$reference" ]] && continue
+    [[ "$reference" =~ ^[A-Za-z0-9_-]+:[1-9][0-9]*$ ]] || { echo 'Telemetry secrets require name:numeric-version references.' >&2; exit 1; }
+  done
+elif [[ "${TELEMETRY_ENABLED:-0}" != "0" && -n "${TELEMETRY_ENABLED:-}" ]]; then
+  echo 'TELEMETRY_ENABLED must be 0 or 1.' >&2; exit 1
+fi
+export TELEMETRY_ENABLED TELEMETRY_BUCKET TRANSCRIPTION_PUSH_AUDIENCE TRANSCRIPTION_PUSH_SERVICE_ACCOUNT OPENAI_TRANSCRIPTION_MODEL OPENAI_ACTION_MODEL
+
 # What the image build is sent: .dockerignore's allowlist as git pathspecs, plus the build configuration.
 readonly BUILD_CONTEXT=(
   Dockerfile.cloud .dockerignore package.json pnpm-lock.yaml pnpm-workspace.yaml scripts/cloudbuild.yaml
@@ -141,10 +156,20 @@ image="$image_name@$image_digest"
 previous_revision="$(gcloud run services describe "$CLOUD_RUN_SERVICE" --project="$PROJECT_ID" --region="$GCP_REGION" --format='value(status.latestReadyRevisionName)' 2>/dev/null || true)"
 
 env_file="$build_dir/runtime-env.json"
+if [[ "${TELEMETRY_ENABLED:-0}" == "1" ]]; then
+  # This runs after the exact-source CD gate. Bootstrap from the existing GitHub key only if no
+  # managed version exists; future deploys reuse a numeric version instead of creating endless copies.
+  secret_refs_file="$build_dir/insights-secret-refs.json"
+  ./scripts/insights-secret-refs.sh > "$secret_refs_file"
+  OPENAI_API_KEY_SECRET="$(node -e 'const fs=require("node:fs");process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1],"utf8")).OPENAI_API_KEY_SECRET)' "$secret_refs_file")"
+  TELEMETRY_RATE_LIMIT_KEY_SECRET="$(node -e 'const fs=require("node:fs");process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1],"utf8")).TELEMETRY_RATE_LIMIT_KEY_SECRET)' "$secret_refs_file")"
+  telemetry_secret_flags=(--update-secrets="OPENAI_API_KEY=$OPENAI_API_KEY_SECRET,TELEMETRY_RATE_LIMIT_KEY=$TELEMETRY_RATE_LIMIT_KEY_SECRET")
+fi
 node --input-type=module - "$env_file" <<'NODE'
 import {writeFileSync} from 'node:fs';
 const values={NODE_ENV:'production',GOOGLE_CLOUD_PROJECT:'andershaf-87'};
 for(const key of ['GCP_REGION','FIRESTORE_DATABASE_ID','PUBSUB_TOPIC','ROOM_COLLECTION_PREFIX','ALLOWED_ORIGINS'])values[key]=process.env[key];
+for(const key of ['TELEMETRY_ENABLED','TELEMETRY_BUCKET','TRANSCRIPTION_PUSH_AUDIENCE','TRANSCRIPTION_PUSH_SERVICE_ACCOUNT','OPENAI_TRANSCRIPTION_MODEL','OPENAI_ACTION_MODEL'])if(process.env[key])values[key]=process.env[key];
 // The served games come from the image (GAMES in service/history.ts), not the environment. --env-vars-file
 // replaces every variable, so an EXTRA_GAME_IDS left on an older revision is dropped here.
 writeFileSync(process.argv[2],JSON.stringify(values,null,2));
@@ -157,7 +182,7 @@ gcloud run deploy "$CLOUD_RUN_SERVICE" --project="$PROJECT_ID" --region="$GCP_RE
   --min=0 --max=2 --min-instances=0 --max-instances=2 \
   --cpu=1 --memory=512Mi --concurrency=80 --timeout=3600 \
   --cpu-throttling --no-session-affinity --allow-unauthenticated \
-  --env-vars-file="$env_file" --labels="application=fuse-riders,commit=$revision"
+  --env-vars-file="$env_file" "${telemetry_secret_flags[@]}" --labels="application=fuse-riders,commit=$revision"
 
 mkdir -p artifacts
 manifest="artifacts/cloud-release-$revision.json"

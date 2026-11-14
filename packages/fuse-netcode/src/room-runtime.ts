@@ -1699,6 +1699,10 @@ export class RoomRuntime<
   confirmedTick(): number {
     return this.world ? this.world.confirmedGameTick() : -1;
   }
+  /** Detached, cached view of final retained history; unavailable while no snapshot is confirmed. */
+  confirmedFrame(): Frame<View> | undefined {
+    return this.world?.confirmedFrame();
+  }
   metrics(): RuntimeMetrics {
     const streams = Object.fromEntries(
       [...(this.world?.streams ?? [])].map(([id, stream]) => [

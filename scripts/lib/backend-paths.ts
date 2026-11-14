@@ -22,10 +22,13 @@ export const BACKEND_PATHS: readonly string[] = [
   // otherwise a successful skipped backend run would republish the old assets forever.
   "public/",
   "index.html",
+  "site/",
+  "dev/",
   "vite.config.ts",
   ".github/workflows/pages.yml",
   // The release: scripts/deploy-cloud.sh, the build it submits and the configuration it applies first.
   "scripts/deploy-cloud.sh",
+  "scripts/insights-secret-refs.sh",
   "scripts/cloudbuild.yaml",
   "scripts/deploy-configuration.ts",
   "scripts/configuration/",

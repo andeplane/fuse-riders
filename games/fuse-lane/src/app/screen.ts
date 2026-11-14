@@ -1,4 +1,8 @@
 import { button, createRoundControls, el } from "fuse-ui";
+import {
+  playtestInputBlocked,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 import { TOWN_CONTROLS, TOWN_GOAL } from "./control-guide.js";
 import {
   CITY,
@@ -245,7 +249,7 @@ export function createGameScreen(
   options: ScreenOptions = {},
 ) {
   const play = (body: readonly unknown[] | undefined) => {
-    if (body) driver().play(body);
+    if (body && !playtestInputBlocked(game.ownerDocument)) driver().play(body);
   };
   const game = el("section", "", "fl-game");
   const startupControls = createRoundControls({
@@ -1171,6 +1175,7 @@ export function createGameScreen(
     camera = clampCamera(view, { x: from.x + dx, y: from.y + dy });
   };
   canvas.addEventListener("pointerdown", (event) => {
+    if (playtestInputBlocked(game.ownerDocument)) return;
     if (press || !camera || (event.pointerType === "mouse" && event.button))
       return;
     press = {
@@ -1207,6 +1212,15 @@ export function createGameScreen(
     const at = pointer(event);
     if (at >= 0) walk(at);
   };
+  const stopPlaytestInput = registerPlaytestInput(game.ownerDocument, {
+    cancel: () => {
+      if (press && canvas.hasPointerCapture?.(press.id))
+        canvas.releasePointerCapture?.(press.id);
+      press = undefined;
+      hover = -1;
+      canvas.classList.remove("dragging");
+    },
+  });
   canvas.addEventListener("pointerup", (event) => release(event, false));
   canvas.addEventListener("pointercancel", (event) => release(event, true));
   canvas.addEventListener("pointerleave", (event) => {
@@ -1348,9 +1362,11 @@ export function createGameScreen(
     /** Whether the tour is up: the page's own keys and cards stand aside. */
     touring: () => tour !== undefined,
     destroy() {
+      stopPlaytestInput();
       running = false;
     },
     keydown(event: KeyboardEvent) {
+      if (playtestInputBlocked(game.ownerDocument) || event.repeat) return;
       if (tour) {
         if (event.key === "Escape") endTour();
         else if (event.key === "ArrowRight" || event.key === "Enter")

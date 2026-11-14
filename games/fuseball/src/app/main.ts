@@ -1,8 +1,16 @@
 import { createTopBar } from "fuse-ui";
+import {
+  playtestInputBlocked,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
-import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
+import {
+  observeConfirmedPlay,
+  startGameAnalytics,
+  createPlayMetrics,
+} from "fuse-ui/play-metrics";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -622,7 +630,10 @@ function surface(node: HTMLElement, knob?: HTMLElement): PadSurface {
             ? ["pointermove"]
             : ["pointerup", "pointercancel", "lostpointercapture"];
       for (const type of types)
-        node.addEventListener(type, (event) => listener(event as PointerEvent));
+        node.addEventListener(type, (event) => {
+          if (kind === "down" && playtestInputBlocked(document)) return;
+          listener(event as PointerEvent);
+        });
     },
     capture: (pointerId) => node.setPointerCapture(pointerId),
     watch(ended) {
@@ -704,7 +715,9 @@ function room(solo: boolean): void {
       captured.clear();
     }
   });
-  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
+  const modalOpen = () =>
+    playtestInputBlocked(document) ||
+    Boolean(document.querySelector("dialog[open]"));
 
   // Lobby: the invitation and the riders on one side, the arena and START on the other.
   let settings: Settings = { ...DEFAULT_SETTINGS };
@@ -1165,20 +1178,30 @@ function room(solo: boolean): void {
   let joinSent = false;
   const callbacks: FuseballCallbacks = {
     state(frame, roomSettings) {
-      const riders =
-        frame.stage === "lobby"
-          ? frame.seats.filter((seat) => !seat.watcher)
-          : frame.roster;
-      reportPlay({
-        matchId: frame.matchId,
-        active: frame.stage === "running",
-        ended: frame.stage === "over",
-        round: playRound(frame),
-        playerCount: riders.length,
-        botCount: riders.filter((rider) => rider.bot).length,
-        seated: riders.some((rider) => rider.id === viewer.me),
-        mode: solo ? "solo" : roomSettings.display ? "shared" : "online",
-      });
+      observeConfirmedPlay(
+        reportPlay,
+        frame,
+        () => runtime.confirmedFrame(),
+        (frame) => {
+          const riders =
+            frame.stage === "lobby"
+              ? frame.seats.filter((seat) => !seat.watcher)
+              : frame.roster;
+          return {
+            matchId: frame.matchId,
+            roundKey: 1,
+            roundActive: frame.world?.phase === "play",
+            roundEnded: frame.stage === "over",
+            active: frame.stage === "running",
+            ended: frame.stage === "over",
+            round: playRound(frame),
+            playerCount: riders.length,
+            botCount: riders.filter((rider) => rider.bot).length,
+            seated: riders.some((rider) => rider.id === viewer.me),
+            mode: solo ? "solo" : roomSettings.display ? "shared" : "online",
+          };
+        },
+      );
       for (const goal of goals(frame, viewer.me))
         analytics.track("Goal Scored", { ...goal });
       settings = roomSettings;
@@ -1283,6 +1306,7 @@ function room(solo: boolean): void {
   installRoomLifecycle(window, {
     stop: () => runtime.stop(),
     destroy: () => {
+      stopPlaytestInput();
       menu.dispose();
       scene.destroy();
     },
@@ -1307,7 +1331,7 @@ function room(solo: boolean): void {
       event.altKey
     )
       return;
-    if (controls.press(event.code)) {
+    if (!event.repeat && controls.press(event.code)) {
       captured.add(event.code);
       event.preventDefault();
     }
@@ -1315,6 +1339,9 @@ function room(solo: boolean): void {
   document.addEventListener("keyup", (event) => {
     controls.release(event.code);
     if (captured.delete(event.code)) event.preventDefault();
+  });
+  const stopPlaytestInput = registerPlaytestInput(document, {
+    cancel: () => controls.clear(),
   });
   window.addEventListener("blur", () => controls.clear());
   document.addEventListener("visibilitychange", () => {

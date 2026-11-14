@@ -1,7 +1,15 @@
 import { createGameSocial } from "fuse-ui/social";
+import {
+  playtestInputBlocked,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 import type { Frame, RuntimeMetrics } from "fuse-netcode";
 import "fuse-ui/social.css";
-import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
+import {
+  startGameAnalytics,
+  createPlayMetrics,
+  observeConfirmedPlay,
+} from "fuse-ui/play-metrics";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -659,7 +667,9 @@ function room(solo: boolean): void {
       }
     },
   });
-  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
+  const modalOpen = () =>
+    playtestInputBlocked(document) ||
+    Boolean(document.querySelector("dialog[open]"));
 
   // Lobby: the shared room layout — invitation and settings on the left, the six numbered seats on the right.
   const lobby = el("section", "", "kf-lobby"),
@@ -1178,16 +1188,32 @@ function room(solo: boolean): void {
           soloSteer.tries < SOLO_SETUP_TRIES &&
           frame.stage !== "lobby";
       if (!opening)
-        reportPlay({
-          matchId: frame.matchId,
-          active: between,
-          ended: frame.stage === "over",
-          round: Math.max(1, frame.round),
-          playerCount: next.humans + next.bots,
-          botCount: next.bots,
-          seated: next.seated,
-          mode,
-        });
+        observeConfirmedPlay(
+          reportPlay,
+          frame,
+          () => runtime.confirmedFrame(),
+          (frame) => {
+            const observed = present(frame, viewer);
+            return {
+              matchId: frame.matchId,
+              roundActive:
+                frame.stage === "running" &&
+                !!frame.world &&
+                frame.logTick >= frame.startAt &&
+                frame.world.winner === null,
+              roundEnded: frame.results.some(
+                (record) => record.round === frame.round,
+              ),
+              active: frame.stage === "running" || frame.stage === "between",
+              ended: frame.stage === "over",
+              round: Math.max(1, frame.round),
+              playerCount: observed.humans + observed.bots,
+              botCount: observed.bots,
+              seated: observed.seated,
+              mode,
+            };
+          },
+        );
       if (!opening) reportGame(frame, viewer.me, runtime.confirmedTick(), mode);
       const spectator = display || !next.seated;
       menu.update({
@@ -1459,6 +1485,14 @@ function room(solo: boolean): void {
     signal,
   });
   // A hidden tab lets go too: a phone that switches app or locks fires no `blur`, and held keys would stay logged.
+  const stopPlaytestInput = registerPlaytestInput(document, {
+    cancel: () => {
+      keyboard.clear();
+      pads.cancel();
+      controls.release();
+    },
+  });
+  signal.addEventListener("abort", stopPlaytestInput, { once: true });
   releaseWhenAway(
     window,
     document,

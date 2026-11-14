@@ -48,7 +48,7 @@ function fire(
   });
   target.dispatchEvent(event);
 }
-function fixture(slide = false) {
+function fixture(slide = false, enabled: () => boolean = () => true) {
   const messages: ControllerInputMessage[] = [];
   const state = new ControllerInputState({
     send: (message) => {
@@ -74,6 +74,7 @@ function fixture(slide = false) {
       changes += 1;
     },
     slide ? () => hovered : undefined,
+    enabled,
   );
   return {
     messages,
@@ -370,4 +371,24 @@ test("cancelled or cleared contacts cannot slide-reactivate before lifting", () 
   assert.equal(f.state.hasHeld(), false);
   fire(f.left, "pointerdown", 1);
   assert.equal(f.left.active, true);
+});
+test("a report cancels charge, ignores new pointer holds and requires a new press after closing", () => {
+  let allowed = true;
+  const f = fixture(true, () => allowed);
+  fire(f.bomb, "pointerdown", 1);
+  allowed = false;
+  f.bindings.clear(true, true);
+  assert.equal(f.state.isHeld("bomb"), false);
+  assert.equal(f.messages.at(-1)?.bombAction, "cancel");
+  fire(f.left, "pointerdown", 2);
+  assert.equal(f.state.isHeld("left"), false);
+  f.hover(f.left);
+  fire(f.terminal, "pointermove", 1, "mouse");
+  assert.equal(f.state.isHeld("left"), false);
+  allowed = true;
+  fire(f.terminal, "pointermove", 1, "mouse");
+  assert.equal(f.state.isHeld("left"), false);
+  fire(f.terminal, "pointerup", 1);
+  fire(f.left, "pointerdown", 3);
+  assert.equal(f.state.isHeld("left"), true);
 });

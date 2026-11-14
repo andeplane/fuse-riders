@@ -1,8 +1,16 @@
 import { createTopBar } from "fuse-ui";
+import {
+  playtestInputBlocked,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
-import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
+import {
+  observeConfirmedPlay,
+  startGameAnalytics,
+  createPlayMetrics,
+} from "fuse-ui/play-metrics";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -362,6 +370,7 @@ function holdButton(
   const source = `pad:${className}:${label}`;
   let captured = false;
   const down = (event: PointerEvent) => {
+    if (playtestInputBlocked(document)) return;
     event.preventDefault();
     try {
       // Keeps the press while the thumb slides off the pad; a pointer the browser no longer tracks cannot be captured.
@@ -463,7 +472,9 @@ function room(solo: boolean): void {
       }
     },
   });
-  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
+  const modalOpen = () =>
+    playtestInputBlocked(document) ||
+    Boolean(document.querySelector("dialog[open]"));
 
   // Lobby.
   const lobby = el("section", "", "ff-lobby"),
@@ -1109,18 +1120,25 @@ function room(solo: boolean): void {
   let joinSent = false;
   const callbacks: FreightCallbacks = {
     state(frame, roomSettings) {
-      reportPlay({
-        matchId: frame.matchId,
-        active: frame.stage === "running",
-        ended: frame.stage === "over",
-        round: frame.round,
-        playerCount: frame.seats.filter((seat) => !seat.watcher).length,
-        botCount: frame.seats.filter((seat) => seat.bot).length,
-        seated: frame.seats.some(
-          (seat) => seat.id === viewer.me && !seat.watcher,
-        ),
-        mode: solo ? "solo" : roomSettings.display ? "shared" : "online",
-      });
+      observeConfirmedPlay(
+        reportPlay,
+        frame,
+        () => runtime.confirmedFrame(),
+        (frame) => ({
+          matchId: frame.matchId,
+          roundActive: frame.world?.phase === "play",
+          roundEnded: frame.stage === "between" || frame.stage === "over",
+          active: frame.stage === "running",
+          ended: frame.stage === "over",
+          round: frame.round,
+          playerCount: frame.seats.filter((seat) => !seat.watcher).length,
+          botCount: frame.seats.filter((seat) => seat.bot).length,
+          seated: frame.seats.some(
+            (seat) => seat.id === viewer.me && !seat.watcher,
+          ),
+          mode: solo ? "solo" : roomSettings.display ? "shared" : "online",
+        }),
+      );
       settings = roomSettings;
       const next = present(frame, viewer);
       main.dataset.round = String(frame.round);
@@ -1212,7 +1230,7 @@ function room(solo: boolean): void {
   );
   installRoomLifecycle(window, {
     stop: () => runtime.stop(),
-    destroy: () => {},
+    destroy: () => stopPlaytestInput(),
     reload: () => location.reload(),
   });
 
@@ -1235,7 +1253,7 @@ function room(solo: boolean): void {
       event.altKey
     )
       return;
-    if (controls.press(event.code)) {
+    if (!event.repeat && controls.press(event.code)) {
       captured.add(event.code);
       event.preventDefault();
     }
@@ -1250,6 +1268,9 @@ function room(solo: boolean): void {
     for (const pad of document.querySelectorAll(".ff-pad.held"))
       pad.classList.remove("held");
   };
+  const stopPlaytestInput = registerPlaytestInput(document, {
+    cancel: releaseAll,
+  });
   window.addEventListener("blur", releaseAll);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) releaseAll();

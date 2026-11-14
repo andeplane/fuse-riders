@@ -1,8 +1,16 @@
 import { createTopBar } from "fuse-ui";
+import {
+  playtestInputBlocked,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
-import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
+import {
+  observeConfirmedPlay,
+  startGameAnalytics,
+  createPlayMetrics,
+} from "fuse-ui/play-metrics";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -432,7 +440,10 @@ function surface(node: HTMLElement): PadSurface {
             ? ["pointermove"]
             : ["pointerup", "pointercancel", "lostpointercapture"];
       for (const type of types)
-        node.addEventListener(type, (event) => listener(event as PointerEvent));
+        node.addEventListener(type, (event) => {
+          if (kind === "down" && playtestInputBlocked(document)) return;
+          listener(event as PointerEvent);
+        });
     },
     capture: (pointerId) => node.setPointerCapture(pointerId),
     box: () => node.getBoundingClientRect(),
@@ -508,7 +519,9 @@ function room(solo: boolean): void {
       captured.clear();
     }
   });
-  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
+  const modalOpen = () =>
+    playtestInputBlocked(document) ||
+    Boolean(document.querySelector("dialog[open]"));
 
   // Lobby: the invitation and the players on one side, the rules and START on the other.
   let settings: Settings = { ...DEFAULT_SETTINGS };
@@ -1014,19 +1027,28 @@ function room(solo: boolean): void {
   let joinSent = false;
   const callbacks: FuseVolleyCallbacks = {
     state(frame, roomSettings) {
-      const players =
-        frame.stage === "lobby"
-          ? frame.seats.filter((seat) => !seat.watcher)
-          : frame.roster;
-      reportPlay({
-        matchId: frame.matchId,
-        active: frame.stage === "running",
-        ended: frame.stage === "over",
-        playerCount: players.length,
-        botCount: players.filter((player) => player.bot).length,
-        seated: players.some((player) => player.id === viewer.me),
-        mode: solo ? "solo" : roomSettings.display ? "shared" : "online",
-      });
+      observeConfirmedPlay(
+        reportPlay,
+        frame,
+        () => runtime.confirmedFrame(),
+        (frame) => {
+          const players =
+            frame.stage === "lobby"
+              ? frame.seats.filter((seat) => !seat.watcher)
+              : frame.roster;
+          return {
+            matchId: frame.matchId,
+            roundActive: frame.world?.phase === "rally",
+            roundEnded: frame.stage === "over",
+            active: frame.stage === "running",
+            ended: frame.stage === "over",
+            playerCount: players.length,
+            botCount: players.filter((player) => player.bot).length,
+            seated: players.some((player) => player.id === viewer.me),
+            mode: solo ? "solo" : roomSettings.display ? "shared" : "online",
+          };
+        },
+      );
       for (const point of points(frame, viewer.me))
         analytics.track("Point Scored", { ...point });
       settings = roomSettings;
@@ -1130,6 +1152,7 @@ function room(solo: boolean): void {
   installRoomLifecycle(window, {
     stop: () => runtime.stop(),
     destroy: () => {
+      stopPlaytestInput();
       menu.dispose();
       scene.destroy();
     },
@@ -1156,7 +1179,7 @@ function room(solo: boolean): void {
       !model?.riding
     )
       return;
-    if (controls.press(event.code)) {
+    if (!event.repeat && controls.press(event.code)) {
       captured.add(event.code);
       event.preventDefault();
     }
@@ -1164,6 +1187,12 @@ function room(solo: boolean): void {
   document.addEventListener("keyup", (event) => {
     controls.release(event.code);
     if (captured.delete(event.code)) event.preventDefault();
+  });
+  const stopPlaytestInput = registerPlaytestInput(document, {
+    cancel: () => {
+      letGoAll();
+      gamepads.letGo();
+    },
   });
   window.addEventListener("blur", () => {
     letGoAll();

@@ -20,6 +20,11 @@
     "./analytics-text": "./src/analytics-text.ts",
     "./safe-storage": "./src/safe-storage.ts",
     "./play-metrics": "./src/play-metrics.ts",
+    "./playtest": "./src/playtest.ts",
+    "./playtest.css": "./src/playtest.css",
+    "./playtest-input": "./src/playtest-input.ts",
+    "./playtest-focus": "./src/playtest-focus.ts",
+    "./playtest-renderer": "./src/playtest-renderer.ts",
     "./embedded": "./src/embedded.ts",
     "./assets": "./src/assets.ts",
     "./radio": "./src/radio.ts",
@@ -37,7 +42,8 @@
     "firebase": "^12.19.0",
     "fuse-network-fe": "workspace:*",
     "fuse-platform": "workspace:*",
-    "mixpanel-browser": "^2.83.0",
+    "fuse-telemetry": "workspace:*",
+    "html-to-image": "^1.11.13",
     "fuse-music": "workspace:*"
   }
 }

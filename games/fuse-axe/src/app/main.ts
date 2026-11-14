@@ -1,8 +1,16 @@
 import { createTopBar } from "fuse-ui";
+import {
+  playtestInputBlocked,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
-import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
+import {
+  observeConfirmedPlay,
+  startGameAnalytics,
+  createPlayMetrics,
+} from "fuse-ui/play-metrics";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -338,7 +346,9 @@ function room(solo: boolean): void {
       if (open) letGo();
     },
   });
-  const modalOpen = () => Boolean(document.querySelector("dialog[open]"));
+  const modalOpen = () =>
+    playtestInputBlocked(document) ||
+    Boolean(document.querySelector("dialog[open]"));
 
   // The lobby: who is here and which hero each plays; this device's pick, and the host's START.
   const lobby = el("section", "", "fa-lobby"),
@@ -562,7 +572,7 @@ function room(solo: boolean): void {
   );
   const letGo = () => {
     controls.clear();
-    dpad.cancel();
+    letGoPads();
     gamepads.letGo();
   };
   // A phone in play folds the header behind a MENU button, and shows the pads' hints as each stage begins.
@@ -842,18 +852,32 @@ function room(solo: boolean): void {
       )
         return;
 
-      reportPlay({
-        matchId: frame.matchId,
-        active: frame.stage === "running",
-        ended: frame.stage === "over",
-        round: frame.round,
-        playerCount: frame.seats.filter((seat) => !seat.watcher).length,
-        botCount: frame.seats.filter((seat) => seat.bot).length,
-        seated: frame.seats.some(
-          (seat) => seat.id === viewer.me && !seat.watcher,
-        ),
-        mode: solo ? "solo" : frame.settings.display ? "shared" : "online",
-      });
+      observeConfirmedPlay(
+        reportPlay,
+        frame,
+        () => runtime.confirmedFrame(),
+        (frame) => ({
+          matchId: frame.matchId,
+          roundActive:
+            frame.stage === "running" &&
+            !!frame.world &&
+            !frame.world.camp &&
+            !frame.world.cleared,
+          roundEnded:
+            !!frame.world &&
+            !frame.world.camp &&
+            (frame.world.cleared || frame.stage === "over"),
+          active: frame.stage === "running",
+          ended: frame.stage === "over",
+          round: frame.round,
+          playerCount: frame.seats.filter((seat) => !seat.watcher).length,
+          botCount: frame.seats.filter((seat) => seat.bot).length,
+          seated: frame.seats.some(
+            (seat) => seat.id === viewer.me && !seat.watcher,
+          ),
+          mode: solo ? "solo" : frame.settings.display ? "shared" : "online",
+        }),
+      );
       viewer.touch = coarse.matches;
       const next = present(frame, viewer);
       // The frames shown are what is heard: the cues come from them, never from the simulation. A phone that is only
@@ -954,7 +978,7 @@ function room(solo: boolean): void {
   );
   installRoomLifecycle(window, {
     stop: () => runtime.stop(),
-    destroy: () => {},
+    destroy: () => stopPlaytestInput(),
     reload: () => location.reload(),
   });
 
@@ -967,6 +991,7 @@ function room(solo: boolean): void {
     target instanceof HTMLTextAreaElement ||
     (target instanceof HTMLButtonElement && !model?.playing);
   document.addEventListener("keydown", (event) => {
+    if (event.repeat) return;
     if (
       controls.down(event, menu.isOpen() || modalOpen() || typing(event.target))
     )
@@ -975,6 +1000,7 @@ function room(solo: boolean): void {
   document.addEventListener("keyup", (event) => {
     if (controls.up(event.code)) event.preventDefault();
   });
+  const stopPlaytestInput = registerPlaytestInput(document, { cancel: letGo });
   window.addEventListener("blur", letGo);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) letGo();

@@ -38,10 +38,10 @@ type CounterWorld = World<
   CounterSettings
 >;
 /** A running room: the creator `a` seats `a` and `b` at tick 1 and starts at tick 2. */
-function running(self = "a"): CounterWorld {
+function running(self = "a", target = 1000): CounterWorld {
   const world = new World(
     counterGame,
-    counterGame.createRoom("m1", { target: 1000 }),
+    counterGame.createRoom("m1", { target }),
     "a",
     self,
   );
@@ -54,6 +54,87 @@ function running(self = "a"): CounterWorld {
 }
 const heard = (world: CounterWorld, id: string, through: number) =>
   world.receive(id, [], world.streams.get(id)!.lastSeq, through, through);
+
+test("confirmed frames exclude gaps and predictions, cache detached views and follow corrected history", () => {
+  const world = running();
+  world.advance(12);
+  assert.equal(
+    world.confirmedFrame(),
+    undefined,
+    "history inside the rollback window is still provisional",
+  );
+  const withoutHistory = new World(
+    counterGame,
+    structuredClone(world.state),
+    "a",
+    "a",
+  );
+  assert.equal(
+    withoutHistory.confirmedFrame(),
+    undefined,
+    "does not return an unconfirmed initial snapshot",
+  );
+  world.streams.get("a")!.through = 52;
+  heard(world, "b", 7);
+  world.advance(47);
+  const final = world.confirmedFrame()!;
+  assert.equal(
+    final.logTick,
+    4,
+    "uses a retained snapshot outside the rollback window",
+  );
+  assert.equal(
+    world.confirmedFrame(),
+    final,
+    "does not clone on every read/render",
+  );
+  const snapshotHash = world.hashAt(4);
+  final.totals.a = 999;
+  assert.equal(
+    world.state.totals.a,
+    undefined,
+    "a consumer cannot mutate authoritative state",
+  );
+  assert.equal(world.hashAt(4), snapshotHash, "snapshot stays detached");
+  const entry: CounterEntry = [1, 8, ADD, 5];
+  world.receive("b", [entry], 1, 52, 52);
+  world.advance(52);
+  const corrected = world.confirmedFrame()!;
+  assert.equal(corrected.logTick, 12);
+  assert.equal(corrected.totals.b, 5);
+  assert.equal(world.state.totals.b, 5);
+  assert.equal(world.tick, 52, "reading final history never steps the game");
+  // A sequence gap makes the later through promise insufficient confirmation.
+  const gapped = running();
+  gapped.streams.get("a")!.through = 52;
+  gapped.receive("b", [[2, 9, ADD, 5]], 2, 52, 52);
+  gapped.advance(52);
+  assert.ok((gapped.confirmedFrame()?.logTick ?? -1) < 9);
+});
+
+test("departed members cannot make provisional wins look final while their inputs can still arrive", () => {
+  const world = running("a", 5);
+  const a = world.streams.get("a")!;
+  a.append(8, [ADD, 5]);
+  a.append(10, [LEAVE, "b"]);
+  a.through = 52;
+  world.advance(12);
+  assert.equal(world.view()[0]!.stage, "over");
+  assert.equal(
+    world.completeTick(),
+    52,
+    "the ordinary completeness clock no longer waits for departed b",
+  );
+  assert.equal(
+    world.confirmedFrame(),
+    undefined,
+    "a late departed input can still overturn this outcome",
+  );
+  world.receive("b", [[1, 6, ADD, 5]], 1, 52, 52);
+  world.advance(52);
+  assert.equal(world.confirmedFrame()?.stage, "over");
+  assert.deepEqual(world.confirmedFrame()?.totals, { b: 5 });
+});
 
 test("a late entry rolls the world back and re-simulates it to the state an on-time replica reached, emitting each event once", () => {
   const onTime = running(),

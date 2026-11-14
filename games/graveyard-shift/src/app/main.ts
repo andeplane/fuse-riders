@@ -1,4 +1,8 @@
 import { createTopBar } from "fuse-ui";
+import {
+  playtestInputBlocked,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
@@ -59,7 +63,11 @@ import {
 } from "./session.js";
 import { NightAudio } from "./audio.js";
 import { createModalInputGate } from "fuse-ui/modal-input";
-import { createPlayMetrics, startGameAnalytics } from "fuse-ui/play-metrics";
+import {
+  observeConfirmedPlay,
+  createPlayMetrics,
+  startGameAnalytics,
+} from "fuse-ui/play-metrics";
 const GAME = "graveyard-shift",
   app = document.querySelector<HTMLElement>("#app")!,
   store = safeStore(() => localStorage),
@@ -335,7 +343,9 @@ function room() {
     runtime?.cancel();
   };
   const modalInput = createModalInputGate({
-    isOpen: () => Boolean(document.querySelector("dialog[open]")),
+    isOpen: () =>
+      playtestInputBlocked(document) ||
+      Boolean(document.querySelector("dialog[open]")),
     observe(change) {
       const observer = new MutationObserver(change);
       observer.observe(document.body, {
@@ -393,7 +403,7 @@ function room() {
     " ": PULSE,
   };
   document.addEventListener("keydown", (e) => {
-    if (modalInput.blocked()) return;
+    if (modalInput.blocked() || e.repeat) return;
     if (
       e.target instanceof HTMLInputElement ||
       e.target instanceof HTMLTextAreaElement ||
@@ -411,12 +421,15 @@ function room() {
     sources.delete(e.key.toLowerCase());
     update();
   });
+  const stopPlaytestInput = registerPlaytestInput(document, { cancel: clear });
+  window.addEventListener("pagehide", stopPlaytestInput, { once: true });
   window.addEventListener("blur", clear);
   document.addEventListener("visibilitychange", () => {
     clear();
     audio.visibility(document.hidden);
   });
   c.onpointerdown = (e) => {
+    if (modalInput.blocked()) return;
     if (e.button !== 0) return;
     c.setPointerCapture(e.pointerId);
     sources.set(`p${e.pointerId}`, VACUUM);
@@ -474,16 +487,25 @@ function room() {
         shared = settings.display;
         runtime?.flush();
         const mine = frame.seats.find((s) => s.id === self && !s.watcher);
-        const players = frame.seats.filter((s) => !s.watcher);
-        observePlay({
-          matchId: frame.matchId,
-          active: frame.stage === "running",
-          ended: frame.stage === "over",
-          playerCount: players.length,
-          botCount: players.filter((s) => s.bot).length,
-          seated: !!mine,
-          mode: solo ? "solo" : shared ? "shared" : "online",
-        });
+        observeConfirmedPlay(
+          observePlay,
+          frame,
+          () => runtime?.confirmedFrame(),
+          (frame) => {
+            const players = frame.seats.filter((s) => !s.watcher);
+            return {
+              matchId: frame.matchId,
+              roundActive: frame.stage === "running",
+              roundEnded: frame.stage === "over",
+              active: frame.stage === "running",
+              ended: frame.stage === "over",
+              playerCount: players.length,
+              botCount: players.filter((s) => s.bot).length,
+              seated: players.some((seat) => seat.id === self),
+              mode: solo ? "solo" : shared ? "shared" : "online",
+            };
+          },
+        );
         main.dataset.phase = frame.stage;
         main.dataset.tick = String(frame.tick);
         main.dataset.layout =
@@ -632,6 +654,7 @@ function room() {
     },
     destroy: () => {
       modalInput.dispose();
+      stopPlaytestInput();
       alive = false;
       audio.stop();
     },

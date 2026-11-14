@@ -1,7 +1,16 @@
 import { createTopBar } from "fuse-ui";
+import {
+  playtestInputBlocked,
+  registerPlaytestCapture,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
-import { startGameAnalytics } from "fuse-ui/play-metrics";
+import {
+  createPlayMetrics,
+  startGameAnalytics,
+  observeConfirmedPlay,
+} from "fuse-ui/play-metrics";
 import "fuse-ui/social.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -71,10 +80,12 @@ import {
 import { GAME_ID, keys, roomFailure, sessionFor } from "./session.js";
 import { Radar, homeOf, minimapTile } from "./radar.js";
 import { createAudio } from "./audio/index.js";
+import { frontPlayFrame } from "./play-metrics.js";
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const base = import.meta.env.BASE_URL;
 const analytics = startGameAnalytics(GAME_ID);
+const reportPlay = createPlayMetrics(analytics.track, () => performance.now());
 const social = createGameSocial({
   gameId: GAME_ID,
   base,
@@ -224,6 +235,11 @@ function room(code: string, token: string | undefined, display: boolean): void {
   end.append(endText, endNote, back);
   const stage = el("div", "", "ff-stage");
   const { field, canvas } = battlefield();
+  const stopPlaytestCapture = registerPlaytestCapture(document, async () =>
+    field instanceof Field3D && canvas.isConnected
+      ? new Map([[canvas, field.capture()]])
+      : new Map(),
+  );
   // Hero portraits come from the 3D models where the 3D battlefield runs; the pixel ones otherwise.
   if (field instanceof Field3D) loadPortraits();
   let shown: WorldView | undefined;
@@ -339,6 +355,12 @@ function room(code: string, token: string | undefined, display: boolean): void {
   let picking = -1;
   let wasLobby = true;
   function show(view: View): void {
+    observeConfirmedPlay(
+      reportPlay,
+      view,
+      () => runtime.confirmedFrame(),
+      (view) => frontPlayFrame(view, runtime.self, display, online),
+    );
     const inLobby = view.stage === "lobby";
     lobby.hidden = !inLobby;
     currentLobby?.setActive(inLobby);
@@ -725,6 +747,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
   canvas.addEventListener(
     "wheel",
     (event) => {
+      if (playtestInputBlocked(document)) return;
       event.preventDefault();
       // Lines (Firefox) and pages count as many pixels.
       const pixels = event.deltaY * [1, 16, 400][event.deltaMode]!;
@@ -734,6 +757,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
   );
   // A press that stays put is a MOVE order on release; one that travels drags the camera instead.
   canvas.addEventListener("pointerdown", (event) => {
+    if (playtestInputBlocked(document)) return;
     event.preventDefault();
     canvas.setPointerCapture?.(event.pointerId);
     if (event.pointerType === "touch")
@@ -833,6 +857,11 @@ function room(code: string, token: string | undefined, display: boolean): void {
   });
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
   const keys123 = (event: KeyboardEvent) => {
+    if (
+      playtestInputBlocked(document) ||
+      document.querySelector("dialog[open]")
+    )
+      return;
     const action = keyAction(event.key);
     const held = event.ctrlKey || event.metaKey || event.altKey;
     if (!action || !shown || event.repeat || held) return;
@@ -865,9 +894,20 @@ function room(code: string, token: string | undefined, display: boolean): void {
   window.addEventListener("keyup", keyUp);
   // A window left with ` still held never sees its keyup.
   const blurred = () => hud.showScore(false);
+  const stopPlaytestInput = registerPlaytestInput(document, {
+    cancel: () => {
+      hud.showScore(false);
+      drag = undefined;
+      touches.clear();
+      hover = cursor = undefined;
+      arm(IDLE);
+    },
+  });
   window.addEventListener("blur", blurred);
   runtime.start();
   teardown = () => {
+    stopPlaytestCapture();
+    stopPlaytestInput();
     cancelAnimationFrame(raf);
     window.removeEventListener("resize", resized);
     window.removeEventListener("keydown", keys123);

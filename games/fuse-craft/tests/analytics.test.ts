@@ -73,6 +73,34 @@ test("online observations ignore connecting and distinguish lobby, players and b
   assert.equal(playing.seated, true);
   assert.equal(playing.ended, false);
   assert.equal(playing.matchId, friend.view().matchId);
+  const historical = {
+    ...friend.view(),
+    finished: true,
+    seats: friend.room().seats,
+  };
+  let completed: PlayFrame | undefined;
+  observeOnlinePlay(
+    {
+      ...friend,
+      room: () => ({ ...friend.room(), seats: [] }),
+      confirmedView: () => historical,
+    },
+    (_current, final) => {
+      completed = final?.frame;
+    },
+  );
+  assert.equal(completed?.roundEnded, true);
+  assert.equal(
+    completed?.playerCount,
+    3,
+    "completion reads the historical roster",
+  );
+  assert.equal(completed?.botCount, 1);
+  assert.equal(
+    completed?.seated,
+    true,
+    "changing the current lobby cannot erase past participation",
+  );
   host.dispose();
   friend.dispose();
 });

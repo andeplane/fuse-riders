@@ -3,6 +3,7 @@ import { createContext } from "react";
 
 import type { AppAction, AppState } from "./appState";
 import { DEFAULT_STATE } from "./appState";
+import { announcePlaytestGame } from "fuse-ui/playtest-focus";
 
 export type AppStore = { state: AppState; dispatch: Dispatch<AppAction> };
 
@@ -18,12 +19,14 @@ export type AppStateDeps = {
   ) => ReturnType<typeof globalThis.setTimeout>;
   clearTimeout: (handle: ReturnType<typeof globalThis.setTimeout>) => void;
   syncDelayMs: number;
+  focusedGame(gameId: string): void;
 };
 
 export const defaultAppStateDeps: AppStateDeps = {
   setTimeout: (callback, ms) => globalThis.setTimeout(callback, ms),
   clearTimeout: (handle) => globalThis.clearTimeout(handle),
   syncDelayMs: 150,
+  focusedGame: (gameId) => announcePlaytestGame(window, gameId),
 };
 
 export const AppStateDepsContext =

@@ -1,4 +1,8 @@
 import { DOWN, FIRE, LEFT, RIGHT, UP } from "../../engine/input.js";
+import {
+  playtestInputBlocked,
+  registerPlaytestInput,
+} from "fuse-ui/playtest-input";
 import { attachGamepads, type GamepadLike } from "./gamepad.js";
 import { InputHub } from "./hub.js";
 import { attachKeyboard } from "./keyboard.js";
@@ -47,9 +51,15 @@ export function createBrowserInput(
   options: { forceTouch?: boolean; singleKeyboard?: boolean } = {},
 ): BrowserInput {
   const hub = new InputHub();
+  const blocked = () => playtestInputBlocked(win.document);
+  const stopPlaytestInput = registerPlaytestInput(win.document, {
+    cancel: () => hub.cancel(),
+  });
+  hub.addSource({ dispose: stopPlaytestInput });
   const hold = hub.setHeld.bind(hub);
   hub.addSource(
     attachKeyboard(win, hold, {
+      blocked,
       arrowsPrimary: () =>
         options.singleKeyboard === true ||
         (hub.slotOf("key:WASD") !== undefined &&
@@ -70,6 +80,8 @@ export function createBrowserInput(
       },
       hold,
       hub.command.bind(hub),
+      () => performance.now(),
+      blocked,
     ),
   );
 
@@ -160,7 +172,9 @@ export function createBrowserInput(
       paint(Number(device.slice("touch:".length)));
     },
     win,
+    blocked,
   );
+  hub.addSource({ cancel: () => touch.cancel?.() });
   const draw = (): void => {
     const layout = touch.layout();
     pads.forEach((pad, side) => {

@@ -1073,6 +1073,12 @@ export class Field3D implements Renderer {
     this.field = undefined;
   }
 
+  /** Copy the current presentation while the WebGL drawing buffer is valid. */
+  capture(): string {
+    this.look.render();
+    return this.canvas.toDataURL("image/png");
+  }
+
   dispose(): void {
     this.clearMatch();
     this.fx.dispose();

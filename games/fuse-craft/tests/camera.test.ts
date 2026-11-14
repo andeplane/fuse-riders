@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
+import { setPlaytestInputBlocked } from "fuse-ui/playtest-input";
 import {
   createCameraFactory,
   createCameraModel,
@@ -234,9 +235,26 @@ test("edge scrolling keeps going while the mouse rests at the screen's edge and 
   const rested = view();
   frames.shift()!((now += 16));
   assert.ok(view()[1]! > rested[1]!);
+  camera.hold("right", true);
+  const beforeReport = view();
+  setPlaytestInputBlocked(document as unknown as Document, true);
+  report!({ x: 1279, y: 799 });
+  camera.hold("left", true);
+  while (frames.length) frames.shift()!((now += 16));
+  assert.deepEqual(
+    view(),
+    beforeReport,
+    "report cancels arrows and edge scrolling",
+  );
+  setPlaytestInputBlocked(document as unknown as Document, false);
+  assert.equal(
+    frames.length,
+    0,
+    "closing never restores a held arrow or edge pointer",
+  );
   // Leaving the window clears the pointer and the loop ends.
   report!(null);
-  frames.shift()!((now += 16));
+  frames.shift()?.((now += 16));
   assert.equal(frames.length, 0);
   const left = view();
   // Over the dock but away from the outer pixels: nothing moves.

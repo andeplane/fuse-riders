@@ -5,10 +5,14 @@ import { isIP } from "node:net";
  * a subscriber is routinely handed a whole /64 (or more), so a limit per full address is no limit at all — one
  * host can present 2^64 of them. A v4-mapped IPv6 address (`::ffff:a.b.c.d`) is the IPv4 address it wraps, so a
  * dual-stack listener cannot be used to get a second budget. Anything that is not an address shares one key:
- * unparsable input must not mint fresh budgets either.
+ * unparsable input must not mint fresh budgets either. Accept our own canonical /64 output too, so downstream
+ * HTTP extensions can apply the same normalization without combining unrelated IPv6 subscribers.
  */
 export function rateLimitAddress(raw: string): string {
-  const address = raw.trim().replace(/%.*$/, "");
+  const textAddress = raw.trim().replace(/%.*$/, "");
+  const address = /^(?:[\da-f]{1,4}:){3}[\da-f]{1,4}::\/64$/i.test(textAddress)
+    ? textAddress.slice(0, -3)
+    : textAddress;
   const family = isIP(address);
   if (family === 4) return address;
   if (family !== 6) return "unknown";

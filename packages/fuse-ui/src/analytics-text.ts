@@ -1,7 +1,7 @@
 /**
  * The only path free text takes into an analytics event.
  *
- * An event property is read by a third party, so a string the game did not write itself — an error message, a
+ * An event property is stored remotely, so a string the game did not write itself — an error message, a
  * transport status line — is bounded and scrubbed before it leaves: a browser's "Failed to fetch dynamically
  * imported module: https://…?room=AB42" names a live invite, and a room or peer token is 64 hex characters that
  * can turn up in any URL-shaped error. `track` runs every string property through `sanitizeText`, so a new
@@ -95,7 +95,7 @@ export function sanitizeText(
 
 /**
  * Every string in a property bag, sanitised; arrays of strings too. Numbers, booleans and `null` pass through.
- * `undefined` is dropped as Mixpanel would drop it. Anything else (an object, a function) is a bug at the call
+ * `undefined` is dropped. Anything else (an object, a function) is a bug at the call
  * site — no event sends one today — and is reported as its type rather than serialised unbounded.
  */
 export function sanitizeProperties(

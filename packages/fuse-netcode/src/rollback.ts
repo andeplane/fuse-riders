@@ -474,6 +474,29 @@ export class World<
   }
   /** `confirmedGameTick` as last read while settled. */
   private settledConfirmed = -1;
+  private confirmedSnapshot: Room | undefined;
+  private confirmedSnapshotFrame: Frame<View> | undefined;
+  /**
+   * A detached view of rollback-closed history, at most one materialization per snapshot (four log ticks).
+   * Waiting one rollback window also covers unfinished inputs from departed members, which `completeTick`
+   * deliberately excludes. `receive` cannot replay this prefix; while replay is owed its bound is `work.tick`.
+   * Unlike `servable`, never falls back to speculative state on a gap or missing history.
+   */
+  confirmedFrame(): Frame<View> | undefined {
+    const complete = this.work.tick - ROLLBACK_TICKS;
+    const at = Math.max(
+      ...[...this.snapshots.keys()].filter((tick) => tick <= complete),
+      -1,
+    );
+    const snapshot = this.snapshots.get(at);
+    if (!snapshot) return undefined;
+    if (snapshot !== this.confirmedSnapshot) {
+      this.confirmedSnapshot = snapshot;
+      // Game views may contain references: callers must never receive the authoritative snapshot.
+      this.confirmedSnapshotFrame = structuredClone(this.frame(snapshot));
+    }
+    return this.confirmedSnapshotFrame;
+  }
   /**
    * The state to serve a joiner: the newest retained snapshot no later than the complete tick, so nothing any member has
    * already logged up to it is still in flight; the current speculative state only when everything is complete.
@@ -503,6 +526,8 @@ export class World<
   }
   /** Replace the world wholesale from a validated snapshot; the caller re-creates streams from its metadata. */
   install(state: Room): void {
+    this.confirmedSnapshot = undefined;
+    this.confirmedSnapshotFrame = undefined;
     this.revision++;
     this.state = this.work = state;
     this.snapshots = new Map([[state.tick, structuredClone(state)]]);

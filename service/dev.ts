@@ -3,6 +3,7 @@ import {
   createDevRoomService as createService,
   type DevRoomService,
   type DevRoomServiceOptions as NetworkOptions,
+  type HttpExtension,
 } from "fuse-network-be";
 import { ROOM_LIMITS } from "./room-limits.js";
 import { listenFree } from "./listen-free.js";
@@ -20,6 +21,11 @@ import {
 import { platform } from "./history.js";
 import { createTimingLogHttp } from "./timing-log.js";
 import { FIREBASE_PROJECT_ID } from "../games/fuse-riders/src/shared/firebase-config.js";
+import {
+  createDeveloperVerifier,
+  type DeveloperVerifier,
+} from "fuse-telemetry/developer-access";
+import { createLocalTelemetry, createMemoryTelemetry } from "./telemetry.js";
 export type { DevRoomService };
 export interface DevRoomServiceOptions extends Omit<
   NetworkOptions,
@@ -30,6 +36,9 @@ export interface DevRoomServiceOptions extends Omit<
   platform?: Platform;
   /** Where a `?debugtiming` page's session is written (`timing-log.ts`); no such route without it. */
   timingLogDirectory?: string;
+  /** Injectable private routes for integration tests or persistent local composition. */
+  telemetry?: HttpExtension;
+  developerIdentity?: DeveloperVerifier;
 }
 
 /** Game history and capacity on the generic in-memory signalling service. */
@@ -56,9 +65,21 @@ export function createDevRoomService(
         identity:
           options.identity ?? createIdentityVerifier(FIREBASE_PROJECT_ID),
       });
-      return options.timingLogDirectory
-        ? composeHttp(createTimingLogHttp(options.timingLogDirectory), http)
-        : http;
+      const telemetry =
+        options.telemetry ??
+        createMemoryTelemetry({
+          gameIds: games.gameIds,
+          developer:
+            options.developerIdentity ??
+            createDeveloperVerifier(FIREBASE_PROJECT_ID),
+          now,
+        }).http;
+      return composeHttp(
+        telemetry,
+        options.timingLogDirectory
+          ? composeHttp(createTimingLogHttp(options.timingLogDirectory), http)
+          : http,
+      );
     },
   });
 }
@@ -108,9 +129,18 @@ if (
   const timingLogDirectory =
     argument("timing-logs") ??
     fileURLToPath(new URL("../timing-logs", import.meta.url));
+  const insightsDirectory =
+    argument("insights") ??
+    fileURLToPath(new URL("../.fuse-insights", import.meta.url));
+  const insights = await createLocalTelemetry({
+    directory: insightsDirectory,
+    gameIds: platform.gameIds,
+    developer: createDeveloperVerifier(FIREBASE_PROJECT_ID),
+  });
   const service = createDevRoomService({
     staticDirectory,
     timingLogDirectory,
+    telemetry: insights.http,
     ...(allowedOrigin ? { allowedOrigins: [allowedOrigin] } : {}),
   });
   // The port asked for is where the search starts, not a demand: another worktree's service may already hold it.

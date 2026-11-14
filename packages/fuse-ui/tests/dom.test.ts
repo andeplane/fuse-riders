@@ -109,16 +109,6 @@ test("DOM components stay self-contained; browser adapters use explicit shared b
     for (const [, specifier] of text.matchAll(
       /(?:\bfrom\s+|\bimport\s*\(?\s*)["']([^"']+)["']/g,
     )) {
-      if (name === "analytics.ts" && specifier === "mixpanel-browser") {
-        // The shared product-metrics entry is the only SDK boundary. Both its type query and its lazy loader
-        // use import(); a static SDK import would download it even on opted-out and local-dev pages.
-        assert.doesNotMatch(
-          text,
-          /\bfrom\s+["']mixpanel-browser["']|\bimport\s+["']mixpanel-browser["']/,
-        );
-        assert.match(text, /\bimport\(["']mixpanel-browser["']\)/);
-        continue;
-      }
       if (
         name === "browser-account.ts" &&
         ["firebase/app", "firebase/auth"].includes(specifier!)
@@ -136,6 +126,10 @@ test("DOM components stay self-contained; browser adapters use explicit shared b
         "friends-client.ts": ["fuse-platform/friends-api"],
         "friends-notify.ts": ["fuse-platform/friends-api"],
         "social.ts": ["fuse-network-fe", "fuse-platform/rating"],
+        "analytics.ts": ["fuse-network-fe"],
+        "analytics-client.ts": ["fuse-telemetry/contracts"],
+        "playtest.ts": ["fuse-network-fe", "fuse-telemetry/contracts"],
+        "playtest-capture.ts": ["html-to-image"],
       };
       if (adapters[name]?.includes(specifier!)) continue;
       assert.match(

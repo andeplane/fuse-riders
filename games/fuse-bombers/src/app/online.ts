@@ -2,7 +2,11 @@ import { requestedRoomSlot } from "fuse-ui";
 import { createGameSocial } from "fuse-ui/social";
 import "fuse-ui/social.css";
 import "fuse-ui/components.css";
-import { startGameAnalytics, createPlayMetrics } from "fuse-ui/play-metrics";
+import {
+  observeConfirmedPlay,
+  startGameAnalytics,
+  createPlayMetrics,
+} from "fuse-ui/play-metrics";
 import "./online.css";
 import QRCode from "qrcode";
 import * as net from "fuse-network-fe";
@@ -509,18 +513,28 @@ export function showRoom(
   const callbacks: BombersCallbacks = {
     state(next, roomSettings) {
       if (dead) return;
-      reportPlay({
-        matchId: next.matchId,
-        active: next.stage === "running",
-        ended: next.stage === "over",
-        round: next.round,
-        playerCount: next.seats.filter((seat) => !seat.watcher).length,
-        botCount: next.seats.filter((seat) => seat.bot).length,
-        seated: next.seats.some(
-          (seat) => seat.id === viewer.me && !seat.watcher,
-        ),
-        mode: solo ? "solo" : roomSettings.display ? "shared" : "online",
-      });
+      observeConfirmedPlay(
+        reportPlay,
+        next,
+        () => runtime.confirmedFrame(),
+        (next) => ({
+          matchId: next.matchId,
+          roundActive:
+            next.stage === "running" &&
+            next.logTick >= next.startAt &&
+            next.world?.phase !== "over",
+          roundEnded: next.stage === "between" || next.stage === "over",
+          active: next.stage === "running",
+          ended: next.stage === "over",
+          round: next.round,
+          playerCount: next.seats.filter((seat) => !seat.watcher).length,
+          botCount: next.seats.filter((seat) => seat.bot).length,
+          seated: next.seats.some(
+            (seat) => seat.id === viewer.me && !seat.watcher,
+          ),
+          mode: solo ? "solo" : roomSettings.display ? "shared" : "online",
+        }),
+      );
       frame = next;
       settings = roomSettings;
       shown = `${next.matchId}:${next.round}`;

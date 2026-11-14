@@ -6,7 +6,7 @@ import type { AnalyticsStatus } from "./analytics.js";
 
 /** One line, shown whatever the status. Every claim in it is kept by `analytics.ts`; see `docs/ANALYTICS.md`. */
 export const ANALYTICS_NOTICE =
-  "Anonymous play stats (matches, powerups) go to Mixpanel to help tune the game. No names, room codes or location.";
+  "Anonymous play stats (matches, powerups) go to Fuse Games to help tune the game. No names, room codes or location.";
 
 export interface ConsentView {
   /** The button's label carries the state, as MUSIC and SOUND do. */

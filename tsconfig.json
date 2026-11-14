@@ -15,6 +15,7 @@
   "include": [
     "service",
     "site",
+    "dev",
     "tests",
     "scripts",
     "packages",
