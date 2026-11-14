@@ -6,6 +6,7 @@ import {
   DEFAULT_SETTINGS,
   createFuseballGame,
   hash,
+  settingsFor,
   type Settings,
 } from "../src/online/game.js";
 import { FuseballRuntime, stickBits } from "../src/online/runtime.js";
@@ -334,4 +335,55 @@ test("a room refuses settings it does not know, and a bot seat plays through the
   assert.deepEqual(room.decided?.finishers, ["host"]);
   assert.equal(hash(guest.roomState()!), hash(room), "the onlooker agrees");
   assert.equal(guest.roomState()!.seats.has("guest"), false, "it never sat");
+});
+
+test("a lobby seat is a choice: a guest joins the seat it asks for, anyone switches team, and a smaller mode keeps everyone seated", () => {
+  const mesh = new Mesh("host", DEFAULT_SETTINGS, createFuseballGame());
+  const host = mesh.join("host"),
+    guest = mesh.join("guest");
+  mesh.run(300);
+  const slots = (runtime: TestRuntime) =>
+    Object.fromEntries(
+      [...runtime.roomState()!.seats.values()].map((seat) => [
+        seat.id,
+        seat.slot,
+      ]),
+    );
+  host.command({ type: "join", name: "Host" });
+  mesh.run(800);
+  assert.deepEqual(slots(host), { host: 0 }, "the host's first seat");
+  assert.ok(
+    host.command({
+      type: "settings",
+      settings: settingsFor(DEFAULT_SETTINGS, 3),
+    }),
+  );
+  mesh.run(300);
+  guest.command({ type: "join", name: "Guest", slot: 4 });
+  mesh.run(3_000);
+  assert.deepEqual(slots(guest), { host: 0, guest: 4 });
+  // The guest crosses to the other team, the host follows it to a seat of its own choosing.
+  assert.ok(guest.command({ type: "join", name: "Guest", slot: 5 }));
+  mesh.run(3_000);
+  assert.ok(host.command({ type: "join", name: "Host", slot: 3 }));
+  mesh.run(800);
+  assert.deepEqual(slots(host), { host: 3, guest: 5 });
+  assert.deepEqual(slots(guest), slots(host));
+  // A taken seat is refused and moves nobody.
+  guest.command({ type: "join", name: "Guest", slot: 3 });
+  mesh.run(3_000);
+  assert.deepEqual(slots(host), { host: 3, guest: 5 });
+  // One a side has two seats: both are moved into them, in seat order.
+  assert.ok(
+    host.command({
+      type: "settings",
+      settings: settingsFor(DEFAULT_SETTINGS, 1),
+    }),
+  );
+  mesh.run(800);
+  assert.deepEqual(slots(host), { host: 0, guest: 1 });
+  assert.deepEqual(slots(guest), slots(host));
+  assert.ok(host.command({ type: "action", action: "start" }));
+  mesh.run(300);
+  assert.equal(guest.roomState()!.stage, "running");
 });
