@@ -90,6 +90,13 @@ export interface MediaPlayerWindowContent {
   launches?: string;
 }
 
+/** Start > Programs > Hall of Fame: one Fuse game's leaderboard. The picked game is kept so a reload shows it again. */
+export interface HallOfFameWindowContent {
+  kind: "halloffame";
+  /** A portal game id; absent (or no longer installed) means the first game. */
+  gameId?: string;
+}
+
 export type WindowContent =
   | FuseGameWindowContent
   | RetroGameWindowContent
@@ -104,7 +111,8 @@ export type WindowContent =
   | NotepadPlusPlusWindowContent
   | LauncherWindowContent
   | RecycleBinWindowContent
-  | MediaPlayerWindowContent;
+  | MediaPlayerWindowContent
+  | HallOfFameWindowContent;
 
 export type WindowKind = WindowContent["kind"];
 
@@ -168,6 +176,7 @@ export function sameInstance(
     case "retroFolder":
     case "launcher":
     case "recyclebin":
+    case "halloffame":
       return existing.kind === content.kind;
     case "mediaplayer":
       return existing.kind === "mediaplayer" && existing.file === content.file;
@@ -376,6 +385,8 @@ function isWindowContent(
         value.paths.every((path) => typeof path === "string") &&
         (value.activePath === undefined || typeof value.activePath === "string")
       );
+    case "halloffame":
+      return value.gameId === undefined || typeof value.gameId === "string";
     case "recyclebin":
       return true;
     case "mediaplayer":

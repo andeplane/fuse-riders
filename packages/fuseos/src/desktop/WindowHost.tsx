@@ -9,6 +9,7 @@ import { FuseGamesContext } from "../fusegames/registry";
 import { LauncherWindow } from "../launcher/LauncherWindow";
 import { NotepadPlusPlusWindow } from "../notepadpp/NotepadPlusPlusWindow";
 import { MediaPlayerWindow } from "../mediaplayer/MediaPlayerWindow";
+import { HallOfFameWindow } from "../halloffame/HallOfFameWindow";
 import { PaintWindow } from "../paint/PaintWindow";
 import { RecycleBinWindow } from "../recyclebin/RecycleBinWindow";
 import { GameWindow } from "../retro/GameWindow";
@@ -84,6 +85,8 @@ function WindowContent({
       );
     case "launcher":
       return <LauncherWindow windowId={window.id} active={active} />;
+    case "halloffame":
+      return <HallOfFameWindow windowId={window.id} gameId={window.gameId} />;
     case "recyclebin":
       return <RecycleBinWindow windowId={window.id} />;
     case "mediaplayer":

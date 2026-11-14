@@ -360,6 +360,11 @@ describe(isAppState.name, () => {
     expect(isAppState(window({ kind: "about" }))).toBe(true);
     expect(isAppState(window({ kind: "winamp" }))).toBe(true);
     expect(isAppState(window({ kind: "launcher" }))).toBe(true);
+    expect(isAppState(window({ kind: "halloffame" }))).toBe(true);
+    expect(isAppState(window({ kind: "halloffame", gameId: "fuseball" }))).toBe(
+      true,
+    );
+    expect(isAppState(window({ kind: "halloffame", gameId: 7 }))).toBe(false);
     expect(
       isAppState(
         window({ kind: "dialog", title: "t", message: "m", icon: "info" }),

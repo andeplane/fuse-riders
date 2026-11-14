@@ -1,0 +1,88 @@
+/* The Hall of Fame's Explorer-style "Details" list view: header buttons, a white sunken list, a status bar. */
+.halloffame-list {
+  background: #fff;
+  color: #000;
+}
+
+.halloffame-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  table-layout: fixed;
+}
+
+/* 98.css bevels every table header itself; here the bevel belongs to the sort button inside it. */
+.halloffame-table > thead > tr > th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: auto;
+  padding: 0;
+  text-align: left;
+  font-weight: normal;
+  background: #c0c0c0;
+  box-shadow: none;
+}
+
+.halloffame-table th > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  min-height: 18px;
+  padding: 1px 4px;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow:
+    inset -1px -1px #0a0a0a,
+    inset 1px 1px #fff,
+    inset -2px -2px grey,
+    inset 2px 2px #dfdfdf;
+}
+
+.halloffame-table th > button:active {
+  box-shadow:
+    inset -1px -1px #fff,
+    inset 1px 1px #0a0a0a,
+    inset -2px -2px #dfdfdf,
+    inset 2px 2px grey;
+  padding-top: 2px;
+  padding-left: 5px;
+}
+
+.halloffame-table td {
+  padding: 1px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid transparent;
+}
+
+.halloffame-table td.halloffame-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.halloffame-table tr[data-podium="true"] td {
+  font-weight: bold;
+}
+
+.halloffame-table tr[data-you="true"] td {
+  background: #000080;
+  color: #fff;
+}
+
+.halloffame-rank {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.halloffame-busy {
+  cursor: wait;
+}

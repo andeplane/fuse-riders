@@ -16,7 +16,7 @@ describe("START_MENU_REGISTRATIONS", () => {
     });
   });
 
-  it("lists the accessories, Fusteam, the Retro Games folder, My Computer and the screen saver, every one of them openable", () => {
+  it("lists every installed program, each one of them openable", () => {
     expect(
       START_MENU_REGISTRATIONS.map((entry) => [
         entry.slot,
@@ -33,6 +33,7 @@ describe("START_MENU_REGISTRATIONS", () => {
       ["retro-games", "retro-folder", true],
       ["my-computer", "my-computer", true],
       ["settings", "screensaver", true],
+      ["programs", "halloffame", true],
     ]);
   });
 
@@ -67,6 +68,7 @@ describe("START_MENU_REGISTRATIONS", () => {
       { kind: "retroFolder" },
       { kind: "explorer", location: "" },
       { kind: "controlpanel", applet: "display", tab: "screensaver" },
+      [{ kind: "halloffame" }, { id: "halloffame" }],
     ]);
   });
 

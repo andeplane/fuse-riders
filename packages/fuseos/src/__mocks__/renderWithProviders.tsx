@@ -47,6 +47,9 @@ import { LlmDepsContext } from "../llm/llmDepsContext";
 import { MemoryModelCache } from "../llm/modelCache";
 import type { MediaPlayerDeps } from "../mediaplayer/mediaPlayerDepsContext";
 import { MediaPlayerDepsContext } from "../mediaplayer/mediaPlayerDepsContext";
+import type { HallOfFameDeps } from "../halloffame/hallOfFameDepsContext";
+import { HallOfFameDepsContext } from "../halloffame/hallOfFameDepsContext";
+import { MemoryLeaderboardService } from "../halloffame/leaderboardService";
 import type { PaintControls } from "../paint/paintControls";
 import type { PaintDeps } from "../paint/paintDepsContext";
 import { PaintDepsContext } from "../paint/paintDepsContext";
@@ -194,6 +197,8 @@ export type ProviderOptions = {
   recycleBinStore?: MemoryRecycleBinStore;
   /** Defaults to a manual scheduler (`mediaPlayerTimers.fire()` advances the fake player one tick). */
   mediaPlayerDeps?: Partial<MediaPlayerDeps>;
+  /** Defaults to an empty memory leaderboard service (every game: no rated players yet). */
+  hallOfFameDeps?: HallOfFameDeps;
 };
 
 /** The media player's scheduled ticks, fired by the test rather than a clock. */
@@ -449,6 +454,13 @@ export function createWrapper(options: ProviderOptions = {}) {
   const editors: FakeEditor[] = [];
   const editorDeps = createFakeEditorDeps(editors);
 
+  const hallOfFameDeps: HallOfFameDeps = options.hallOfFameDeps ?? {
+    leaderboards: new MemoryLeaderboardService(
+      Object.fromEntries(
+        (options.games ?? FIXTURE_GAMES).map((game) => [game.id, []]),
+      ),
+    ),
+  };
   const recycleBinStore =
     options.recycleBinStore ?? new MemoryRecycleBinStore();
   const mediaPlayerTimers = new ManualScheduler();
@@ -488,6 +500,7 @@ export function createWrapper(options: ProviderOptions = {}) {
     provider(LauncherDepsContext, launcherDeps),
     provider(RecycleBinStoreContext, recycleBinStore),
     provider(MediaPlayerDepsContext, mediaPlayerDeps),
+    provider(HallOfFameDepsContext, hallOfFameDeps),
   ];
 
   function Wrapper({ children }: { children: ReactNode }) {
@@ -532,6 +545,7 @@ export function createWrapper(options: ProviderOptions = {}) {
     recycleBinStore,
     mediaPlayerDeps,
     mediaPlayerTimers,
+    hallOfFameDeps,
   };
 }
 

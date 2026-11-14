@@ -39,11 +39,15 @@ export const EXPLORER_WINDOW_SIZE: Size = { width: 720, height: 480 };
 
 /** Room for the tab bar, a code pane with line numbers and the six-field status bar. */
 export const NOTEPADPP_WINDOW_SIZE: Size = { width: 760, height: 520 };
+
 /** Room for the five Explorer columns and a dozen rows above the status bar. */
 export const RECYCLE_BIN_WINDOW_SIZE: Size = { width: 640, height: 380 };
 
 /** The classic 4:3 Media Player: a small screen, the seek bar and the transport buttons. */
 export const MEDIA_PLAYER_WINDOW_SIZE: Size = { width: 400, height: 340 };
+
+/** Room for the game picker, a dozen rows of the list and the status bar. */
+export const HALL_OF_FAME_WINDOW_SIZE: Size = { width: 560, height: 420 };
 
 export const OS_NAME = "FuseOS";
 
@@ -148,6 +152,13 @@ export function windowMeta(
         icon: "mediaplayer",
         resizable: false,
         size: MEDIA_PLAYER_WINDOW_SIZE,
+      };
+    case "halloffame":
+      return {
+        title: "Hall of Fame",
+        icon: "trophy",
+        resizable: true,
+        size: HALL_OF_FAME_WINDOW_SIZE,
       };
   }
 }
