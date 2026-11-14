@@ -971,6 +971,16 @@ function drawSpan(
 /** A saved note on the canvas: its rectangle, and what was written about it on a label at its top. */
 function drawSavedNote(g: CanvasRenderingContext2D, note: LabNote): void {
   if (yOf(note.end) < HEADER || yOf(note.start) > layout.height) return;
+  if (note.lowHz !== undefined) {
+    // A note on a frequency band also marks its time span across the charts, the Custom one included.
+    const y0 = yOf(note.start);
+    const y1 = Math.max(y0 + 2, yOf(note.end));
+    g.fillStyle = "rgba(59,255,208,0.1)";
+    g.fillRect(RULER - 10, y0, layout.curvesX - RULER + 10, y1 - y0);
+    g.fillStyle = "rgba(59,255,208,0.6)";
+    g.fillRect(RULER - 10, y0, layout.curvesX - RULER + 10, 1);
+    g.fillRect(RULER - 10, y1 - 1, layout.curvesX - RULER + 10, 1);
+  }
   g.lineWidth = 2;
   drawSpan(g, note, "rgba(59,255,208,0.16)", "#3bffd0", false);
   g.lineWidth = 1;
