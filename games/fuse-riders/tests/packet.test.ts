@@ -255,4 +255,18 @@ test("a settings entry travels in a packet, and an oversized packet is trimmed f
     MAX_PACKET_ENTRIES,
     "the newest entry always travels",
   );
+  const repair = (
+    decodePacket(
+      fuseGame,
+      encodePacketTrimmed({ ...packet(), entries: many }, "oldest"),
+    ) as {
+      packet: Packet;
+    }
+  ).packet.entries;
+  assert.equal(repair.length, trimmed.length);
+  assert.equal(
+    repair[0]![0],
+    1,
+    "a repair keeps the entry the peer asked for and sheds the newest",
+  );
 });

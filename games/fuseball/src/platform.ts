@@ -126,19 +126,35 @@ export function parseFuseballStats(
 }
 
 /**
- * The whole field: a duel is two riders on the two sides, one of whom won, and the board adds up — a side's points
- * are its rider's goals plus the other rider's own goals.
+ * The whole field: two, four or six riders in the places 0 to n − 1, even places on one side and odd on the other.
+ * One side won and every rider of it says so, and the board adds up: a side's points, which each of its riders
+ * reports, are its riders' goals plus the other side's own goals.
  */
 export function validFuseballField(players: readonly FuseballStats[]): boolean {
-  const [a, b] = players;
+  const count = players.length;
+  if (count < 2 || count > CAPACITY || count % 2 !== 0) return false;
+  if (new Set(players.map((player) => player.slot)).size !== count)
+    return false;
+  if (players.some((player) => player.slot >= count)) return false;
+  const sides = [0, 1].map((side) => {
+    const mine = players.filter((player) => player.slot % 2 === side),
+      theirs = players.filter((player) => player.slot % 2 !== side);
+    return {
+      won: mine[0]?.roundWins === 1,
+      agreed: mine.every(
+        (player) =>
+          player.roundWins === mine[0]?.roundWins &&
+          player.matchScoreUnits === mine[0]?.matchScoreUnits,
+      ),
+      score: mine[0]?.matchScoreUnits,
+      points:
+        mine.reduce((sum, player) => sum + player.goals, 0) +
+        theirs.reduce((sum, player) => sum + player.ownGoals, 0),
+    };
+  });
   return (
-    players.length === CAPACITY &&
-    a !== undefined &&
-    b !== undefined &&
-    a.slot !== b.slot &&
-    a.roundWins + b.roundWins === 1 &&
-    a.matchScoreUnits === a.goals + b.ownGoals &&
-    b.matchScoreUnits === b.goals + a.ownGoals
+    sides.every((side) => side.agreed && side.score === side.points) &&
+    sides[0]!.won !== sides[1]!.won
   );
 }
 

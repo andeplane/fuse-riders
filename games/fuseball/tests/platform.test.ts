@@ -258,7 +258,7 @@ test("a player's stats are refused unless every field is present, known and with
     ["an id that is no seat", { ...winner, playerId: "solo" }],
     ["a prototype key as id", { ...winner, playerId: "__proto__" }],
     ["a padded name", { ...winner, name: " Ada" }],
-    ["a third slot", { ...winner, slot: 2 }],
+    ["a seventh slot", { ...winner, slot: 6 }],
     ["two rounds played", { ...winner, roundsPlayed: 2 }],
     ["no round played", { ...winner, roundsPlayed: 0 }],
     ["a loser with no round played", { ...loser, roundsPlayed: 0 }],
@@ -295,6 +295,44 @@ test("the field is two riders on two sides with one winner and a board that adds
   assert.ok(
     !validFuseballField([{ ...winner, goals: 3 }, loser]),
     "a goal too many",
+  );
+  // Teams: even places are one side and odd the other; a side wins or loses as one and shares one score.
+  const mate = { ...winner, playerId: "c".repeat(24), slot: 2, goals: 0 },
+    rival = {
+      ...loser,
+      playerId: "d".repeat(24),
+      slot: 3,
+      goals: 0,
+      ownGoals: 0,
+    };
+  const four = [{ ...winner }, { ...loser }, mate, rival];
+  const points = (list: typeof four) =>
+    list.map((p) => ({
+      ...p,
+      goals: p.slot === 0 ? 2 : p.slot === 1 ? 1 : 0,
+      ownGoals: p.slot === 3 ? 1 : 0,
+      matchScoreUnits: p.slot % 2 === 0 ? TARGET : 1,
+    }));
+  assert.ok(validFuseballField(points(four)), "2 v 2");
+  assert.ok(
+    !validFuseballField(
+      points(four).map((p) =>
+        p.slot === 2 ? { ...p, roundWins: 0, matchPlacement: 2 } : p,
+      ),
+    ),
+    "a side split on who won",
+  );
+  assert.ok(
+    !validFuseballField(
+      points(four).map((p) => (p.slot === 3 ? { ...p, slot: 5 } : p)),
+    ),
+    "a place past the field",
+  );
+  assert.ok(
+    !validFuseballField(
+      points(four).map((p) => (p.slot === 2 ? { ...p, goals: 1 } : p)),
+    ),
+    "a team goal too many",
   );
   // The platform runs the same check on a whole result.
   const result = {

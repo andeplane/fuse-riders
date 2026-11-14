@@ -13,7 +13,12 @@ import { matchResult } from "../src/online/result.js";
 import { dueReports } from "../src/app/reports.js";
 import { Mesh, chase, chaserBot, type TestRuntime } from "./fixtures/mesh.js";
 
-const DOWNLINK: Settings = { display: false, mapId: "downlink", seed: 0 };
+const DOWNLINK: Settings = {
+  display: false,
+  mapId: "downlink",
+  seed: 0,
+  size: 1,
+};
 
 /** A seeded generator, so a lossy mesh is the same mesh on every run. */
 function seeded(seed: number): () => number {
@@ -83,7 +88,7 @@ test("solo is one rider against one bot, on the chosen map, never a shared scree
   };
   const runtime = new FuseballRuntime(
     "SOLO",
-    { display: true, mapId: "halo", seed: 0 },
+    { display: true, mapId: "halo", seed: 0, size: 1 },
     { state: () => {}, event: () => {}, status: () => {}, ready: () => {} },
     { humanName: "Ada", humanAvatar: "fox", dependencies },
   );
@@ -163,6 +168,7 @@ test("a generated level converges after lossy controls and a late join recovers 
     display: false,
     mapId: "random",
     seed: 0xffffffff,
+    size: 1,
   });
   lossy(mesh, 37);
   mesh.run(3_500);
@@ -282,7 +288,7 @@ test("held controls are logged when play needs them, after a resync, and again i
   assert.ok(
     host.command({
       type: "settings",
-      settings: { display: false, mapId: "halo", seed: 0 },
+      settings: { display: false, mapId: "halo", seed: 0, size: 1 },
     }),
   );
   assert.ok(host.command({ type: "action", action: "rematch" }));
@@ -313,7 +319,6 @@ test("a room refuses settings it does not know, and a bot seat plays through the
     !host.command({ type: "settings", settings: unknown as Settings }),
     "a map that does not exist",
   );
-  assert.ok(!host.command({ type: "action", action: "start" }), "one rider");
   assert.ok(host.command({ type: "bot", action: "add" }));
   mesh.run(300);
   assert.ok(host.command({ type: "action", action: "start" }));

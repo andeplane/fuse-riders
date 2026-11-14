@@ -30,15 +30,15 @@ radians, counter-clockwise positive, `rot90(v) = (-v.y, v.x)`. Level files are y
 
 ## 2. Time
 
-| item | value | provenance |
-|---|---|---|
-| game clock | `now = timeGetTime_ms * 0.182 * 0.0024` | READ 0x43ad40 (0.182 at 0x4475a0), 0x41f1ad (0.0024 at 0x447468) |
-| one time unit | `1 / 0.4368 s = 2.28937729 s` | derived from the line above |
-| max physics step | `0.0055` units (= 12.59 ms) | READ 0x41f227 (0x447458) |
-| step loop | `while (t < now - 1e-6) { dt = min(0.0055, now - t); step(t, dt); t += dt }` | READ 0x41f1a8-0x41f3b8 |
-| finish time | `(int)(t * 228.937728938)` hundredths of a second, truncated, `t` = start time of the step in which the exit was touched | READ 0x41fc49 (0x447470) |
-| volt cooldown | 0.4 units (0.916 s) | READ 0x41f849, global 0x4537b8 set at 0x401aaa |
-| volt duration | `0.4 * 0.25 = 0.1` units (0.229 s) | READ 0x420eb4-0x420eba |
+| item             | value                                                                                                                    | provenance                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| game clock       | `now = timeGetTime_ms * 0.182 * 0.0024`                                                                                  | READ 0x43ad40 (0.182 at 0x4475a0), 0x41f1ad (0.0024 at 0x447468) |
+| one time unit    | `1 / 0.4368 s = 2.28937729 s`                                                                                            | derived from the line above                                      |
+| max physics step | `0.0055` units (= 12.59 ms)                                                                                              | READ 0x41f227 (0x447458)                                         |
+| step loop        | `while (t < now - 1e-6) { dt = min(0.0055, now - t); step(t, dt); t += dt }`                                             | READ 0x41f1a8-0x41f3b8                                           |
+| finish time      | `(int)(t * 228.937728938)` hundredths of a second, truncated, `t` = start time of the step in which the exit was touched | READ 0x41fc49 (0x447470)                                         |
+| volt cooldown    | 0.4 units (0.916 s)                                                                                                      | READ 0x41f849, global 0x4537b8 set at 0x401aaa                   |
+| volt duration    | `0.4 * 0.25 = 0.1` units (0.229 s)                                                                                       | READ 0x420eb4-0x420eba                                           |
 
 The step is **not fixed**: every rendered frame the simulation catches up to the wall clock in slices of at most
 0.0055, the last slice being shorter. Input is sampled once per slice for gas/brake/volt and once per rendered frame
@@ -56,12 +56,12 @@ All values READ. "set at" is the instruction that stores the value (init functio
 Rigid body record, 0x68 bytes: `+0x20 rot`, `+0x28 angVel`, `+0x30 radius`, `+0x38 mass`, `+0x40 inertia`,
 `+0x48 pos (2 doubles)`, `+0x58 vel (2 doubles)`.
 
-| body | bike offset | radius | mass | inertia | initial pos | set at |
-|---|---|---|---|---|---|---|
-| frame | +0x000 | 0.3 (unused) | 200 | 60.5 | (2.75, 3.6) | 0x4016ca-0x401702 |
-| left wheel | +0x068 | 0.4 | 10 | 0.32 | (1.9, 3.0) | 0x401794-0x4017d4 |
-| right wheel | +0x0d0 | 0.4 | 10 | 0.32 | (3.6, 3.0) | 0x40186c-0x4018ab |
-| rider point | pos +0x158, vel +0x168 | - | (uses frame mass 200) | - | (2.75, 4.04) | 0x4018fe-0x40190a |
+| body        | bike offset            | radius       | mass                  | inertia | initial pos  | set at            |
+| ----------- | ---------------------- | ------------ | --------------------- | ------- | ------------ | ----------------- |
+| frame       | +0x000                 | 0.3 (unused) | 200                   | 60.5    | (2.75, 3.6)  | 0x4016ca-0x401702 |
+| left wheel  | +0x068                 | 0.4          | 10                    | 0.32    | (1.9, 3.0)   | 0x401794-0x4017d4 |
+| right wheel | +0x0d0                 | 0.4          | 10                    | 0.32    | (3.6, 3.0)   | 0x40186c-0x4018ab |
+| rider point | pos +0x158, vel +0x168 | -            | (uses frame mass 200) | -       | (2.75, 4.04) | 0x4018fe-0x40190a |
 
 Other bike fields: `+0x138` head centre (vec), `+0x148` flipped flag (0 = faces left, the initial state),
 `+0x150` gravity direction (0 up, 1 down, 2 left, 3 right; initial 1), `+0x178` apples taken, `+0x17c` previous brake,
@@ -70,57 +70,57 @@ times, `+0x1a8/+0x1b0` frame angular velocity saved at volt start.
 
 Derived at init (0x401c9d-0x401d73) from the initial positions:
 
-| name | value | global |
-|---|---|---|
-| left wheel rest offset in frame coords | (-0.85, -0.6) | x 0x453790, y 0x453788 |
-| right wheel rest offset | (0.85, -0.6) | x 0x4537a8, y 0x4537a0 |
-| rider point rest height above frame centre `H` | 0.44 | 0x4537b0 |
+| name                                           | value         | global                 |
+| ---------------------------------------------- | ------------- | ---------------------- |
+| left wheel rest offset in frame coords         | (-0.85, -0.6) | x 0x453790, y 0x453788 |
+| right wheel rest offset                        | (0.85, -0.6)  | x 0x4537a8, y 0x4537a0 |
+| rider point rest height above frame centre `H` | 0.44          | 0x4537b0               |
 
 ### 3.2 Forces and controls
 
-| name | value | units | address | used at |
-|---|---|---|---|---|
-| gravity acceleration `g` | 10 | units/time^2 | 0x453700 (set 0x401a5a) | 0x42126a, 0x40343e |
-| suspension stiffness `K` | 10000 | force/unit | 0x453798 (set 0x401ad2) | 0x4221d3, 0x4031e2 |
-| suspension damping `C` | 1000 | force/(unit/time) | 0x453718 (set 0x401afa) | 0x422558, 0x403381 |
-| rider spring factor | 5 (so 50000) | - | 0x4471e8 | 0x4031ea |
-| rider damping factor | 3 (so 3000) | - | immediate | 0x40326c |
-| gas torque | 600 (right wheel +600 when not flipped, left wheel -600 when flipped) | torque | immediates | 0x420cbe, 0x420ce3 |
-| gas speed limit | wheel angVel 110 (applied only while `angVel < 110`, resp. `> -110`) | rad/time | 0x447490, 0x447498 | 0x420ca9, 0x420cce |
-| brake angular stiffness | 1000 | torque/rad | 0x447488 (-1000) | 0x420cfe |
-| brake angular damping | 100 | torque/(rad/time) | 0x447198 | 0x420d0d |
-| volt angular velocity step | 12 | rad/time | 0x44e0b0 | 0x420ed1, 0x42102b |
-| volt after-brake | 3 | rad/time | 0x44e0b8 | 0x420f0f, 0x420fc5 |
-| volt cooldown | 0.4 | time | 0x4537b8 | 0x41f849 |
-| volt duration | 0.1 | time | 0x4537b8 * 0x4473e0 | 0x420eb4 |
-| zero-extension threshold of suspension | 1e-4 per axis | units | 0x4473e8, 0x4474a0 | 0x421feb-0x422022 |
+| name                                   | value                                                                 | units             | address                 | used at            |
+| -------------------------------------- | --------------------------------------------------------------------- | ----------------- | ----------------------- | ------------------ |
+| gravity acceleration `g`               | 10                                                                    | units/time^2      | 0x453700 (set 0x401a5a) | 0x42126a, 0x40343e |
+| suspension stiffness `K`               | 10000                                                                 | force/unit        | 0x453798 (set 0x401ad2) | 0x4221d3, 0x4031e2 |
+| suspension damping `C`                 | 1000                                                                  | force/(unit/time) | 0x453718 (set 0x401afa) | 0x422558, 0x403381 |
+| rider spring factor                    | 5 (so 50000)                                                          | -                 | 0x4471e8                | 0x4031ea           |
+| rider damping factor                   | 3 (so 3000)                                                           | -                 | immediate               | 0x40326c           |
+| gas torque                             | 600 (right wheel +600 when not flipped, left wheel -600 when flipped) | torque            | immediates              | 0x420cbe, 0x420ce3 |
+| gas speed limit                        | wheel angVel 110 (applied only while `angVel < 110`, resp. `> -110`)  | rad/time          | 0x447490, 0x447498      | 0x420ca9, 0x420cce |
+| brake angular stiffness                | 1000                                                                  | torque/rad        | 0x447488 (-1000)        | 0x420cfe           |
+| brake angular damping                  | 100                                                                   | torque/(rad/time) | 0x447198                | 0x420d0d           |
+| volt angular velocity step             | 12                                                                    | rad/time          | 0x44e0b0                | 0x420ed1, 0x42102b |
+| volt after-brake                       | 3                                                                     | rad/time          | 0x44e0b8                | 0x420f0f, 0x420fc5 |
+| volt cooldown                          | 0.4                                                                   | time              | 0x4537b8                | 0x41f849           |
+| volt duration                          | 0.1                                                                   | time              | 0x4537b8 * 0x4473e0     | 0x420eb4           |
+| zero-extension threshold of suspension | 1e-4 per axis                                                         | units             | 0x4473e8, 0x4474a0      | 0x421feb-0x422022  |
 
 ### 3.3 Collision and objects
 
-| name | value | address | used at |
-|---|---|---|---|
-| wheel radius | 0.4 | body record | 0x4021f2 |
-| head radius | 0.238 | 0x4537d8 (set 0x401c35) | 0x422874, 0x422936 (XCHK elma-rust `HEAD_RADIUS`) |
-| object radius | 0.4 | 0x449268 | 0x436140 (XCHK elma-rust `OBJECT_RADIUS`) |
-| head centre offset from rider point | `0.63` along frame up, `0.09` along frame axis (sign by facing) | immediates | 0x420a21, 0x420a73 |
-| contact penetration allowance | 0.005 | 0x453730 (set 0x401a46) | 0x4029e4 |
-| contact separation speed tolerance | 0.01 | 0x453720 (set 0x401a32) | 0x402b6f |
-| contact merge distance | 0.1 | 0x453728 (set 0x401a6e) | 0x435c24 |
-| speed threshold between the two 2-contact tests | 1.0 | 0x447190 | 0x40224d, 0x40239e |
-| bump sound threshold / scale / cap | 1.5 / 0.125 / 0.99 | 0x449310, 0x4471d8, 0x4471d0 | 0x402c80-0x402c9a |
-| collision grid cell | 1.0, padded 6 units around the level, max 200x200 | 0x4474e8 (6) | 0x430100 |
-| max polygons / objects / pictures | 300 / 52 / 5000 | immediates | 0x434058, 0x43410e, 0x4341d5 |
+| name                                            | value                                                           | address                      | used at                                           |
+| ----------------------------------------------- | --------------------------------------------------------------- | ---------------------------- | ------------------------------------------------- |
+| wheel radius                                    | 0.4                                                             | body record                  | 0x4021f2                                          |
+| head radius                                     | 0.238                                                           | 0x4537d8 (set 0x401c35)      | 0x422874, 0x422936 (XCHK elma-rust `HEAD_RADIUS`) |
+| object radius                                   | 0.4                                                             | 0x449268                     | 0x436140 (XCHK elma-rust `OBJECT_RADIUS`)         |
+| head centre offset from rider point             | `0.63` along frame up, `0.09` along frame axis (sign by facing) | immediates                   | 0x420a21, 0x420a73                                |
+| contact penetration allowance                   | 0.005                                                           | 0x453730 (set 0x401a46)      | 0x4029e4                                          |
+| contact separation speed tolerance              | 0.01                                                            | 0x453720 (set 0x401a32)      | 0x402b6f                                          |
+| contact merge distance                          | 0.1                                                             | 0x453728 (set 0x401a6e)      | 0x435c24                                          |
+| speed threshold between the two 2-contact tests | 1.0                                                             | 0x447190                     | 0x40224d, 0x40239e                                |
+| bump sound threshold / scale / cap              | 1.5 / 0.125 / 0.99                                              | 0x449310, 0x4471d8, 0x4471d0 | 0x402c80-0x402c9a                                 |
+| collision grid cell                             | 1.0, padded 6 units around the level, max 200x200               | 0x4474e8 (6)                 | 0x430100                                          |
+| max polygons / objects / pictures               | 300 / 52 / 5000                                                 | immediates                   | 0x434058, 0x43410e, 0x4341d5                      |
 
 ### 3.4 Rider point clamp region (frame coordinates, 0x4035b0)
 
-| name | value | set at |
-|---|---|---|
-| line point `A` | (-0.35, 0.13) | 0x403719-0x403738 |
-| line direction `B` | (0.49, 0.23); normal `n = unit(-0.23, 0.49)` | 0x403758-0x403810 |
-| max y | 0.48 | 0x4471c0 |
-| min x | -0.5 | 0x4471f8 |
-| max x | 0.26 | 0x4471c8 |
-| quarter ellipse for x > 0, y > 0 | semi-axes 0.26 (x) and 0.48 (y) | 0x403a45-0x403ac8 |
+| name                             | value                                        | set at            |
+| -------------------------------- | -------------------------------------------- | ----------------- |
+| line point `A`                   | (-0.35, 0.13)                                | 0x403719-0x403738 |
+| line direction `B`               | (0.49, 0.23); normal `n = unit(-0.23, 0.49)` | 0x403758-0x403810 |
+| max y                            | 0.48                                         | 0x4471c0          |
+| min x                            | -0.5                                         | 0x4471f8          |
+| max x                            | 0.26                                         | 0x4471c8          |
+| quarter ellipse for x > 0, y > 0 | semi-axes 0.26 (x) and 0.48 (y)              | 0x403a45-0x403ac8 |
 
 ### 3.5 Set but unreferenced by the physics (READ, single write xref each)
 
@@ -456,25 +456,25 @@ down case was traced line by line, the other three were checked for the directio
 Layout READ from the loader at 0x433bc0 (polygon 0x419f50, object 0x432390, picture 0x432a60) and XCHK against
 elma-rust `lev.rs`. Little-endian.
 
-| offset (POT14) | size | content |
-|---|---|---|
-| 0 | 5 | `"POT14"`; the loader accepts versions 6 (Across `POT06`) and 14 only (READ 0x433d14-0x433d1c) |
-| 5 | 2 | low bytes of the level id (read when version >= 13) |
-| 7 | 4 | level id (links replays to the level) |
-| 11 | 4 x 8 | integrity doubles (below) |
-| 43 | 51 | level name, NUL terminated (15 bytes when version < 14) |
-| 94 | 16 | LGR name (version > 6) |
-| 110 | 10 | ground texture name (version >= 8) |
-| 120 | 10 | sky texture name (version >= 8) |
-| 130 | 8 | `polygonCount + 0.4643643` (double) |
-| ... | per polygon | `int32 grass` (version >= 8), `int32 n`, then `n` x (`double x`, `double y`) |
-| ... | 8 | `objectCount + 0.4643643` |
-| ... | per object | `double x`, `double y`, `int32 type`, `int32 gravity` (version >= 9), `int32 animation - 1` (version >= 11) |
-| ... | 8 | `pictureCount + 0.2345672` (version > 6) |
-| ... | per picture (54 bytes) | `char name[10]`, `char texture[10]`, `char mask[10]`, `double x`, `double y`, `int32 distance`, `int32 clipping` (field order XCHK) |
-| ... | 4 | end-of-data marker `0x0067103A` |
-| ... | 688 | top-ten block, encrypted |
-| ... | 4 | end-of-file marker `0x00845D52` |
+| offset (POT14) | size                   | content                                                                                                                             |
+| -------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 0              | 5                      | `"POT14"`; the loader accepts versions 6 (Across `POT06`) and 14 only (READ 0x433d14-0x433d1c)                                      |
+| 5              | 2                      | low bytes of the level id (read when version >= 13)                                                                                 |
+| 7              | 4                      | level id (links replays to the level)                                                                                               |
+| 11             | 4 x 8                  | integrity doubles (below)                                                                                                           |
+| 43             | 51                     | level name, NUL terminated (15 bytes when version < 14)                                                                             |
+| 94             | 16                     | LGR name (version > 6)                                                                                                              |
+| 110            | 10                     | ground texture name (version >= 8)                                                                                                  |
+| 120            | 10                     | sky texture name (version >= 8)                                                                                                     |
+| 130            | 8                      | `polygonCount + 0.4643643` (double)                                                                                                 |
+| ...            | per polygon            | `int32 grass` (version >= 8), `int32 n`, then `n` x (`double x`, `double y`)                                                        |
+| ...            | 8                      | `objectCount + 0.4643643`                                                                                                           |
+| ...            | per object             | `double x`, `double y`, `int32 type`, `int32 gravity` (version >= 9), `int32 animation - 1` (version >= 11)                         |
+| ...            | 8                      | `pictureCount + 0.2345672` (version > 6)                                                                                            |
+| ...            | per picture (54 bytes) | `char name[10]`, `char texture[10]`, `char mask[10]`, `double x`, `double y`, `int32 distance`, `int32 clipping` (field order XCHK) |
+| ...            | 4                      | end-of-data marker `0x0067103A`                                                                                                     |
+| ...            | 688                    | top-ten block, encrypted                                                                                                            |
+| ...            | 4                      | end-of-file marker `0x00845D52`                                                                                                     |
 
 For version < 14 the loader seeks to absolute offset 100 before the polygon count (READ 0x434007).
 
@@ -482,7 +482,7 @@ For version < 14 the loader seeks to absolute offset 100 before the polygon coun
   after load (READ 0x4356fa).
 - **Limits**: 300 polygons, 3..1000 vertices each, 52 objects, 5000 pictures (READ).
 - **Integrity** (READ 0x4351e0, 0x434328): `sum = 3247.764325643 * (sum over polygon vertices of (x + y) + sum over
-  objects of (x + y + type) + sum over pictures of (x + y))`, using file coordinates. Integrity[0] must equal `sum`
+objects of (x + y + type) + sum over pictures of (x + y))`, using file coordinates. Integrity[0] must equal `sum`
   within 0.01 or the level is "Corrupt". Integrity[1..3] must lie in the ranges [9786, 36546], [9786, 36546],
   [9875, 32345] relative to the sum (READ 0x433dd9-0x433ec5; elma-rust writes `rand % 5871 + 11877 - sum` for them);
   values above 20000 set two flags (XCHK: topology-error and locked markers).
@@ -497,18 +497,18 @@ Field layout XCHK against elma-rust `rec.rs`; scales and semantics READ from the
 Header: `int32 frameCount`, `int32 0x83`, `int32 multi`, `int32 flagTag`, `uint32 levelId`, `char levelName[16]`.
 Then one array per field, each `frameCount` long:
 
-| field | type | meaning |
-|---|---|---|
-| bike x, bike y | float32 | frame centre, world units (y-up) |
-| left wheel x, y | int16 | offset from frame centre, units of 1/1000 (0x44fee8) |
-| right wheel x, y | int16 | same |
-| head x, y | int16 | **rider point** offset from frame centre, 1/1000 (this is bike+0x158, not the head circle) |
-| bike rotation | int16 | 10000 units per turn (`2*pi/10000`, 0x486998), wrap-aware interpolation |
-| left wheel rotation | uint8 | 250 units per turn |
-| right wheel rotation | uint8 | 250 units per turn |
-| flags | uint8 | bit 0 gas held, bit 1 flipped; bits 2, 3 player/view flags |
-| sound byte | uint8 | driven-wheel speed for the engine sound: `min(|angVel|*0.025, 30)` mapped by `2 - e^(-v)` (READ 0x41fba0-0x41fbe6) |
-| collision byte | uint8 | suspension/bump strength (not analysed) |
+| field                | type    | meaning                                                                                    |
+| -------------------- | ------- | ------------------------------------------------------------------------------------------ |
+| bike x, bike y       | float32 | frame centre, world units (y-up)                                                           |
+| left wheel x, y      | int16   | offset from frame centre, units of 1/1000 (0x44fee8)                                       |
+| right wheel x, y     | int16   | same                                                                                       |
+| head x, y            | int16   | **rider point** offset from frame centre, 1/1000 (this is bike+0x158, not the head circle) |
+| bike rotation        | int16   | 10000 units per turn (`2*pi/10000`, 0x486998), wrap-aware interpolation                    |
+| left wheel rotation  | uint8   | 250 units per turn                                                                         |
+| right wheel rotation | uint8   | 250 units per turn                                                                         |
+| flags                | uint8   | bit 0 gas held, bit 1 flipped; bits 2, 3 player/view flags                                 |
+| sound byte           | uint8   | driven-wheel speed for the engine sound: `min(                                             | angVel | *0.025, 30)`mapped by`2 - e^(-v)` (READ 0x41fba0-0x41fbe6) |
+| collision byte       | uint8   | suspension/bump strength (not analysed)                                                    |
 
 Frames are sampled at 30 per second: `frameIndex = t * 30 * 2.289377289` (READ 0x42cbcc), with linear interpolation on
 playback. Capacity 8981 frames (READ 0x42d503).
@@ -549,19 +549,19 @@ gravity 10 -> 1.908 units/s^2; max wheel speed 110 -> 48.05 rad/s; volt step 12 
 
 ## 13. Confidence and open questions
 
-| area | confidence | notes |
-|---|---|---|
-| time base, step loop, finish time | high | read directly; only the per-frame call pattern around the loop was skimmed |
-| body constants, rest offsets | high | all stored immediates |
-| suspension, frame/wheel integration | high | traced symbolically, formulas verified on the gravity-down path |
-| gas, brake, turn | high | |
-| volt and alovolt | high for the code path, medium for the alovolt interpretation | the worked example is derived, not observed |
-| rider point and clamp | high for formulas; medium for which side of the sloped line is kept | sign read as "project when `dot(p - A, n) < 0`" |
-| wheel contact logic | high for single contact; medium-high for the two-contact branch ordering | branch structure reconstructed from jumps; argument order of both test pairs verified |
-| head and object rules | high | |
-| level format | high (read and cross-checked) | Across-only polygon fields (versions < 8 or >= 12 extras at 0x419fe2-0x41a09b) not decoded |
-| replay format | medium-high | layout cross-checked, scales read; last two per-frame bytes not analysed |
-| camera | medium | origin formula read; smoothing of the facing value (0x420000) not decoded |
+| area                                | confidence                                                               | notes                                                                                      |
+| ----------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| time base, step loop, finish time   | high                                                                     | read directly; only the per-frame call pattern around the loop was skimmed                 |
+| body constants, rest offsets        | high                                                                     | all stored immediates                                                                      |
+| suspension, frame/wheel integration | high                                                                     | traced symbolically, formulas verified on the gravity-down path                            |
+| gas, brake, turn                    | high                                                                     |                                                                                            |
+| volt and alovolt                    | high for the code path, medium for the alovolt interpretation            | the worked example is derived, not observed                                                |
+| rider point and clamp               | high for formulas; medium for which side of the sloped line is kept      | sign read as "project when `dot(p - A, n) < 0`"                                            |
+| wheel contact logic                 | high for single contact; medium-high for the two-contact branch ordering | branch structure reconstructed from jumps; argument order of both test pairs verified      |
+| head and object rules               | high                                                                     |                                                                                            |
+| level format                        | high (read and cross-checked)                                            | Across-only polygon fields (versions < 8 or >= 12 extras at 0x419fe2-0x41a09b) not decoded |
+| replay format                       | medium-high                                                              | layout cross-checked, scales read; last two per-frame bytes not analysed                   |
+| camera                              | medium                                                                   | origin formula read; smoothing of the facing value (0x420000) not decoded                  |
 
 Open questions and things not determined:
 

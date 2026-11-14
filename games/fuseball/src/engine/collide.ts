@@ -7,7 +7,6 @@ import {
   type MapDef,
   type Rect,
 } from "./maps.js";
-import { WORLD_H, WORLD_W } from "./tuning.js";
 
 /**
  * Collision for round bodies: riders, the ball and bubbles are circles and solids are axis-aligned boxes. All of it
@@ -20,7 +19,8 @@ export interface Body {
   vx: number;
   vy: number;
 }
-export type Space = Pick<MapDef, "wrapX" | "wrapY">;
+/** What collision reads of an arena: which axes wrap, and the field's size in pixels. */
+export type Space = Pick<MapDef, "wrapX" | "wrapY" | "w" | "h">;
 
 /** From `(bx, by)` to `(ax, ay)`, the short way round on axes that wrap. */
 export function apart(
@@ -31,8 +31,8 @@ export function apart(
   space: Space,
 ): { dx: number; dy: number } {
   return {
-    dx: space.wrapX ? delta(ax - bx, WORLD_W) : ax - bx,
-    dy: space.wrapY ? delta(ay - by, WORLD_H) : ay - by,
+    dx: space.wrapX ? delta(ax - bx, space.w * SUB) : ax - bx,
+    dy: space.wrapY ? delta(ay - by, space.h * SUB) : ay - by,
   };
 }
 
@@ -81,8 +81,8 @@ function hitBox(
     ey = dy - clamp(dy, -box.hh, box.hh);
   if (ex === 0 && ey === 0) {
     // The centre is inside the box: leave by the nearest face that leads back into the field.
-    const outX = wayOut(body.x, dx, box.hw, radius, WORLD_W, space.wrapX),
-      outY = wayOut(body.y, dy, box.hh, radius, WORLD_H, space.wrapY);
+    const outX = wayOut(body.x, dx, box.hw, radius, space.w * SUB, space.wrapX),
+      outY = wayOut(body.y, dy, box.hh, radius, space.h * SUB, space.wrapY);
     let into: number;
     if (outX.over < outY.over) {
       body.x += outX.side * (outX.over + radius);
@@ -212,9 +212,9 @@ export function inShape(
 /** Brings a body back into the field: round the seam on an axis that wraps, held inside the edge on one that does not. */
 export function settle(body: Body, radius: number, space: Space): void {
   body.x = space.wrapX
-    ? wrap(body.x, WORLD_W)
-    : clamp(body.x, radius, WORLD_W - radius);
+    ? wrap(body.x, space.w * SUB)
+    : clamp(body.x, radius, space.w * SUB - radius);
   body.y = space.wrapY
-    ? wrap(body.y, WORLD_H)
-    : clamp(body.y, radius, WORLD_H - radius);
+    ? wrap(body.y, space.h * SUB)
+    : clamp(body.y, radius, space.h * SUB - radius);
 }
