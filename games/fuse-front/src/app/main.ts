@@ -512,6 +512,7 @@ function room(code: string, token: string | undefined, display: boolean): void {
         slot: requestedRoomSlot(addAI),
       });
     const layout = createRoomLayout({
+      primaryAction: host ? start : undefined,
       slotColor: (slot) => (slot % 2 ? "#3a6ae0" : "#d8402a"),
       slotLabel: (slot) => `${slot % 2 ? "Blue" : "Red"} · Slot ${slot + 1}`,
       background: async (host) =>

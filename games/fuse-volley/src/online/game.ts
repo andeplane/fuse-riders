@@ -22,8 +22,10 @@ import {
   RULES,
   SCORINGS,
   STEPS_PER_TICK,
+  blobsFor,
   botInput,
   createWorld,
+  isFormat,
   decodeWorld,
   encodeWorld,
   isBotLevel,
@@ -33,8 +35,8 @@ import {
   toView,
   winnerOf,
   type BotLevel,
+  type Format,
   type Scoring,
-  type Side,
   type World,
   type WorldView,
 } from "../engine/index.js";
@@ -61,22 +63,22 @@ export interface Settings {
   scoring: Scoring;
   /** How well bots play: 0 easy, 1 normal, 2 hard. */
   bot: BotLevel;
-  /** Blobs a side: 1 (two seats), 2 on the wide court (four seats) or 3 in lanes (six seats). */
-  team: Team;
+  /**
+   * One on one (two seats), two a side on the wide court (four), three a side on the big court (six), or three teams of
+   * two playing king of the court (six).
+   */
+  format: Format;
 }
-export type Team = 1 | 2 | 3;
-export const TEAMS: readonly Team[] = [1, 2, 3];
-const isTeam = (value: unknown): value is Team =>
-  value === 1 || value === 2 || value === 3;
 export const DEFAULT_SETTINGS: Settings = {
   display: false,
   scoring: "rally",
   bot: 1,
-  team: 1,
+  format: "1v1",
 };
-const SETTING_KEYS = ["display", "scoring", "bot", "team"];
-/** Seats a match under `settings` takes: two a blob a side. */
-export const seatsFor = (settings: Settings): number => settings.team * 2;
+const SETTING_KEYS = ["display", "scoring", "bot", "format"];
+/** Seats a match under `settings` takes: one a blob. */
+export const seatsFor = (settings: Settings): number =>
+  blobsFor(settings.format);
 /** The settings boundary, for a logged entry, a command and a checkpoint alike: exactly the four fields, each checked. */
 export function parseSettings(raw: unknown): Settings | undefined {
   if (!plain(raw)) return;
@@ -86,15 +88,15 @@ export function parseSettings(raw: unknown): Settings | undefined {
     !SETTING_KEYS.every((key) => Object.hasOwn(raw, key))
   )
     return;
-  const { display, scoring, bot, team } = raw;
+  const { display, scoring, bot, format } = raw;
   if (
     typeof display !== "boolean" ||
-    !isTeam(team) ||
+    !isFormat(format) ||
     !SCORINGS.some((known) => known === scoring) ||
     !isBotLevel(bot)
   )
     return;
-  return { display, scoring: scoring as Scoring, bot, team };
+  return { display, scoring: scoring as Scoring, bot, format };
 }
 
 export const PLAY = 0;
@@ -123,17 +125,20 @@ export const idleBot: BotInput = () => 0;
 export interface Entrant {
   id: string;
   name: string;
-  /** The blob it rides: even slots play the left side, odd ones the right. */
+  /** The blob it rides: even slots play the left side, odd ones the right; three teams of two, slot % 3 is the team. */
   slot: number;
   bot: boolean;
 }
-/** The side a blob slot plays. */
-export const sideOf = (slot: number): Side => (slot % 2 === 0 ? 0 : 1);
+/** The team a blob slot plays for under `format`: its side (0 left, 1 right), or three teams of two, 0–2. */
+export const teamOfSlot = (slot: number, format: Format): number =>
+  format === "2v2v2" ? slot % 3 : slot % 2;
+/** Teams a format has. */
+export const teamsIn = (format: Format): number => (format === "2v2v2" ? 3 : 2);
 /** The finished match, frozen on the tick it was decided so every replica reports the same thing. */
 export interface Decided {
   /** The game clock (`simulationTick`) as of the deciding tick: a report waits until it is confirmed. */
   clock: number;
-  /** The winning side's first blob (its slot is the side); two or three a side, its teammates won too. */
+  /** The winning team's first blob (its slot is the team); its teammates won too. */
   winner: string;
   /** The humans still seated when it ended, sorted: who can attest the result. */
   finishers: string[];
@@ -262,6 +267,7 @@ function beginMatch(room: Room): void {
     seated.map((seat) => seat.id),
     room.play.scoring,
     seedOf(room.matchId),
+    room.play.format,
   );
 }
 
@@ -604,6 +610,7 @@ export function decode(
       roster.length !== seatsFor(play) ||
       world.blobs.length !== roster.length ||
       world.scoring !== play.scoring ||
+      world.format !== play.format ||
       world.blobs.some((blob, slot) => blob.id !== roster[slot]!.id) ||
       Object.keys(held).some(
         (id) => !roster.some((entrant) => entrant.id === id && !entrant.bot),
@@ -611,7 +618,7 @@ export function decode(
       (over && Object.keys(held).length > 0) ||
       (decided !== null &&
         (decided.clock > simulationTick ||
-          decided.winner !== roster[winnerOf(world) === 1 ? 1 : 0]!.id))
+          decided.winner !== roster[Math.max(winnerOf(world), 0)]!.id))
     )
       return;
   }

@@ -3,12 +3,14 @@ import { SINGLES, type Court } from "./court.js";
 import { abs, div, isqrt, round } from "./math.js";
 import * as T from "./tuning.js";
 import {
+  benched,
   courtOf,
-  laneOf,
   otherSide,
+  playing,
   rng,
   serve,
   setTouches,
+  team,
   touchesOf,
   type Blob,
   type Side,
@@ -28,46 +30,14 @@ function startSquash(blob: Blob): void {
   if (!blob.air && blob.frame === 0 && blob.dir === 0) blob.dir = 1;
 }
 
-/** The x limits for a blob: its side's, or three a side, its lane's. */
-function limits(blob: Blob, court: Court, lane: number): [number, number] {
-  const side = blob.side;
-  return lane < 0
-    ? [court.blobMin[side], court.blobMax[side]]
-    : [court.laneMin[side]![lane]!, court.laneMax[side]![lane]!];
-}
-
-/** Every blob is inside its lane (always, on courts without lanes). */
-export function inLanes(world: World): boolean {
-  const court = courtOf(world);
-  return world.blobs.every((blob, slot) => {
-    const [low, high] = limits(blob, court, laneOf(world, slot));
-    return low <= blob.x && blob.x <= high;
-  });
-}
-
 export function stepBlob(
   blob: Blob,
   bits: number,
   step: number,
   court: Court = SINGLES,
-  lane = -1,
 ): void {
-  const [low, high] = limits(blob, court, lane);
-  // Three a side, a blob a rotation has left outside its lane hops across to it, whatever its player holds.
-  const moving = blob.x < low || blob.x > high;
-  if (moving) {
-    blob.x =
-      blob.x < low
-        ? Math.min(blob.x + T.ROTATE_SPEED, low)
-        : Math.max(blob.x - T.ROTATE_SPEED, high);
-    startSquash(blob);
-    if (!blob.air) {
-      blob.air = true;
-      blob.vy = T.JUMP_SPEED;
-      if (blob.frame !== T.SQUASH_FRAMES) blob.dir = 1;
-    }
-    bits = 0;
-  }
+  const low = court.blobMin[blob.side],
+    high = court.blobMax[blob.side];
   if (bits & RIGHT) {
     blob.x = Math.min(blob.x + T.RUN_SPEED, high);
     startSquash(blob);
@@ -181,8 +151,9 @@ export function collide(world: World): void {
   const ball = world.ball,
     court = courtOf(world);
   const speed = isqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+  const blobs = playing(world);
   const circles: [Blob, { x: number; y: number }, number, number][] = [
-    ...world.blobs.map(
+    ...blobs.map(
       (blob) =>
         [blob, headCentre(blob), T.HEAD_HIT, T.HEAD_OUT] as [
           Blob,
@@ -191,7 +162,7 @@ export function collide(world: World): void {
           number,
         ],
     ),
-    ...world.blobs.map(
+    ...blobs.map(
       (blob) =>
         [blob, bodyCentre(blob), T.BODY_HIT, T.BODY_OUT] as [
           Blob,
@@ -314,13 +285,24 @@ export function stepBall(world: World): void {
   ball.spin = (((ball.spin + ball.vx) % T.COUNTER) + T.COUNTER) % T.COUNTER;
 }
 
-/** The rally is over and went against `loser`: score it, change the serve, maybe end the match. */
+/**
+ * The rally is over and went against `loser`: score it, change the serve, maybe end the match. Three teams of two
+ * (king of the court), the winning side stays on and the losing side walks off at the next serve, the waiting team
+ * coming on in its place to serve; under rally scoring the winners score every rally, under classic only a side that
+ * was receiving (the king side) scores, and a serving side that wins takes the king side without a point.
+ */
 export function pointAgainst(world: World, loser: Side, fault: boolean): void {
   const won = otherSide(loser);
-  const sideOut = world.server !== won;
-  if (world.scoring === "rally" || world.server === won)
-    world.score[won] = Math.min(world.score[won] + 1, T.SCORE_CAP);
-  world.server = won;
+  if (world.format === "2v2v2") {
+    const team = world.onCourt[won];
+    if (world.scoring === "rally" || world.server !== won)
+      world.points[team] = Math.min(world.points[team]! + 1, T.SCORE_CAP);
+    world.server = loser;
+  } else {
+    if (world.scoring === "rally" || world.server === won)
+      world.score[won] = Math.min(world.score[won] + 1, T.SCORE_CAP);
+    world.server = won;
+  }
   world.lastFault = loser;
   world.pointCounter = count(world.pointCounter);
   for (const blob of world.blobs) blob.touches = 0;
@@ -328,14 +310,22 @@ export function pointAgainst(world: World, loser: Side, fault: boolean): void {
     world.ball.vx = div(world.ball.vx, 2);
     world.ball.vy = div(world.ball.vy, 2);
   }
-  if (decided(world.score, won, world.target)) world.winner = won;
-  // Three a side, a side that wins the serve back rotates, as in volleyball: the next of its blobs takes the middle
-  // lane and the serve. The settle gives them time to hop across.
-  else if (sideOut && courtOf(world).team === 3)
-    world.rotation[won] = (world.rotation[won] + 1) % 3;
+  if (
+    world.format === "2v2v2"
+      ? kingsDecided(world.points, world.onCourt[won], world.target)
+      : decided(world.score, won, world.target)
+  )
+    world.winner = won;
   world.phase = "dead";
   world.phaseSteps = T.DEAD_STEPS;
 }
+
+/** Three teams of two, `team` has won: first to the target, no lead needed. */
+export const kingsDecided = (
+  points: readonly number[],
+  team: number,
+  target: number,
+): boolean => points[team]! >= target;
 
 /** `side` has won: the target with a lead of two, or the score cap. */
 export function decided(
@@ -354,8 +344,8 @@ export function countTouches(world: World): void {
     court = courtOf(world);
   if (ball.x >= court.clearRight) setTouches(world, 0, 0);
   else if (ball.x <= court.clearLeft) setTouches(world, 1, 0);
-  for (const blob of world.blobs) {
-    const playing = world.phase === "serve" || world.phase === "rally";
+  for (const blob of playing(world)) {
+    const live = world.phase === "serve" || world.phase === "rally";
     if (blob.contact && !blob.prevContact) {
       // Teammates share the count: three touches a side, however they split them.
       setTouches(world, blob.side, touchesOf(world, blob.side) + 1);
@@ -364,21 +354,30 @@ export function countTouches(world: World): void {
       world.hitCounter = count(world.hitCounter);
       world.lastTouch = blob.side;
       world.touchStep = world.step;
-      if (playing && blob.touches > T.MAX_TOUCHES)
+      if (live && blob.touches > T.MAX_TOUCHES)
         pointAgainst(world, blob.side, true);
     } else if (blob.contact) {
       blob.hold++;
-      if (playing && blob.hold > T.MAX_HOLD)
-        pointAgainst(world, blob.side, true);
+      if (live && blob.hold > T.MAX_HOLD) pointAgainst(world, blob.side, true);
     }
     blob.prevContact = blob.contact;
     blob.contact = false;
   }
 }
 
-/** Every blob's feet on the sand, in its own lane. */
+/** Every blob's feet on the sand. */
 const grounded = (world: World): boolean =>
-  world.blobs.every((blob) => !blob.air) && inLanes(world);
+  world.blobs.every((blob) => !blob.air);
+
+/** Three a side, the teammates (slots two apart on a side) pushed apart: neighbours, then the outer pair. */
+const TRIPLE_PAIRS = [
+  [0, 2],
+  [1, 3],
+  [2, 4],
+  [3, 5],
+  [0, 4],
+  [1, 5],
+] as const;
 
 /** One step with `inputs[slot]` held by each blob; a missing or malformed input holds nothing. */
 export function stepWorld(world: World, inputs: readonly number[]): void {
@@ -393,14 +392,23 @@ export function stepWorld(world: World, inputs: readonly number[]): void {
   const court = courtOf(world),
     blobs = world.blobs;
   for (const [slot, blob] of blobs.entries())
-    stepBlob(blob, bits(slot), world.step, court, laneOf(world, slot));
-  // Teammates (slots two apart) after both have moved. Three a side, the lanes keep them apart instead: their limits
-  // leave a blob's width between neighbours, and a blob hopping across after a rotation passes over the others.
-  if (court.team === 2)
+    if (!benched(world, slot)) stepBlob(blob, bits(slot), world.step, court);
+  // Teammates after both have moved: two a side, slots two apart; three a side, every pair of a side, nearest first;
+  // three teams of two, the two on each side.
+  if (world.format === "2v2")
     for (let slot = 0; slot + 2 < blobs.length; slot++)
       separate(blobs[slot]!, blobs[slot + 2]!, court);
-  const playing = world.phase === "serve" || world.phase === "rally";
-  if (playing && world.step % 2 === 0) collide(world);
+  else if (world.format === "3v3")
+    // Twice over: a push on one pair can shove a blob into the third.
+    for (let pass = 0; pass < 2; pass++)
+      for (const [a, b] of TRIPLE_PAIRS) separate(blobs[a]!, blobs[b]!, court);
+  else if (world.format === "2v2v2")
+    for (const side of [0, 1] as const) {
+      const [a, b] = team(world, side);
+      if (a && b) separate(a, b, court);
+    }
+  const live = world.phase === "serve" || world.phase === "rally";
+  if (live && world.step % 2 === 0) collide(world);
   if (world.phase === "serve" && world.ball.live) {
     world.phase = "rally";
     world.phaseSteps = 0;
@@ -428,6 +436,13 @@ export function stepWorld(world: World, inputs: readonly number[]): void {
   world.step++;
 }
 
-/** The slot that has won the match, or −1 while nobody has. */
-export const winnerOf = (world: World): -1 | Side =>
-  world.phase === "over" ? world.winner : -1;
+/**
+ * The first slot of the team that has won the match, or −1 while nobody has: on two sides the winning side (slot 0 or
+ * 1), three teams of two the winning team (slot 0, 1 or 2; its teammate is three slots on).
+ */
+export const winnerOf = (world: World): number =>
+  world.phase !== "over" || world.winner === -1
+    ? -1
+    : world.format === "2v2v2"
+      ? world.onCourt[world.winner]
+      : world.winner;

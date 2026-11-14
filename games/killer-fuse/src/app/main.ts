@@ -817,6 +817,7 @@ function room(solo: boolean): void {
   // The shared room: the invitation and the game settings on the left, the six numbered seats on the right. The
   // layout moves the page's own controls; the commands, permissions and validation stay here.
   const roomLayout = createRoomLayout({
+    primaryAction: start,
     element: lobby,
     title: "PLAYERS",
     roster,

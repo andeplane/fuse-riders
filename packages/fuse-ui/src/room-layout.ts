@@ -21,6 +21,10 @@ export interface RoomLayoutOptions {
   settingsTrigger?: HTMLButtonElement;
   onSettings?: () => void;
   actions?: readonly Node[];
+  /** Main match action stays beside the invitation, before Game settings. */
+  primaryAction?: HTMLElement;
+  mainMenuAction?: HTMLElement;
+  mainMenuHref?: string;
   title?: string;
   modes?: readonly Node[];
   background?: AttractFactory;
@@ -86,7 +90,23 @@ export function createRoomLayout(options: RoomLayoutOptions) {
         doc,
       ),
     );
+  if (options.primaryAction) {
+    const primary = el("div", "", "fui-room-primary-action", doc);
+    primary.append(options.primaryAction);
+    left.append(primary);
+  }
   left.append(configure);
+  const mainMenu =
+    options.mainMenuAction ??
+    el("a", "Main menu", "fui-room-main-menu fui-button", doc);
+  if (!options.mainMenuAction) {
+    const location = doc.defaultView?.location;
+    (mainMenu as HTMLAnchorElement).href =
+      options.mainMenuHref ??
+      `${location?.pathname ?? "./"}${new URLSearchParams(location?.search).has("mute") ? "?mute" : ""}`;
+  }
+  mainMenu.classList.add("fui-room-main-menu");
+  left.append(mainMenu);
   let joinHome: Comment | undefined;
   let admission = options.join;
   if (admission && options.appearance?.length)
@@ -152,7 +172,9 @@ export function createRoomLayout(options: RoomLayoutOptions) {
     emptySlots.push(slot);
     slots.append(slot);
   }
-  actions.append(...(options.actions ?? []));
+  actions.append(
+    ...(options.actions ?? []).filter((node) => node !== options.primaryAction),
+  );
   right.append(modes, heading, roster, slots, joinActions, actions);
   root.classList.add("fui-room-layout");
   root.replaceChildren(
@@ -197,6 +219,12 @@ export function createRoomLayout(options: RoomLayoutOptions) {
     if (seats) occupiedSlots = new Set(seats);
     occupiedCount = occupied;
     capacity = nextCapacity;
+    if (
+      !root.hidden &&
+      configure.parentElement === left &&
+      mainMenu.previousElementSibling !== configure
+    )
+      left.insertBefore(configure, mainMenu);
     const renderedCapacity = Math.max(
       capacity,
       occupied,
@@ -346,6 +374,8 @@ export function roomLayoutMarkup(options: {
   join: string;
   settings: string;
   actions: string;
+  primaryAction?: string;
+  mainMenu?: string;
   occupied: number;
   capacity: number;
   occupiedSlots?: readonly number[];
@@ -372,5 +402,5 @@ export function roomLayoutMarkup(options: {
           ? ""
           : `<div class="fui-room-open-slot" data-slot="${index}" style="--slot-color:${options.slotColors?.[index] ?? "#b9d0e1"}"><span class="fui-slot-label">Slot ${index + 1} · Open</span><div class="fui-slot-controls">${options.canJoin ? `<button data-action="take-slot" data-slot="${index}">Join</button>` : ""}${options.canAddAI ? `<button data-action="add-bot" data-slot="${index}">Add AI</button>` : ""}</div></div>`,
   ).join("");
-  return `<main class="fui-room-layout"><aside class="fui-room-invitation">${options.invite}<button data-action="open-room-settings">Game settings</button></aside><section class="fui-room-players"><h2>Players <span class="fui-room-count">${options.occupied} / ${options.capacity}</span></h2>${options.players}<div class="fui-room-open-slots">${open}</div><div class="fui-room-actions">${options.actions}</div></section><dialog class="fui-dialog fui-menu-dialog fui-slot-admission" data-room-name aria-label="Join the game"><header class="fui-dialog-bar"><strong>Join the game</strong><button data-action="close-room-name">Close</button></header><div class="fui-dialog-body">${options.join}</div></dialog><dialog class="fui-dialog fui-menu-dialog" data-room-settings aria-label="Game settings"><header class="fui-dialog-bar"><strong>Game settings</strong><button data-action="close-room-settings">Close</button></header><div class="fui-dialog-body">${options.settings}</div></dialog></main>`;
+  return `<main class="fui-room-layout"><aside class="fui-room-invitation">${options.invite}${options.primaryAction ? `<div class="fui-room-primary-action">${options.primaryAction}</div>` : ""}<button data-action="open-room-settings">Game settings</button>${options.mainMenu ?? '<a class="fui-room-main-menu fui-button" href="./">Main menu</a>'}</aside><section class="fui-room-players"><h2>Players <span class="fui-room-count">${options.occupied} / ${options.capacity}</span></h2>${options.players}<div class="fui-room-open-slots">${open}</div><div class="fui-room-actions">${options.actions}</div></section><dialog class="fui-dialog fui-menu-dialog fui-slot-admission" data-room-name aria-label="Join the game"><header class="fui-dialog-bar"><strong>Join the game</strong><button data-action="close-room-name">Close</button></header><div class="fui-dialog-body">${options.join}</div></dialog><dialog class="fui-dialog fui-menu-dialog" data-room-settings aria-label="Game settings"><header class="fui-dialog-bar"><strong>Game settings</strong><button data-action="close-room-settings">Close</button></header><div class="fui-dialog-body">${options.settings}</div></dialog></main>`;
 }

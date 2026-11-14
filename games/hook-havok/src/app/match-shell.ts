@@ -70,6 +70,7 @@ export function createMatchShell(actions: {
     (node) => node.id !== "invitation",
   );
   const roomLayout = createRoomLayout({
+    primaryAction: get("restart-room"),
     background: async (host, signal) =>
       (await import("./attract.js")).createAttract(host, signal),
     element: content as HTMLElement,

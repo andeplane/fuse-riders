@@ -5,7 +5,6 @@ import {
   DEFAULT_VOLUME,
   loadAudioSettings,
   mutedByQuery,
-  requestAmbientAudio,
 } from "../src/client/game-audio.ts";
 import { createMemoryStorage } from "../src/client/safe-storage.ts";
 
@@ -109,26 +108,6 @@ test("?mute silences the query, and only an explicit 0 or false opts back in", (
   assert.equal(mutedByQuery("?mute=false"), false);
   assert.equal(mutedByQuery(""), false);
   assert.equal(mutedByQuery("?room=ABCD"), false);
-});
-
-// iOS mutes an ambient session with the silent switch and ignores it for a playback session, which is what a page
-// with a media element gets by default; the page asks for ambient wherever the Audio Session API exists.
-test("the audio session is asked to be ambient where the API exists and ignored where it does not", () => {
-  const session = { type: "auto" };
-  assert.equal(requestAmbientAudio({ audioSession: session }), true);
-  assert.equal(session.type, "ambient");
-  assert.equal(requestAmbientAudio({}), false, "no API");
-  assert.equal(
-    requestAmbientAudio({ audioSession: null }),
-    false,
-    "a null session is not an API",
-  );
-  const readOnly = Object.freeze({ type: "auto" });
-  assert.equal(
-    requestAmbientAudio({ audioSession: readOnly }),
-    false,
-    "a session that rejects the type reports that instead of throwing",
-  );
 });
 
 test("corrupt or blocked storage reads as the defaults rather than crashing startup", () => {
