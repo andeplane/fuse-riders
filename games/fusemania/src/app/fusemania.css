@@ -848,6 +848,57 @@ body:has(.fm-room:is([data-screen="play"], [data-screen="controller"])) #app {
   align-items: stretch;
   width: min(100%, 16rem);
 }
+/* A room's menu: the song goes on behind it, so it shows through. */
+.fm-pause-room {
+  background: #050e25c8;
+}
+.fm-pause-state {
+  max-width: 22rem;
+  margin: 0;
+  color: var(--fui-text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.fm-pause-state[hidden] {
+  display: none;
+}
+.fm-pause-speed {
+  display: grid;
+  grid-template-columns: 2.75rem 1fr 2.75rem;
+  align-items: center;
+  gap: var(--fui-space-2);
+}
+.fm-pause-speed b {
+  color: var(--fui-yellow);
+  font: 0.625rem/1.6 var(--fui-font-pixel);
+  font-weight: normal;
+}
+.fui-app .fm-pause-speed button {
+  min-width: 0;
+  padding: 0;
+}
+/* The speed that was just set, or what the host just did: a moment over whatever the page shows. */
+.fm-flash {
+  position: fixed;
+  top: 4.5rem;
+  left: 50%;
+  z-index: 30;
+  max-width: calc(100vw - 2rem);
+  margin: 0;
+  padding: var(--fui-space-2) var(--fui-space-4);
+  transform: translateX(-50%);
+  border: 1px solid var(--fui-yellow);
+  border-radius: var(--fui-radius, 0.5rem);
+  background: #050e25e6;
+  color: var(--fui-yellow);
+  font: 0.75rem/1.6 var(--fui-font-pixel);
+  text-align: center;
+  text-shadow: 0 0 1rem #ffe46b88;
+  pointer-events: none;
+}
+.fm-flash[hidden] {
+  display: none;
+}
 .fui-app .fm-pause-button {
   position: absolute;
   top: var(--fui-space-2);

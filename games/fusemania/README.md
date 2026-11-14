@@ -45,7 +45,9 @@ In the song select a cover wears a download mark while its song is not on the de
 | Right         | D, L or Right       | **→**    |
 | Throw an item | Space (battle only) | **ITEM** |
 
-**Esc pauses a solo song** (a touch device has a pause button, and leaving the tab or opening a menu pauses too). The pause offers **RESUME**, which counts in 3, 2, 1, **RESTART** and **SONG SELECT**. A solo room keeps this page's time, so the pause is a clock that stands still (`src/app/pause.ts`): nothing is judged while it stands, and the engine knows nothing of it. A room with other riders cannot be paused.
+**Esc pauses a solo song** (a touch device has a pause button, and leaving the tab or opening a menu pauses too). The pause offers **RESUME**, which counts in 3, 2, 1, **RESTART** and **SONG SELECT**. A solo room keeps this page's time, so the pause is a clock that stands still (`src/app/pause.ts`): nothing is judged while it stands, and the engine knows nothing of it. A room with other riders cannot be paused: its song is everybody's, so there **Esc opens the player's own menu over a song that keeps playing** (`src/app/play-menu.ts`). The host's menu has **RESTART FOR EVERYONE** and **SONG SELECT FOR EVERYONE**; every other player's has only what is theirs, their speed and **LEAVE ROOM**, and they are told in a line over the page when the host restarted the song or went back to the song select. Arrow keys and Enter work the menu, and no step is taken while it is open.
+
+**The speed can change in the middle of a song.** **−** and **+** step this device's speed along the chips' values and a line shows the new speed for a moment; the menu over a song has the same two buttons (Left and Right on its speed row). It is the same saved speed as in OPTIONS and Settings, and still only this player's own picture.
 
 ## The result
 
