@@ -50,6 +50,11 @@ export interface RoomLayoutOptions {
    * next open one. Implies `actionsInHeader`.
    */
   compact?: boolean;
+  /**
+   * Every seat is a choice of its own (a role, not just a place): a compact room then shows all its open seats, not
+   * only the next one.
+   */
+  compactShowsEverySeat?: boolean;
   /** Beside Back, in the header. */
   heading?: string;
   /** The host's own choices for the room (a shared TV), under the invitation. */
@@ -236,6 +241,10 @@ export function createRoomLayout(options: RoomLayoutOptions) {
   right.append(heading, roster, slots, joinActions, modes, actions);
   root.classList.add("fui-room-layout");
   root.classList.toggle("fui-room-compact", compact);
+  root.classList.toggle(
+    "fui-room-every-seat",
+    compact && options.compactShowsEverySeat === true,
+  );
   root.classList.toggle("fui-room-actions-top", inHeader);
   const foot = el("div", "", "fui-room-status", doc);
   if (options.status) foot.append(options.status);

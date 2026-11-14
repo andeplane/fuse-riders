@@ -1,6 +1,7 @@
 import {
   isSystemSoundEvent,
   SOUND_EVENTS,
+  soundDefaultOn,
   soundEventInfo,
   SYSTEM_SOUND_EVENTS,
 } from "./soundEvents";
@@ -27,6 +28,14 @@ describe("SOUND_EVENTS", () => {
     }
     expect(
       SOUND_EVENTS.filter((info) => info.deferUntilUnlocked).map(
+        (info) => info.event,
+      ),
+    ).toEqual(["startup"]);
+  });
+
+  it("defaults every event to on except the start-up chime", () => {
+    expect(
+      SOUND_EVENTS.filter((info) => !soundDefaultOn(info.event)).map(
         (info) => info.event,
       ),
     ).toEqual(["startup"]);

@@ -11,11 +11,8 @@ import { WindowHost } from "./WindowHost";
 it("clamps a frame in logical desktop pixels and supplies the fitted pointer scale to its drag adapter", () => {
   const windows: WindowState[] = [
     {
-      kind: "dialog",
+      kind: "about",
       id: "w1",
-      title: "Test",
-      message: "Hello",
-      icon: "info",
       minimized: false,
       maximized: false,
     },
@@ -46,7 +43,7 @@ it("clamps a frame in logical desktop pixels and supplies the fitted pointer sca
   ).toBeLessThanOrEqual(452);
 });
 
-it("opens resizable windows maximized without a Maximize button on a phone-width viewport, leaving fixed-size dialogs alone", () => {
+it("opens resizable windows maximized without a Maximize button on a phone-width viewport, leaving fixed-size windows alone", () => {
   const windows: WindowState[] = [
     {
       kind: "controlpanel",
@@ -56,11 +53,8 @@ it("opens resizable windows maximized without a Maximize button on a phone-width
       maximized: false,
     },
     {
-      kind: "dialog",
+      kind: "wallpaper",
       id: "w2",
-      title: "Fixed",
-      message: "Hello",
-      icon: "info",
       minimized: false,
       maximized: false,
     },
@@ -96,6 +90,65 @@ it("opens resizable windows maximized without a Maximize button on a phone-width
   expect(
     within(panelDialog).getByRole("button", { name: "Minimize" }),
   ).toBeInTheDocument();
+});
+
+it("draws message boxes in a modal layer, not a frame: the top box has focus, the windows under it look inactive, and a box has no Minimize", () => {
+  const windows: WindowState[] = [
+    {
+      kind: "controlpanel",
+      applet: "home",
+      id: "w1",
+      minimized: false,
+      maximized: false,
+    },
+    {
+      kind: "dialog",
+      id: "w2",
+      title: "First",
+      message: "One",
+      icon: "info",
+      minimized: false,
+      maximized: false,
+    },
+    {
+      kind: "dialog",
+      id: "w3",
+      title: "Second",
+      message: "Two",
+      icon: "warning",
+      minimized: false,
+      maximized: false,
+    },
+  ];
+  const { container } = render(
+    <WindowsDepsContext.Consumer>
+      {(deps) => (
+        <WindowsDepsContext.Provider
+          value={{ ...deps, WindowFrame: RecordingFrame }}
+        >
+          <WindowManagerProvider>
+            <WindowHost windows={windows} activeId="w1" />
+          </WindowManagerProvider>
+        </WindowsDepsContext.Provider>
+      )}
+    </WindowsDepsContext.Consumer>,
+  );
+  expect(screen.getAllByTestId("frame")).toHaveLength(1);
+  expect(container.querySelectorAll("[data-modal-layer]")).toHaveLength(2);
+  expect(screen.getByRole("dialog", { name: "Control Panel" })).toHaveAttribute(
+    "data-active",
+    "false",
+  );
+  expect(screen.getByRole("dialog", { name: "First" })).toHaveAttribute(
+    "data-active",
+    "false",
+  );
+  expect(screen.getByRole("dialog", { name: "Second" })).toHaveAttribute(
+    "data-active",
+    "true",
+  );
+  const second = screen.getByRole("dialog", { name: "Second" });
+  expect(within(second).queryByLabelText("Minimize")).toBeNull();
 });
 
 function RecordingFrame({

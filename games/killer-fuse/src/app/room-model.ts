@@ -20,11 +20,11 @@ export const TEAM_COLORS: readonly [string, string] = ["#2ee6f6", "#ff5fa2"];
 export const slotColor = (slot: number): string =>
   TEAM_COLORS[teamOfSlot(slot) === 0 ? 0 : 1];
 /**
- * A slot names its number, its role and, in a few words, what that role does: a player choosing a seat should not
- * have to know already that a Queen cannot carry a berry.
+ * A slot names its role and, in a few words, what that role does: a player choosing a seat should not have to know
+ * already that a Queen cannot carry a berry. The layout's chip beside it carries the slot's number.
  */
 export const slotLabel = (slot: number): string =>
-  `${slot + 1} · ${seatTitle(slot).toUpperCase()} · ${roleHint(slot).toUpperCase()}`;
+  `${seatTitle(slot)} · ${roleHint(slot)}`;
 
 /** One person in the room, as the layout's roster shows them inside their slot. */
 export interface RoomSeatRow {
