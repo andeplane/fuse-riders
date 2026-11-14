@@ -4,12 +4,14 @@ import {
   CALIBRATION_MIN_TAPS,
   CALIBRATION_REACH,
   calibrate,
+  placeLag,
   type Calibration,
 } from "./calibration.js";
 import {
   ACTIONS,
   COLUMN_ACTIONS,
   MAX_KEYS,
+  MAX_AUDIO_MS,
   MAX_OFFSET_MS,
   MAX_SPEED,
   MAX_VISUAL_MS,
@@ -26,8 +28,8 @@ import {
 import { createSongClock, type SongClock } from "./song-clock.js";
 
 /**
- * The settings panel: the keys, the scroll, the two timing offsets and the tap calibration that measures the first
- * of them. It owns no preferences: it reads them from the page and hands every change back as a new object.
+ * The settings panel: the keys, the scroll, the three timing offsets and the tap calibration that measures the audio
+ * and input ones. It owns no preferences: it reads them from the page and hands every change back as a new object.
  */
 export interface SettingsOptions {
   document: Document;
@@ -126,6 +128,10 @@ export const speedText = (speed: number): string =>
   `${Math.round(speed * 100) / 100}x`;
 export const offsetText = (ms: number): string =>
   ms === 0 ? "0 ms" : `${signedMs(ms)}: you tap ${ms > 0 ? "late" : "early"}`;
+export const audioText = (ms: number): string =>
+  ms === 0
+    ? "0 ms"
+    : `${signedMs(ms)} · sound ${ms > 0 ? "arrives late" : "arrives early"}`;
 export const visualText = (ms: number): string =>
   ms === 0
     ? "0 ms"
@@ -383,9 +389,9 @@ export function createSettingsPanel(options: SettingsOptions): SettingsPanel {
   // ---- timing ----
 
   const timing = section("Timing");
-  /** A slider between a − and a + button, for one of the two offsets. */
+  /** A slider between a − and a + button, for one of the offsets. */
   const offsetField = (spec: {
-    key: "offsetMs" | "visualMs";
+    key: "offsetMs" | "visualMs" | "audioMs";
     title: string;
     max: number;
     text(ms: number): string;
@@ -462,6 +468,13 @@ export function createSettingsPanel(options: SettingsOptions): SettingsPanel {
     text: visualText,
     hint: "Raise it if arrows reach the targets after the beat",
   });
+  const audioOffset = offsetField({
+    key: "audioMs",
+    title: "AUDIO OFFSET",
+    max: MAX_AUDIO_MS,
+    text: audioText,
+    hint: "For sound that arrives late: Bluetooth, a TV, a soundbar. Moves arrows and judging together",
+  });
 
   // ---- calibration ----
 
@@ -501,7 +514,12 @@ export function createSettingsPanel(options: SettingsOptions): SettingsPanel {
     outcome,
     actions,
   );
-  timing.append(inputOffset.field, visualOffset.field, calibrationBox);
+  timing.append(
+    inputOffset.field,
+    audioOffset.field,
+    visualOffset.field,
+    calibrationBox,
+  );
 
   const running = (): Run | undefined =>
     calibration.stage === "running" ? calibration.run : undefined;
@@ -538,6 +556,7 @@ export function createSettingsPanel(options: SettingsOptions): SettingsPanel {
         songClock: createSongClock({
           now: () => options.now(),
           audio: () => audio.clock(),
+          extraLatencyMs: () => options.prefs().audioMs,
         }),
         base: clock.now() + LEAD_S,
         clicks: [],
@@ -666,18 +685,28 @@ export function createSettingsPanel(options: SettingsOptions): SettingsPanel {
   apply.addEventListener("click", () => {
     if (disposed || calibration.stage !== "result" || !calibration.result.ok)
       return;
-    const ms = clamp(
-      Math.round(calibration.result.offsetMs),
-      -MAX_OFFSET_MS,
-      MAX_OFFSET_MS,
-    );
+    const prefs = options.prefs();
+    // Taps were heard with the audio offset in use, so what they show is what is left for the input offset; a lag
+    // too large to be a keyboard's is the sound's, and goes to the audio offset.
+    const placed = placeLag(calibration.result.offsetMs, prefs.audioMs, {
+      input: MAX_OFFSET_MS,
+      audio: MAX_AUDIO_MS,
+    });
     calibration = {
       stage: "idle",
-      note: `Input offset set to ${signedMs(ms)}.`,
+      note:
+        placed.moved === "audio"
+          ? `Sound arrives late here: audio offset set to ${signedMs(placed.audioMs)}, input offset to ${signedMs(placed.offsetMs)}.`
+          : `Input offset set to ${signedMs(placed.offsetMs)}.`,
     };
-    const prefs = options.prefs();
-    if (prefs.offsetMs === ms) render();
-    else change({ ...copy(prefs), offsetMs: ms });
+    if (prefs.offsetMs === placed.offsetMs && prefs.audioMs === placed.audioMs)
+      render();
+    else
+      change({
+        ...copy(prefs),
+        offsetMs: placed.offsetMs,
+        audioMs: placed.audioMs,
+      });
   });
   pad.addEventListener("pointerdown", (event) => {
     const run = running();
@@ -749,6 +778,7 @@ export function createSettingsPanel(options: SettingsOptions): SettingsPanel {
     renderKeys(prefs);
     renderScroll(prefs);
     inputOffset.render(prefs);
+    audioOffset.render(prefs);
     visualOffset.render(prefs);
     renderCalibration();
     const busy = capturing !== undefined || running() !== undefined;
