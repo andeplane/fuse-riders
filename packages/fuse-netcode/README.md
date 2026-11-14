@@ -45,3 +45,20 @@ runtime.command({ type: "join", name: "Ada" });
 
 `tests/fixtures/counter-game.ts` is a complete small game on the contract; the package tests drive it through
 rollback, lossy and reordering links, snapshot recovery and succession. The package must not import `games/` or `service/`.
+
+## Drawing at the clock
+
+`frameTiming()` presents one log tick behind the clock, so blending its two frames shows a press 50–100 ms after it
+was made. A real-time game that can step a copy of its world should instead play the newest folded world forward to
+the clock, with the controls everyone holds and this device's own live, and draw that. `present.ts` holds the parts
+every game needs for it:
+
+- `ticksAhead(timing)`: how far the clock is past the newest frame, in log ticks.
+- `createLeadClock()`: keeps the picture moving while a fold is a few milliseconds late.
+- `createCorrectionSmoother({ decayMs, teleport })`: hides the jump when a prediction was wrong (a rollback, or
+  another player's controls changing). Never apply it to the body the local player steers.
+
+`games/fuseball/src/app/forward.ts` is the reference use: the forward run itself is the game's own, since only the
+game knows how to copy and step its world. The forward copy is thrown away every frame and nothing reaches the room,
+so this changes what is drawn and never what is simulated. A game whose players never interact does not need a
+shared timeline for its own player at all; see Elasto Fuse for that model.
