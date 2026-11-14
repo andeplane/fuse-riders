@@ -87,7 +87,7 @@ import {
   savePrefs,
   type Prefs,
 } from "./prefs.js";
-import { createOptionsMenu, createPlayOptions } from "./options.js";
+import { createOptionsMenu, createPlayOptions, speedLabel } from "./options.js";
 import { createLobbyBar } from "./lobby-bar.js";
 import {
   bestText,
@@ -126,6 +126,14 @@ import { createSongClock } from "./song-clock.js";
 import { createSongStore } from "./song-cache.js";
 import { SONG_LOAD_TRIES, createSongLoader } from "./song-load.js";
 import { RESUME_MS, createPauseClock, resumeCount } from "./pause.js";
+import {
+  SPEED_KEYS,
+  SPEED_KEYS_HINT,
+  createFlash,
+  createHostWatch,
+  createPlayMenu,
+  stepSpeed,
+} from "./play-menu.js";
 import {
   createRunLogger,
   runStats,
@@ -378,6 +386,8 @@ const guide = () => ({
       keys: prefs.keys.item.map(keyLabel).join(" / ") || "—",
       action: "Throw your power-up (battle)",
     },
+    SPEED_KEYS_HINT,
+    { keys: "Esc", action: "Pause, or a room's menu" },
   ],
   touchControls: [
     {
@@ -904,10 +914,7 @@ function enterRoom(
     ...(solo ? {} : { lengths: SESSION_LENGTHS }),
     onSpeed: (speed) => {
       sfx.blip();
-      prefs = { ...prefs, speed };
-      savePrefs(store, prefs);
-      panel.refresh();
-      showOptions();
+      setSpeed(speed);
     },
     onRandomSong: () => {
       const song = randomSong(library, settings.song);
@@ -954,6 +961,14 @@ function enterRoom(
       songs: settings.songs,
       random: settings.random,
     });
+  /** This device's own scroll speed, kept: from the lobby, the menu over a song, or the speed keys. */
+  const setSpeed = (speed: number) => {
+    prefs = { ...prefs, speed };
+    savePrefs(store, prefs);
+    panel.refresh();
+    showOptions();
+    playMenu.speed(speed);
+  };
   const lobbySession = sessionBlock();
   // OPTIONS, Settings and START across the room's top; the speeds are behind OPTIONS, never a row in the lobby.
   const lobbyBar = createLobbyBar({
@@ -1018,23 +1033,27 @@ function enterRoom(
     cardFoot,
     cardActions,
   );
-  // The pause: over the field, with what a paused song can do next.
-  const pauseCard = el("section", "", "fm-pause"),
-    pauseTitle = el("h2", "PAUSED"),
-    pauseSong = el("p", "", "fm-pause-song"),
-    pauseCount = el("strong", "", "fm-pause-count"),
-    pauseActions = el("div", "", "fm-actions fm-pause-actions"),
-    pauseResume = button("RESUME", "fui-button-primary fm-pause-resume"),
-    pauseRestart = button("RESTART", "fui-button fm-pause-restart"),
-    pauseSelect = button("SONG SELECT", "fui-button fm-pause-select"),
-    pauseHint = el("p", "ESC RESUMES", "fm-pause-hint"),
-    pauseButton = button("II", "fm-pause-button");
-  pauseCard.setAttribute("role", "dialog");
-  pauseCard.setAttribute("aria-label", "Paused");
-  pauseButton.setAttribute("aria-label", "Pause");
-  pauseActions.append(pauseResume, pauseRestart, pauseSelect);
-  pauseCard.append(pauseTitle, pauseSong, pauseCount, pauseActions, pauseHint);
-  pauseCard.hidden = pauseButton.hidden = pauseCount.hidden = true;
+  // The menu over a song: a pause alone, a player's own menu in a room (`play-menu.ts`).
+  const playMenu = createPlayMenu({
+    document,
+    onResume: () => resume(),
+    onRestart: () => restartSong(),
+    onSelect: () => {
+      unpause(true);
+      runtime.command({ type: "action", action: "lobby" });
+    },
+    onLeave: leave,
+    onSpeed: (speed) => {
+      sfx.blip();
+      setSpeed(speed);
+    },
+  });
+  const pauseButton = button("II", "fm-pause-button");
+  pauseButton.setAttribute("aria-label", solo ? "Pause" : "Menu");
+  pauseButton.hidden = true;
+  /** The speed that was just set, or what the host just did, for a moment over the page. */
+  const flash = createFlash(document),
+    hostWatch = createHostWatch();
   timingText.setAttribute("role", "status");
   cardTiming.append(timingText, timingApply, timingSkip);
   cardTiming.hidden = true;
@@ -1055,7 +1074,7 @@ function enterRoom(
     holdNote,
     loadFailed,
     pauseButton,
-    pauseCard,
+    playMenu.element,
     card,
     roundControls.element,
   );
@@ -1084,7 +1103,7 @@ function enterRoom(
   const stamp = (at: number, now = performance.now()): number =>
     songClock.songMs(stamped(at, now) ? at : now) - prefs.offsetMs;
   const press = (column: number, source: string, at: number) => {
-    if (pauseClock.paused) return;
+    if (pauseClock.paused || playMenu.isOpen) return;
     const now = performance.now(),
       ms = stamp(at, now);
     probe.press(
@@ -1114,7 +1133,7 @@ function enterRoom(
     runtime.key(column, false, stamp(at));
   };
   const throwItem = (at: number) => {
-    if (!pauseClock.paused) runtime.useItem(stamp(at));
+    if (!pauseClock.paused && !playMenu.isOpen) runtime.useItem(stamp(at));
   };
   const pads = (className: string) => {
     const row = el("div", "", className);
@@ -1201,6 +1220,7 @@ function enterRoom(
   const main = el("main", "", "fm-room");
   main.append(
     problem.element,
+    flash.element,
     connecting,
     closed,
     nameEntry.form,
@@ -1356,6 +1376,18 @@ function enterRoom(
     resumeAt = 0;
   const pausable = () =>
     solo && !!model?.playing && runtime.songMs() !== undefined;
+  /** A room's song has a menu, not a pause: the song is everybody's and goes on behind it. */
+  const menuable = () =>
+    !solo && !display && model?.screen === "play" && lastStage === "running";
+  const openRoomMenu = () => {
+    if (playMenu.isOpen || !menuable()) return;
+    letGoAll();
+    playMenu.open({
+      kind: viewer.host ? "host" : "guest",
+      title: model?.title ?? "",
+      speed: prefs.speed,
+    });
+  };
   pause = () => {
     if (pauseClock.paused || !pausable()) return;
     letGoAll();
@@ -1365,34 +1397,39 @@ function enterRoom(
     // The song stops where it is; RESUME starts it again on the room's clock.
     songClock.stop();
     resumeAt = 0;
-    setText(pauseSong, model?.title ?? "");
-    pauseCount.hidden = true;
-    pauseActions.hidden = pauseHint.hidden = false;
-    pauseCard.hidden = false;
-    pauseResume.focus();
+    playMenu.open({
+      kind: "solo",
+      title: model?.title ?? "",
+      speed: prefs.speed,
+    });
   };
   unpause = (leaving = false) => {
     leavingSong = leaving && pauseClock.paused;
     resumeAt = 0;
-    pauseCard.hidden = true;
+    playMenu.close();
     pauseClock.resume();
   };
   /** Counts in, so the hands are back on the keys when the arrows move again. */
   const resume = () => {
-    if (!pauseClock.paused || resumeAt) return;
+    // A room's song never stopped: its menu just closes.
+    if (!pauseClock.paused) return playMenu.close();
+    if (resumeAt) return;
     resumeAt = performance.now() + RESUME_MS;
-    pauseActions.hidden = pauseHint.hidden = true;
-    pauseCount.hidden = false;
-    setText(pauseCount, resumeCount(RESUME_MS));
+    playMenu.count(resumeCount(RESUME_MS));
   };
-  // Arrows walk the pause's buttons and a result's, Enter presses the one in focus: no mouse needed.
-  menuKeys(pauseActions);
+  // Arrows walk a result's buttons, Enter presses the one in focus: no mouse needed. The menu over a song has its own.
   menuKeys(cardActions, { enabled: () => !model?.playing });
-  pauseButton.onclick = () => pause();
-  pauseResume.onclick = resume;
-  pauseSelect.onclick = () => {
-    unpause(true);
-    runtime.command({ type: "action", action: "lobby" });
+  /** Escape and the II button: a pause alone, the room's menu with others. */
+  const openMenu = () => (solo ? pause() : openRoomMenu());
+  pauseButton.onclick = openMenu;
+  /** One step slower or faster, from the keys while a song plays: said on screen, and kept. */
+  const nudgeSpeed = (direction: -1 | 1) => {
+    const speed = stepSpeed(prefs.speed, direction);
+    if (speed !== prefs.speed) {
+      sfx.blip();
+      setSpeed(speed);
+    }
+    flash.show(`SPEED ${speedLabel(speed)}`, performance.now());
   };
   const latencyBox = new URLSearchParams(location.search).has("latency")
     ? el("pre", "", "fm-latency")
@@ -1415,11 +1452,11 @@ function enterRoom(
   let restarting = false,
     startedSilent = false,
     heardEpoch = -1;
-  pauseRestart.onclick = () => {
+  const restartSong = () => {
     unpause(true);
     // START is refused while the match runs: it is sent once the room is back at the song select.
-    runtime.command({ type: "action", action: "lobby" });
-    restarting = true;
+    // Refused itself (this is no longer the host), nothing is waited for.
+    restarting = runtime.command({ type: "action", action: "lobby" });
   };
   const frame = (now: number) => {
     // Asked first, so one bad frame cannot stop the drawing for good.
@@ -1448,15 +1485,18 @@ function enterRoom(
     if (paused && !pausable()) unpause();
     else if (paused && resumeAt) {
       if (now >= resumeAt) unpause();
-      else setText(pauseCount, resumeCount(resumeAt - now));
+      else playMenu.count(resumeCount(resumeAt - now));
     }
+    // A room's menu goes with its song: the song ended, or the host took the room elsewhere.
+    if (!solo && playMenu.isOpen && !menuable()) playMenu.close();
+    flash.frame(performance.now());
     // A paused song is silent and stays where it stood: it is not followed until the clock runs again.
     if (leavingSong && state?.stage !== "running") leavingSong = false;
     const still = pauseClock.paused || leavingSong;
     // Held, the song is silent at its first moment; it starts when the room lets it go.
     if (!still) songClock.follow(roomMs, held ? undefined : song);
     pauseButton.hidden =
-      pauseClock.paused || !pausable() || !coarse() || display;
+      playMenu.isOpen || !(pausable() || menuable()) || !coarse() || display;
     if (restarting && state?.stage === "lobby") {
       restarting = false;
       // Should START be refused, the song select it was hidden behind is there again.
@@ -1687,6 +1727,10 @@ function enterRoom(
     // A calibration or a key capture left open takes every key: it ends when the room moves on.
     if (view.stage !== lastStage) panel.cancel();
     lastStage = view.stage;
+    // Whoever is not the host is told why their song stopped or began again.
+    const hostDid = hostWatch(view.stage, performance.now());
+    if (hostDid && !solo && !viewer.host && !display)
+      flash.show(hostDid, performance.now());
     // Lobby.
     roster.update(
       next.lobby.members.map((member) => ({
@@ -1997,6 +2041,7 @@ function enterRoom(
     stop: () => runtime.stop(),
     destroy: () => {
       menu.dispose();
+      playMenu.dispose();
       panel.dispose();
       songClock.stop();
       scene.destroy();
@@ -2028,16 +2073,20 @@ function enterRoom(
       event.altKey
     )
       return;
-    // Escape pauses a solo song and takes the pause away again; the Escape that closed a menu does neither.
-    if (event.code === "Escape" && (pauseClock.paused || pausable())) {
+    // Escape pauses a solo song and takes the pause away again, and opens and closes a room's menu over its song;
+    // the Escape that closed another menu does neither.
+    if (
+      event.code === "Escape" &&
+      (playMenu.isOpen || pausable() || menuable())
+    ) {
       event.preventDefault();
       if (event.repeat || performance.now() - menuClosedAt < 100) return;
-      if (pauseClock.paused) resume();
-      else pause();
+      if (playMenu.isOpen) resume();
+      else openMenu();
       return;
     }
-    // A paused song takes no steps; its buttons keep Enter, Space and Tab.
-    if (pauseClock.paused) return;
+    // A paused song takes no steps, nor does one under its menu; the buttons keep Enter, Space and Tab.
+    if (pauseClock.paused || playMenu.isOpen) return;
     if (!model?.playing) {
       if (event.repeat) return;
       // A result that offers another go takes Enter as its main button, without the mouse.
@@ -2065,6 +2114,13 @@ function enterRoom(
     }
     if (typing(event.target)) return;
     const action = actionOf(prefs, event.code);
+    // − and + change this device's speed in the middle of a song, unless the player made them step keys.
+    const nudge = action ? undefined : SPEED_KEYS[event.code];
+    if (nudge) {
+      event.preventDefault();
+      nudgeSpeed(nudge);
+      return;
+    }
     if (!action) return;
     event.preventDefault();
     captured.add(event.code);
