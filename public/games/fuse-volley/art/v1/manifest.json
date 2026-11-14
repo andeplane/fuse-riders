@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "theme": "neon-dusk-beach",
+  "provenance": "Original assets generated for this project with OpenAI image generation by scripts/fuse-volley-art.ts. Prompts are retained there and in docs/design/fuse-volley-art.md. No Blobby Volley art is used.",
+  "assets": [
+    {
+      "file": "court.webp",
+      "role": "opaque court backdrop",
+      "width": 1600,
+      "height": 1200,
+      "transparent": false,
+      "sampling": "linear",
+      "pivot": [0, 0],
+      "trim": [0, 0, 1600, 1200],
+      "note": "Sand's top edge is the flat line y=1000; x=760..840 holds no net or post (the code draws the net at x=800)."
+    },
+    {
+      "file": "blob-cyan.png",
+      "role": "player blob, cyan side",
+      "width": 384,
+      "height": 448,
+      "transparent": true,
+      "sampling": "linear",
+      "pivot": [0.5, 1],
+      "trim": [0, 0, 384, 448],
+      "note": "Faceless (code draws the eyes); about 85% of the width, flat bottom on the bottom edge, centred."
+    },
+    {
+      "file": "blob-pink.png",
+      "role": "player blob, pink side",
+      "width": 384,
+      "height": 448,
+      "transparent": true,
+      "sampling": "linear",
+      "pivot": [0.5, 1],
+      "trim": [0, 0, 384, 448],
+      "note": "Faceless (code draws the eyes); about 85% of the width, flat bottom on the bottom edge, centred."
+    },
+    {
+      "file": "ball.png",
+      "role": "volleyball",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "sampling": "linear",
+      "pivot": [0.5, 0.5],
+      "trim": [0, 0, 256, 256],
+      "note": "The ball fills the circle inscribed in the square."
+    },
+    {
+      "file": "hero.webp",
+      "role": "landing art",
+      "width": 1536,
+      "height": 864,
+      "transparent": false,
+      "sampling": "linear",
+      "pivot": [0.5, 0.5],
+      "trim": [0, 0, 1536, 864],
+      "note": "Cyan blob left, pink right, net and ball; no text."
+    }
+  ]
+}
