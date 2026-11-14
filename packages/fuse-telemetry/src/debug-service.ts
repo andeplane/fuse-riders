@@ -408,7 +408,8 @@ export class DebugService {
       plain(input) &&
         debugUuid(input.id) &&
         this.validGame(input.gameId) &&
-        ["bug", "feature", "idea", "other"].includes(String(input.category)) &&
+        typeof input.category === "string" &&
+        ["bug", "feature", "idea", "other"].includes(input.category) &&
         typeof input.text === "string" &&
         input.text.length <= 8000 &&
         input.text.trim().length > 0 &&
@@ -425,7 +426,8 @@ export class DebugService {
     if (input.screenshot !== undefined) {
       debugAssert(
         plain(input.screenshot) &&
-          ["image/png", "image/jpeg"].includes(String(input.screenshot.mime)) &&
+          typeof input.screenshot.mime === "string" &&
+          ["image/png", "image/jpeg"].includes(input.screenshot.mime) &&
           typeof input.screenshot.base64 === "string" &&
           input.screenshot.base64.length <=
             Math.ceil(L.screenshotBytes / 3) * 4 &&

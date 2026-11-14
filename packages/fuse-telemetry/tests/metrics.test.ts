@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 import { RoomError } from "fuse-network-be";
 import type { TelemetryEvent } from "../src/contracts.js";
@@ -69,6 +69,120 @@ test("concurrent retry delivery acknowledges IDs once with atomic rollups", asyn
   assert.equal(metrics.series[0]?.users, 1);
   assert.equal(metrics.series[0]?.sessions, 1);
   assert.equal(metrics.games.find((row) => row.gameId === "pig")?.events, 0);
+});
+test("custom-name saturation cannot block lifecycle events in any global shard", async () => {
+  const { store, db } = setup();
+  const sessions = Array.from({ length: 8 }, () => randomUUID());
+  const custom: TelemetryEvent[][] = Array.from({ length: 8 }, () => []);
+  const lifecycle: TelemetryEvent[][] = Array.from({ length: 8 }, () => []);
+  const names = [
+    "fuse.App Opened",
+    "fuse.Seat Taken",
+    "fuse.Match Started",
+    "fuse.Match Ended",
+    "fuse.Round Started",
+    "fuse.Round Ended",
+  ];
+  for (
+    let sequence = 0;
+    lifecycle.some((events) => events.length < names.length);
+    sequence++
+  ) {
+    const id = `${sequence.toString(16).padStart(8, "0")}-1111-4111-8111-111111111111`;
+    const shard =
+      Number.parseInt(
+        createHash("sha256").update(id).digest("hex").slice(0, 8),
+        16,
+      ) % 8;
+    const events = custom[shard]!;
+    if (events.length < 128)
+      events.push(
+        event({
+          id,
+          sessionId: sessions[shard]!,
+          name: `fuse.Custom ${events.length}`,
+        }),
+      );
+    else if (lifecycle[shard]!.length < names.length)
+      lifecycle[shard]!.push(
+        event({
+          id,
+          sessionId: sessions[shard]!,
+          gameId: "pig",
+          name: names[lifecycle[shard]!.length]!,
+        }),
+      );
+  }
+  const customEvents = custom.flat(),
+    coreEvents = lifecycle.flat();
+  for (let offset = 0; offset < customEvents.length; offset += 50)
+    await store.ingest(
+      { events: customEvents.slice(offset, offset + 50) },
+      "127.0.0.1",
+    );
+  for (let retry = 0; retry < 2; retry++)
+    assert.deepEqual(
+      (await store.ingest({ events: coreEvents }, "127.0.0.1")).acknowledgedIds,
+      coreEvents.map(({ id }) => id),
+    );
+  for (const period of ["day", "week", "month"] as const) {
+    const metrics = await store.metrics(query(period));
+    const totals = metrics.series[0]!;
+    assert.equal(totals.events, customEvents.length + coreEvents.length);
+    assert.equal(totals.roundStarts, 8);
+    assert.equal(totals.roundEnds, 8);
+    for (const name of names) assert.equal(totals.eventCounts[name], 8);
+    assert.equal(totals.eventCounts.__other__, 56);
+    assert.equal(
+      Object.values(totals.eventCounts).reduce((sum, count) => sum + count, 0),
+      totals.events,
+    );
+    assert.equal(
+      metrics.games.find(({ gameId }) => gameId === "pig")?.events,
+      coreEvents.length,
+    );
+    const start = new Date(periodStart(NOW, period)).toISOString().slice(0, 10);
+    const shards = await db.readMany(
+      Array.from(
+        { length: 8 },
+        (_, shard) => `telemetry-rollups/${period}-${start}-all-${shard}`,
+      ),
+    );
+    for (const shard of shards) {
+      assert.ok(shard && typeof shard === "object" && "eventCounts" in shard);
+      assert.ok(shard.eventCounts && typeof shard.eventCounts === "object");
+      assert.equal(Object.keys(shard.eventCounts).length, 128);
+    }
+  }
+});
+test("legacy saturated summaries compact unknown names without losing totals", async () => {
+  const { store, db } = setup();
+  const counts = Object.fromEntries(
+    Array.from({ length: 128 }, (_, i) => [`fuse.Custom ${i}`, 2]),
+  );
+  await db.transact(async (tx) => {
+    for (let shard = 0; shard < 8; shard++)
+      tx.set(`telemetry-rollups/day-2026-11-14-all-${shard}`, {
+        events: 256,
+        users: 0,
+        sessions: 0,
+        roundStarts: 0,
+        roundEnds: 0,
+        eventCounts: counts,
+      });
+  });
+  const e = event();
+  await store.ingest({ events: [e] }, "127.0.0.1");
+  await store.ingest({ events: [e] }, "127.0.0.1");
+  const totals = (await store.metrics(query())).series[0]!;
+  assert.equal(totals.events, 2049);
+  assert.equal(totals.roundStarts, 1);
+  assert.equal(totals.eventCounts["fuse.Round Started"], 1);
+  assert.equal(totals.eventCounts.__other__, 112);
+  assert.equal(
+    Object.values(totals.eventCounts).reduce((sum, count) => sum + count, 0),
+    totals.events,
+  );
 });
 test("weekly and monthly memberships deduplicate across days and games", async () => {
   const { store } = setup();

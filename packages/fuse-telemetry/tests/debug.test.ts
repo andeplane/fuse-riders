@@ -21,7 +21,11 @@ import { TranscriptionFailure } from "../src/transcription.js";
 import { OpenAITranscriber } from "../src/openai.js";
 import { createDebugHttpExtension } from "../src/debug-http.js";
 import { RoomError } from "fuse-network-be";
-import { segmentKey } from "../src/debug-store.js";
+import {
+  reportKey,
+  segmentKey,
+  storedDebugRecord,
+} from "../src/debug-store.js";
 const id = "11111111-1111-4111-8111-111111111111",
   reportId = "22222222-2222-4222-8222-222222222222",
   now = 1_800_000_000_000;
@@ -210,6 +214,51 @@ test("standalone reports are retry-safe, owned recording references and screensh
     }),
   );
   assert.equal((await service.listReports()).reports.length, 1);
+});
+test("report enum fields reject coercible arrays and objects before any write", async () => {
+  const { service, database, objects } = setup();
+  const jpeg = Buffer.from([255, 216, 0, 0, 0, 0, 0, 255, 217]).toString(
+    "base64",
+  );
+  for (const category of [
+    ["bug"],
+    { toString: () => "bug" },
+    { value: "bug" },
+  ]) {
+    await assert.rejects(
+      service.submitReport("opaque-ip", undefined, { ...report, category }),
+      (error: unknown) => error instanceof RoomError && error.status === 400,
+    );
+    assert.equal(await database.read(reportKey(reportId)), undefined);
+  }
+  for (const mime of [
+    ["image/jpeg"],
+    { toString: () => "image/jpeg" },
+    { value: "image/jpeg" },
+  ]) {
+    await assert.rejects(
+      service.submitReport("opaque-ip", undefined, {
+        ...report,
+        screenshot: { mime, base64: jpeg },
+      }),
+      (error: unknown) => error instanceof RoomError && error.status === 400,
+    );
+    assert.equal(await database.read(reportKey(reportId)), undefined);
+    assert.equal(await objects.get(`screenshots/${reportId}`), undefined);
+  }
+  assert.equal((await service.listReports()).reports.length, 0);
+  await service.submitReport("opaque-ip", undefined, {
+    ...report,
+    screenshot: { mime: "image/jpeg", base64: jpeg },
+  });
+  const stored = storedDebugRecord(await database.read(reportKey(reportId)));
+  assert.ok(stored);
+  assert.equal(stored.kind, "report");
+  assert.equal((await service.listReports()).reports[0]?.category, "bug");
+  assert.equal(
+    (await objects.get(`screenshots/${reportId}`))?.mime,
+    "image/jpeg",
+  );
 });
 test("daily quotas are shared across concurrent session creation", async () => {
   const { service } = setup();

@@ -18,6 +18,18 @@ export const MAX_EVENT_BODY_BYTES = 65_536;
 export const MAX_METRIC_PERIODS = 93;
 export const MAX_METRIC_DOCUMENTS = 16_000;
 export const METRIC_SHARDS = 8;
+const MAX_EVENT_NAMES = 128;
+const CORE_EVENT_NAMES = new Set([
+  "fuse.App Opened",
+  "fuse.Seat Taken",
+  "fuse.Match Started",
+  "fuse.Match Ended",
+  "fuse.Round Started",
+  "fuse.Round Ended",
+]);
+// This cannot collide with a submitted name, which must start with `fuse.`.
+const OTHER_EVENT_NAME = "__other__";
+const MAX_CUSTOM_EVENT_NAMES = MAX_EVENT_NAMES - CORE_EVENT_NAMES.size - 1;
 const DAY = 86_400_000,
   EVENT_RETENTION = 90 * DAY,
   SUMMARY_RETENTION = 365 * DAY;
@@ -180,7 +192,7 @@ function storedCounts(value: unknown): MetricCounts {
   if (
     !data ||
     !counts ||
-    Object.keys(counts).length > 128 ||
+    Object.keys(counts).length > MAX_EVENT_NAMES ||
     ![
       data.events,
       data.users,
@@ -191,16 +203,35 @@ function storedCounts(value: unknown): MetricCounts {
     ].every((count) => Number.isSafeInteger(count) && Number(count) >= 0)
   )
     throw new Error("Stored metric summary is incompatible");
+  const eventCounts: Record<string, number> = {};
+  // Also compact legacy full summaries, preserving their totals while making
+  // room for every lifecycle event even after arbitrary custom-name traffic.
+  for (const [name, count] of Object.entries(counts))
+    addEventCount(eventCounts, name, Number(count));
   return {
     events: Number(data.events),
     users: Number(data.users),
     sessions: Number(data.sessions),
     roundStarts: Number(data.roundStarts),
     roundEnds: Number(data.roundEnds),
-    eventCounts: Object.fromEntries(
-      Object.entries(counts).map(([key, count]) => [key, Number(count)]),
-    ),
+    eventCounts,
   };
+}
+function addEventCount(
+  counts: Record<string, number>,
+  name: string,
+  count: number,
+): void {
+  if (
+    !Object.hasOwn(counts, name) &&
+    !CORE_EVENT_NAMES.has(name) &&
+    name !== OTHER_EVENT_NAME &&
+    Object.keys(counts).filter(
+      (key) => !CORE_EVENT_NAMES.has(key) && key !== OTHER_EVENT_NAME,
+    ).length >= MAX_CUSTOM_EVENT_NAMES
+  )
+    name = OTHER_EVENT_NAME;
+  counts[name] = (counts[name] ?? 0) + count;
 }
 function addCounts(target: MetricCounts, next: MetricCounts): void {
   target.events += next.events;
@@ -306,18 +337,12 @@ export class MetricsStore {
       );
       const updates = entries.map((entry, i) => {
         const counts = storedCounts(values[i * 3]);
-        if (
-          !(event.name in counts.eventCounts) &&
-          Object.keys(counts.eventCounts).length >= 128
-        )
-          throw new RoomError(422, "Event name cardinality limit reached");
         counts.events++;
         counts.users += values[i * 3 + 1] === undefined ? 1 : 0;
         counts.sessions += values[i * 3 + 2] === undefined ? 1 : 0;
         counts.roundStarts += event.name === "fuse.Round Started" ? 1 : 0;
         counts.roundEnds += event.name === "fuse.Round Ended" ? 1 : 0;
-        counts.eventCounts[event.name] =
-          (counts.eventCounts[event.name] ?? 0) + 1;
+        addEventCount(counts.eventCounts, event.name, 1);
         return {
           entry,
           counts,
