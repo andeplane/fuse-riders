@@ -3,6 +3,10 @@ import {
   MAPS,
   MAP_IDS,
   RANDOM,
+  TEAM_MAPS,
+  TEAM_MAP_IDS,
+  TEAM_MAX,
+  isTeamMapId,
   mapOf,
   ZAP_STEPS,
   type MapId,
@@ -22,6 +26,15 @@ export interface Viewer {
   display: boolean;
 }
 
+/** The modes a room can play, by riders a side. */
+export const MODES = [
+  { size: 1, name: "DUEL", blurb: "1 v 1" },
+  { size: 2, name: "2 v 2", blurb: "Four riders" },
+  { size: 3, name: "3 v 3", blurb: "Six riders" },
+] as const;
+/** The sides' names, where a name is wanted and a duel's rider names will not do. */
+export const SIDE_NAMES = ["Cyan", "Magenta"] as const;
+
 /** What each arena is like, in a line, for the lobby's map picker. */
 export const MAP_BLURBS: Readonly<Record<MapId, string>> = {
   gridlock: "Wraps sideways. The goals are the gaps in the side wall.",
@@ -37,6 +50,10 @@ export const MAP_BLURBS: Readonly<Record<MapId, string>> = {
   backdoor: "Trapdoors shut the pits. Knock one open, then drop in.",
   stacktrace: "Lifts ride up to the goals. Ledges you jump up through.",
   random: "A mirrored arena from a seed. Re-roll or share your favourite.",
+  mainframe: "The stadium. A goal in each end wall, a pillar on the spot.",
+  backbone: "Wraps sideways. A post stands in front of each goal.",
+  multiplex: "Four levels. The goals are roofed pits near each end.",
+  uplink: "Wraps top to bottom. The goals are two long shafts.",
 };
 
 export interface Side {
@@ -57,6 +74,8 @@ export interface Model {
   riding: boolean;
   /** This device's rider in the match, or −1: the arena marks it. */
   localSlot: 0 | 1 | -1;
+  /** This device's rider's place among the match's riders, or −1. */
+  localIndex: number;
   /** The control guide shows for a match's first countdown; `guideKey` names that match. */
   controlsVisible: boolean;
   guideKey: string;
@@ -65,10 +84,17 @@ export interface Model {
       id: string;
       name: string;
       slot: number;
+      /** The side the seat rides for in a team match: even seats the left (cyan), odd the right (magenta). */
+      side: 0 | 1;
       bot: boolean;
       connected: boolean;
       you: boolean;
     }[];
+    /** Riders a side as the lobby has it, and the modes to choose from. */
+    size: number;
+    modes: { size: number; name: string; blurb: string; selected: boolean }[];
+    /** This device may change sides: it is seated, the mode has teams and the other side has a free place. */
+    canSwitch: boolean;
     watchers: number;
     canAddBot: boolean;
     removable: string[];
@@ -107,6 +133,8 @@ export function present(view: View, viewer: Viewer): Model {
   const inMatch = view.stage !== "lobby" && !!world;
   const rider = world?.riders.find((each) => each.id === viewer.me);
   const localSlot = inMatch && rider ? rider.slot : -1;
+  const localIndex = inMatch && rider ? rider.index : -1;
+  const teams = (inMatch ? view.play.size : view.settings.size) > 1;
   const riding = view.stage === "running" && localSlot !== -1;
   const shared = view.settings.display || view.play.display;
   const screen: Model["screen"] = !inMatch
@@ -130,6 +158,7 @@ export function present(view: View, viewer: Viewer): Model {
           };
         })
       : [];
+  // A duel's banner names the rider; a team's names its colour, which is the arena's own default.
   const names =
     sides.length === 2
       ? ([sides[0]!.name, sides[1]!.name] as const)
@@ -154,7 +183,9 @@ export function present(view: View, viewer: Viewer): Model {
         localSlot === -1
           ? "GOAL!"
           : world.lastScorer === localSlot
-            ? "YOU SCORED!"
+            ? teams
+              ? "GOAL!"
+              : "YOU SCORED!"
             : "ZAPPED!";
     else status = world.suddenDeath ? "SUDDEN DEATH" : score;
   }
@@ -171,21 +202,24 @@ export function present(view: View, viewer: Viewer): Model {
           : "Pick a name to ride in the next match";
 
   let result: Model["result"] = null;
-  if (view.stage === "over" && world && sides.length === 2) {
-    const winner = sides.find((side) => side.id === view.winner);
-    const [left, right] = [sides[0]!, sides[1]!];
+  if (view.stage === "over" && world && sides.length >= 2) {
+    const won = view.winnerSide;
+    const stats = sides.map((side, index) => {
+      const rider = world.riders[index];
+      return `${side.name}: ${plural(rider?.goals ?? 0, "goal", "goals")}, ${plural(rider?.ownGoals ?? 0, "own goal", "own goals")}, ${plural(world.bubbles[index]?.seq ?? 0, "bubble", "bubbles")}`;
+    });
+    const label = (slot: 0 | 1) =>
+      teams ? SIDE_NAMES[slot] : (sides[slot]?.name ?? SIDE_NAMES[slot]);
     result = {
-      title: winner
-        ? winner.you
-          ? "YOU WIN!"
-          : `${winner.name.toUpperCase()} WINS`
-        : "MATCH OVER",
+      title:
+        won === -1
+          ? "MATCH OVER"
+          : localSlot === won
+            ? "YOU WIN!"
+            : `${label(won).toUpperCase()} WINS`,
       lines: [
-        `${left.name} ${left.score} – ${right.score} ${right.name}`,
-        ...sides.map((side) => {
-          const stats = world.riders[side.slot];
-          return `${side.name}: ${plural(stats.goals, "goal", "goals")}, ${plural(stats.ownGoals, "own goal", "own goals")}, ${plural(world.bubbles[side.slot].seq, "bubble", "bubbles")}`;
-        }),
+        `${label(0)} ${world.score[0]} – ${world.score[1]} ${label(1)}`,
+        ...stats,
       ],
       host: viewer.host,
       waiting: viewer.host ? "" : "Waiting for the host to start a rematch",
@@ -195,11 +229,13 @@ export function present(view: View, viewer: Viewer): Model {
   const lobbyNote = !seats.length
     ? "Pick a name to take a seat"
     : viewer.host
-      ? seats.length < CAPACITY
-        ? "A duel needs two riders: invite a friend or add a bot."
-        : view.settings.display
-          ? "Shared screen: open the TV screen, then both riders play on their phones"
-          : ""
+      ? view.settings.display
+        ? "Shared screen: open the TV screen, then everybody plays on their phone"
+        : seats.length < 2 * view.settings.size
+          ? "Empty places are filled with bots when you start."
+          : !teams && seats.length > 2
+            ? "A duel is for two: pick 2 v 2 or 3 v 3 so everybody rides."
+            : ""
       : "Waiting for the host to start";
   const playing = inMatch ? view.play.mapId : view.settings.mapId;
   return {
@@ -215,6 +251,7 @@ export function present(view: View, viewer: Viewer): Model {
     seated,
     riding,
     localSlot,
+    localIndex,
     controlsVisible:
       view.stage === "running" &&
       world?.phase === "countdown" &&
@@ -225,6 +262,7 @@ export function present(view: View, viewer: Viewer): Model {
         id: seat.id,
         name: seat.name,
         slot: seat.slot,
+        side: seat.slot % 2 === 0 ? 0 : 1,
         bot: seat.bot,
         connected: seat.connected || seat.bot,
         you: seat.id === viewer.me,
@@ -233,12 +271,35 @@ export function present(view: View, viewer: Viewer): Model {
       canAddBot: viewer.host && seats.length < CAPACITY,
       removable: viewer.host ? seats.filter((s) => s.bot).map((s) => s.id) : [],
       showStart: viewer.host,
-      canStart: seats.length === CAPACITY,
+      canStart: seats.some((seat) => !seat.bot),
       editable: viewer.host,
       note: lobbyNote,
-      maps: ([...MAP_IDS, RANDOM] as const).map((id) => ({
+      size: view.settings.size,
+      modes: MODES.filter((mode) => mode.size <= TEAM_MAX).map((mode) => ({
+        ...mode,
+        selected: mode.size === view.settings.size,
+      })),
+      canSwitch:
+        seated &&
+        view.settings.size > 1 &&
+        [0, 2, 4].some(
+          (slot) =>
+            !seats.some(
+              (seat) =>
+                seat.slot === slot + ((mine?.slot ?? 0) % 2 === 0 ? 1 : 0),
+            ),
+        ),
+      maps: (view.settings.size > 1
+        ? TEAM_MAP_IDS
+        : ([...MAP_IDS, RANDOM] as const)
+      ).map((id) => ({
         id,
-        name: id === RANDOM ? "Random" : MAPS[id].name,
+        name:
+          id === RANDOM
+            ? "Random"
+            : isTeamMapId(id)
+              ? TEAM_MAPS[id].name
+              : MAPS[id].name,
         blurb: MAP_BLURBS[id],
         selected: id === view.settings.mapId,
       })),
@@ -295,7 +356,7 @@ export function createGoalWatch(): (view: View, me: string) => GoalReport[] {
     const world = view.world;
     if (!world || view.stage === "lobby" || !view.matchId) return [];
     const total = world.score[0] + world.score[1],
-      given = world.riders[0].ownGoals + world.riders[1].ownGoals;
+      given = world.riders.reduce((sum, rider) => sum + rider.ownGoals, 0);
     if (view.matchId !== match) {
       // The first frame seen of a match is where the count starts: the points already on the board when a device
       // loads into it (a reload, a late join) were reported, or were never this page's to report.
@@ -314,12 +375,18 @@ export function createGoalWatch(): (view: View, me: string) => GoalReport[] {
     // Normally one point at a time; a device that slept through several reports the last and skips the rest.
     if (total === counted + 1 && world.lastScorer !== -1) {
       const scorer = world.lastScorer,
-        mine = world.riders[scorer].id === me,
         mySlot = world.riders.find((rider) => rider.id === me)?.slot,
-        toBot = view.roster.some(
-          (entrant) => entrant.slot === scorer && entrant.bot,
-        );
-      if (mySlot !== undefined && (mine || toBot))
+        mine = mySlot === scorer,
+        // One device reports a point: the scoring side's first player, or, when that side is all bots, the first
+        // player there is. Players who have left do not count.
+        here = view.roster.filter(
+          (entrant) =>
+            !entrant.bot &&
+            view.seats.some((seat) => seat.id === entrant.id && seat.connected),
+        ),
+        reporter = (here.find((entrant) => entrant.slot === scorer) ?? here[0])
+          ?.id;
+      if (mySlot !== undefined && reporter === me)
         reports.push({
           mapId: world.mapId,
           ownGoal: given > ownGoals,

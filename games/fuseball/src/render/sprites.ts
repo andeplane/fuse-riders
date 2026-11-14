@@ -14,6 +14,7 @@ export type Paint = Pick<
   | "restore"
   | "setTransform"
   | "translate"
+  | "scale"
   | "beginPath"
   | "closePath"
   | "moveTo"

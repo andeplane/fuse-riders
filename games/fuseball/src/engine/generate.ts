@@ -93,6 +93,8 @@ export function levelCandidate(seed: number, gadgets = true): MapDef {
   const level: Level = {
     id: "random",
     name: "Random",
+    w: W,
+    h: H,
     wrapX,
     wrapY,
     solids,
@@ -232,8 +234,8 @@ function gapAt(map: MapDef, x: number, y: number, r: Rect): number {
 const gap = (map: MapDef, x: number, y: number, r: Rect) =>
   gapAt(map, x * SUB, y * SUB, r);
 const freeAt = (map: MapDef, x: number, y: number, radius: number): boolean =>
-  (map.wrapX || (x >= radius && x <= W * SUB - radius)) &&
-  (map.wrapY || (y >= radius && y <= H * SUB - radius)) &&
+  (map.wrapX || (x >= radius && x <= map.w * SUB - radius)) &&
+  (map.wrapY || (y >= radius && y <= map.h * SUB - radius)) &&
   map.solids.every((r) => gapAt(map, x, y, r) >= radius * radius);
 export const levelFree = (
   map: MapDef,
@@ -245,8 +247,8 @@ export const levelFree = (
 /** Flood the ball's free configuration space; infinite air-jumps also let riders use these corridors. */
 function reachable(map: MapDef): boolean {
   const size = 8,
-    cols = W / size,
-    rows = H / size;
+    cols = Math.floor(map.w / size),
+    rows = Math.floor(map.h / size);
   const seen = new Set<number>(),
     queue: number[] = [];
   const add = (x: number, y: number) => {
@@ -285,6 +287,8 @@ function reachable(map: MapDef): boolean {
 
 /** The same drop grid as handmade-map tests, using the engine's autonomous ball flight. */
 function deadRest(map: MapDef): string | undefined {
+  const W = map.w,
+    H = map.h;
   for (let x = 10; x < W; x += 20)
     for (let y = 15; y < H; y += 30) {
       if (
@@ -575,7 +579,12 @@ export function gadgetFaults(map: MapDef): string[] {
 
 /** Shared acceptance checks for written and generated maps. Empty means playable. */
 export function levelFaults(map: MapDef): string[] {
-  const faults: string[] = [];
+  const faults: string[] = [],
+    W = map.w,
+    H = map.h,
+    flip = (r: Rect): Rect => ({ ...r, x: W - r.x - r.w });
+  if (![W, H].every((n) => Number.isInteger(n) && n % 2 === 0 && n >= 64))
+    faults.push("field");
   const key = (r: Rect) =>
     `${map.wrapX ? (r.x + W) % W : r.x},${map.wrapY ? (r.y + H) % H : r.y},${r.w},${r.h}`;
   const solids = new Set(map.solids.map(key));
@@ -596,9 +605,23 @@ export function levelFaults(map: MapDef): string[] {
   }
   if (
     map.ballAnchor.x !== W / 2 ||
-    map.spawns[0].x !== W - map.spawns[1].x ||
-    map.spawns[0].y !== map.spawns[1].y ||
-    Math.abs(map.spawns[0].x - map.spawns[1].x) <= 4 * RIDER
+    map.spawns.length % 2 !== 0 ||
+    map.spawns.some((spawn, place) => {
+      // Every mark has its mirror image on the other side, and a side's marks stand on its own half.
+      const other = map.spawns[place ^ 1];
+      return (
+        !other ||
+        spawn.x !== W - other.x ||
+        spawn.y !== other.y ||
+        (place % 2 === 0 ? spawn.x >= W / 2 - 2 * RIDER : false)
+      );
+    }) ||
+    map.spawns.some((a, i) =>
+      map.spawns.some(
+        (b, j) =>
+          i < j && squared(a.x - b.x) + squared(a.y - b.y) < squared(3 * RIDER),
+      ),
+    )
   )
     faults.push("fairness");
   if (!map.clouds.length) faults.push("clouds");

@@ -11,6 +11,10 @@ export {
   MAP_IDS,
   MAPS,
   RANDOM,
+  TEAM_MAP_IDS,
+  TEAM_MAPS,
+  isTeamMapId,
+  teamSizeOf,
   mapOf,
   arenaOf,
   isCircle,
@@ -19,6 +23,7 @@ export {
   type Mover,
   type MapId,
   type ArenaId,
+  type TeamArenaId,
   type MapDef,
   type Goal,
   type Rect,
@@ -28,6 +33,7 @@ export {
   type Bumper,
   type Portal,
 } from "./maps.js";
+export { several, type Several } from "./world.js";
 export {
   VIEW_W,
   VIEW_H,

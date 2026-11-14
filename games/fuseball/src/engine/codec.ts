@@ -4,15 +4,20 @@ import {
   MAP_IDS,
   RANDOM,
   RANDOM_INDEX,
+  TEAM_INDEX,
+  TEAM_MAP_IDS,
   arenaOf,
   isSeed,
   mapOf,
   type MapDef,
   type MapId,
 } from "./maps.js";
+import { SUB } from "./math.js";
 import * as T from "./tuning.js";
 import {
   PHASES,
+  fits,
+  several,
   type Ball,
   type Bubble,
   type Rider,
@@ -21,15 +26,15 @@ import {
 } from "./world.js";
 
 /**
- * The world as checkpoint fields: flat tuples of integers (and the two rider ids) that MessagePack carries, and a
+ * The world as checkpoint fields: flat tuples of integers (and the rider ids) that MessagePack carries, and a
  * decoder that checks every one against the bounds and the consistency the simulation keeps. `decodeWorld` returns
  * a whole new world or nothing; it never changes what it was given and never returns a half-checked one.
  */
-const VERSION = 4;
+const VERSION = 5;
 const RIDER_FIELDS = 14,
   BUBBLE_FIELDS = 5,
   BALL_FIELDS = 7,
-  WORLD_FIELDS = 18,
+  WORLD_FIELDS = 16,
   PACE_FIELDS = 4;
 
 const int = (value: unknown, low: number, high: number): value is number =>
@@ -51,8 +56,29 @@ export const riderId = (value: unknown): value is string =>
 
 /** Where a body of `radius` may be: anywhere on an axis that wraps, clear of the edge on one that does not. */
 const inField = (x: number, y: number, radius: number, map: MapDef): boolean =>
-  (map.wrapX ? int(x, 0, T.WORLD_W - 1) : int(x, radius, T.WORLD_W - radius)) &&
-  (map.wrapY ? int(y, 0, T.WORLD_H - 1) : int(y, radius, T.WORLD_H - radius));
+  (map.wrapX
+    ? int(x, 0, map.w * SUB - 1)
+    : int(x, radius, map.w * SUB - radius)) &&
+  (map.wrapY
+    ? int(y, 0, map.h * SUB - 1)
+    : int(y, radius, map.h * SUB - radius));
+
+/** A map's place in a checkpoint: the duel arenas first, the team arenas from `TEAM_INDEX`, the random one last. */
+const indexOf = (mapId: MapId): number => {
+  if (mapId === RANDOM) return RANDOM_INDEX;
+  const team = (TEAM_MAP_IDS as readonly string[]).indexOf(mapId);
+  return team >= 0
+    ? TEAM_INDEX + team
+    : (MAP_IDS as readonly string[]).indexOf(mapId);
+};
+const mapAt = (index: unknown): MapId | undefined =>
+  index === RANDOM_INDEX
+    ? RANDOM
+    : int(index, 0, MAP_IDS.length - 1)
+      ? MAP_IDS[index]
+      : int(index, TEAM_INDEX, TEAM_INDEX + TEAM_MAP_IDS.length - 1)
+        ? TEAM_MAP_IDS[index - TEAM_INDEX]
+        : undefined;
 
 const encodeRider = (r: Rider): unknown[] => [
   r.id,
@@ -82,7 +108,7 @@ export function encodeWorld(world: World): unknown[] {
   const { ball } = world;
   return [
     VERSION,
-    world.mapId === RANDOM ? RANDOM_INDEX : MAP_IDS.indexOf(world.mapId),
+    indexOf(world.mapId),
     world.step,
     PHASES.indexOf(world.phase),
     world.phaseSteps,
@@ -90,10 +116,8 @@ export function encodeWorld(world: World): unknown[] {
     world.score[1],
     world.lastScorer,
     world.suddenDeath ? 1 : 0,
-    encodeRider(world.riders[0]),
-    encodeRider(world.riders[1]),
-    encodeBubble(world.bubbles[0]),
-    encodeBubble(world.bubbles[1]),
+    world.riders.map(encodeRider),
+    world.bubbles.map(encodeBubble),
     [
       ball.x,
       ball.y,
@@ -110,7 +134,11 @@ export function encodeWorld(world: World): unknown[] {
   ];
 }
 
-function decodeRider(raw: unknown, slot: Slot, map: MapDef): Rider | undefined {
+function decodeRider(
+  raw: unknown,
+  index: number,
+  map: MapDef,
+): Rider | undefined {
   if (!tuple(raw, RIDER_FIELDS)) return;
   const [
     id,
@@ -130,8 +158,8 @@ function decodeRider(raw: unknown, slot: Slot, map: MapDef): Rider | undefined {
   ] = raw;
   if (
     !riderId(id) ||
-    !int(x, 0, T.WORLD_W - 1) ||
-    !int(y, 0, T.WORLD_H - 1) ||
+    !int(x, 0, map.w * SUB - 1) ||
+    !int(y, 0, map.h * SUB - 1) ||
     !inField(x, y, T.RIDER_R, map) ||
     !int(vx, -T.MAX_VX, T.MAX_VX) ||
     !int(vy, -T.MAX_RISE, T.MAX_FALL) ||
@@ -148,7 +176,8 @@ function decodeRider(raw: unknown, slot: Slot, map: MapDef): Rider | undefined {
     return;
   return {
     id,
-    slot,
+    index,
+    slot: index % 2 === 0 ? 0 : 1,
     x,
     y,
     vx,
@@ -165,13 +194,13 @@ function decodeRider(raw: unknown, slot: Slot, map: MapDef): Rider | undefined {
   };
 }
 
-function decodeBubble(raw: unknown): Bubble | undefined {
+function decodeBubble(raw: unknown, map: MapDef): Bubble | undefined {
   if (!tuple(raw, BUBBLE_FIELDS)) return;
   const [active, x, y, hard, seq] = raw;
   if (
     !flag(active) ||
-    !int(x, 0, T.WORLD_W - 1) ||
-    !int(y, 0, T.WORLD_H - 1) ||
+    !int(x, 0, map.w * SUB - 1) ||
+    !int(y, 0, map.h * SUB - 1) ||
     !flag(hard) ||
     !counter(seq) ||
     (hard === 1 && active === 0)
@@ -180,18 +209,22 @@ function decodeBubble(raw: unknown): Bubble | undefined {
   return { active: active === 1, x, y, hard: hard === 1, seq };
 }
 
-function decodeBall(raw: unknown, map: MapDef): Ball | undefined {
+function decodeBall(
+  raw: unknown,
+  map: MapDef,
+  riders: number,
+): Ball | undefined {
   if (!tuple(raw, BALL_FIELDS)) return;
   const [x, y, vx, vy, live, bounces, touch] = raw;
   if (
-    !int(x, 0, T.WORLD_W - 1) ||
-    !int(y, 0, T.WORLD_H - 1) ||
+    !int(x, 0, map.w * SUB - 1) ||
+    !int(y, 0, map.h * SUB - 1) ||
     !inField(x, y, T.BALL_R, map) ||
     !int(vx, -T.BALL_MAX, T.BALL_MAX) ||
     !int(vy, -T.BALL_MAX, T.BALL_MAX) ||
     !flag(live) ||
     !counter(bounces) ||
-    !side(touch)
+    !int(touch, -1, riders - 1)
   )
     return;
   return {
@@ -234,11 +267,11 @@ function decodeBarriers(raw: unknown, map: MapDef): BarrierState[] | undefined {
 /** The checks that tie fields together: a world no sequence of steps could reach is refused. */
 function consistent(world: World): boolean {
   const { phase, phaseSteps, score, lastScorer, riders, bubbles, ball } = world,
-    [a, b] = riders,
     total = score[0] + score[1],
     won = score[0] === T.TARGET || score[1] === T.TARGET,
     scored = phase === "zap" || phase === "over";
-  if (a.id === b.id) return false;
+  if (new Set(riders.map((rider) => rider.id)).size !== riders.length)
+    return false;
   // The pace: stopped exactly while a goal's freeze lasts, a quarter speed for the rest of the zap, slowed only in
   // play, and never so slow that a log tick would run no step.
   const { speed, budget, linger, freeze } = world;
@@ -276,10 +309,14 @@ function consistent(world: World): boolean {
     world.suddenDeath !== (score[0] >= T.TARGET - 1 && score[1] >= T.TARGET - 1)
   )
     return false;
-  // Every point is somebody's goal or the other rider's own goal.
-  if (a.goals + b.ownGoals !== score[0] || b.goals + a.ownGoals !== score[1])
-    return false;
-  // Only the rider the last point went against is zapped, from the goal until the next point.
+  // Every point is a goal by one of the side's riders or an own goal by one of the other side's.
+  for (const team of [0, 1] as const) {
+    let points = 0;
+    for (const rider of riders)
+      points += rider.slot === team ? rider.goals : rider.ownGoals;
+    if (points !== score[team]) return false;
+  }
+  // Only the side the last point went against is zapped, from the goal until the next point.
   for (const rider of riders) {
     const struck = scored && rider.slot !== lastScorer;
     if (rider.zapped !== struck) return false;
@@ -289,9 +326,9 @@ function consistent(world: World): boolean {
   if (ball.live === scored) return false;
   if (!ball.live && (ball.vx !== 0 || ball.vy !== 0)) return false;
   // A bubble is hard only while its owner holds the button; there are none during a countdown.
-  for (const slot of [0, 1] as const) {
-    const bubble = bubbles[slot];
-    if (bubble.hard && !(riders[slot].prev & BTN)) return false;
+  for (const rider of riders) {
+    const bubble = bubbles[rider.index]!;
+    if (bubble.hard && !(rider.prev & BTN)) return false;
     if (bubble.active && phase === "countdown") return false;
   }
   return true;
@@ -309,10 +346,8 @@ export function decodeWorld(raw: unknown): World | undefined {
     score1,
     lastScorer,
     suddenDeath,
-    riderA,
-    riderB,
-    bubbleA,
-    bubbleB,
+    rawRiders,
+    rawBubbles,
     rawBall,
     rawPace,
     rawBarriers,
@@ -321,7 +356,6 @@ export function decodeWorld(raw: unknown): World | undefined {
   ] = raw;
   if (
     version !== VERSION ||
-    !(mapIndex === RANDOM_INDEX || int(mapIndex, 0, MAP_IDS.length - 1)) ||
     // Only a rolled level has a seed; any unsigned 32-bit integer is one.
     !isSeed(seed) ||
     (mapIndex !== RANDOM_INDEX && seed !== 0) ||
@@ -346,18 +380,29 @@ export function decodeWorld(raw: unknown): World | undefined {
     !int(freeze, 0, T.GOAL_FREEZE_STEPS)
   )
     return;
-  const mapId: MapId | undefined =
-      mapIndex === RANDOM_INDEX ? RANDOM : MAP_IDS[mapIndex],
+  const mapId = mapAt(mapIndex),
     phase = PHASES[phaseIndex];
   if (!mapId || !phase) return;
-  const map = mapOf(mapId, seed),
-    a = decodeRider(riderA, 0, map),
-    b = decodeRider(riderB, 1, map),
-    bubble0 = decodeBubble(bubbleA),
-    bubble1 = decodeBubble(bubbleB),
-    ball = decodeBall(rawBall, map),
+  const map = mapOf(mapId, seed);
+  // As many riders as the arena has marks for at most, and a bubble for each.
+  if (
+    !Array.isArray(rawRiders) ||
+    !fits(map, rawRiders.length) ||
+    !tuple(rawBubbles, rawRiders.length)
+  )
+    return;
+  const riders: Rider[] = [],
+    bubbles: Bubble[] = [];
+  for (let index = 0; index < rawRiders.length; index++) {
+    const rider = decodeRider(rawRiders[index], index, map),
+      bubble = decodeBubble(rawBubbles[index], map);
+    if (!rider || !bubble) return;
+    riders.push(rider);
+    bubbles.push(bubble);
+  }
+  const ball = decodeBall(rawBall, map, riders.length),
     barriers = decodeBarriers(rawBarriers, map);
-  if (!a || !b || !bubble0 || !bubble1 || !ball || !barriers) return;
+  if (!ball || !barriers) return;
   const world: World = {
     mapId,
     seed,
@@ -372,8 +417,8 @@ export function decodeWorld(raw: unknown): World | undefined {
     budget,
     linger,
     freeze,
-    riders: [a, b],
-    bubbles: [bubble0, bubble1],
+    riders: several(riders),
+    bubbles: several(bubbles),
     ball,
     barriers,
   };

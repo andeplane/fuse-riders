@@ -57,7 +57,12 @@ test("seed text accepts decimal uint32 values and rejects coercions", () => {
 });
 
 test("a random lobby and running match show their actual seeds", () => {
-  const state = createRoom("m", { display: false, mapId: "random", seed: 5 });
+  const state = createRoom("m", {
+    display: false,
+    mapId: "random",
+    seed: 5,
+    size: 1,
+  });
   let model = present(view(state), host);
   assert.equal(model.mapName, "Random · 5");
   assert.ok(model.lobby.maps.find((map) => map.id === "random")?.selected);
@@ -91,7 +96,7 @@ function room(
   shape: (room: Room, world: World | null) => void = () => {},
   mapId: MapId = "gridlock",
 ): View {
-  const state = createRoom("m1", { display: false, mapId, seed: 0 });
+  const state = createRoom("m1", { display: false, mapId, seed: 0, size: 1 });
   state.seats.set("a", seat("a", "Ada", 0));
   state.seats.set("b", seat("b", "Bo", 1));
   if (stage !== "lobby") {
@@ -133,7 +138,7 @@ test("the lobby: the host picks the arena, adds a bot and starts; a guest waits;
   );
   assert.equal(two.lobby.canStart, true);
   assert.equal(two.lobby.showStart, true);
-  assert.equal(two.lobby.canAddBot, false, "both seats are taken");
+  assert.equal(two.lobby.canAddBot, true, "a room seats six");
   assert.equal(two.lobby.editable, true);
   assert.equal(two.lobby.note, "");
   assert.deepEqual(
@@ -165,9 +170,9 @@ test("the lobby: the host picks the arena, adds a bot and starts; a guest waits;
     room("lobby", (r) => r.seats.delete("b"), "halo"),
     host,
   );
-  assert.equal(alone.lobby.canStart, false);
+  assert.equal(alone.lobby.canStart, true, "a start seats a bot");
   assert.equal(alone.lobby.canAddBot, true);
-  assert.match(alone.lobby.note, /needs two riders/);
+  assert.match(alone.lobby.note, /filled with bots/);
   assert.equal(alone.lobby.maps[2]!.selected, true);
 
   const bots = present(
@@ -379,7 +384,7 @@ test("the match result: the winner, the score, each rider's numbers, and who can
     w!.riders[1].ownGoals = 1;
     w!.bubbles[0].seq = 7;
     w!.bubbles[1].seq = 1;
-    r.decided = { clock: 100, winner: "a", finishers: ["a", "b"] };
+    r.decided = { clock: 100, winner: "a", side: 0, finishers: ["a", "b"] };
   });
   const winner = present(over, host);
   assert.equal(winner.screen, "play");
@@ -404,7 +409,7 @@ test("the match result: the winner, the score, each rider's numbers, and who can
   assert.equal(present(over, tv).note, "");
   const unknown = room("over", (r, w) => {
     w!.phase = "over";
-    r.decided = { clock: 1, winner: "gone", finishers: [] };
+    r.decided = null;
   });
   assert.equal(present(unknown, host).result?.title, "MATCH OVER");
 });
@@ -783,7 +788,7 @@ test("sounds: silent when muted or before the page may play, then a voice per cu
     later: (run) => void later.push(run),
     random: () => 0.5,
   };
-  const at = { slot: 0, x: 1, y: 2 } as const;
+  const at = { slot: 0, index: 0, x: 1, y: 2 } as const;
   const cues: Cue[] = [
     { kind: "jump", ...at, grounded: true },
     { kind: "jump", ...at, grounded: false },

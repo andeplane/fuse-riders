@@ -312,6 +312,7 @@ test("the view is the world in pixels, with what the presentation needs", () => 
   assert.ok(!a.grounded && !a.sliding && !a.zapped);
   assert.equal(a.jumps, 1);
   assert.deepEqual(view.bubbles[0], {
+    index: 0,
     slot: 0,
     active: true,
     hard: true,
