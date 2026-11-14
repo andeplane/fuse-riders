@@ -29,6 +29,12 @@ In a room the host can play several songs as one contest: **SONGS** sets a sessi
 
 Every finished song adds each rider's rating to their session total, and the winner gets a win. The total runs in the leaderboard boxes during a song, the standings show on every result and in the lobby between songs, and the last song ends on the final standings: most points, then most songs won. A song that is given up is not counted, a rider who joins in the middle starts from zero, and one who leaves keeps their row. Changing the number of songs in the middle starts a new session. The session is part of the room's state (`session` in `src/online/game.ts`) and travels in its checkpoint.
 
+## A song waits for its audio
+
+A match never begins on a device that is still downloading the song. A started song is held at its first moment: each device logs `READY` once it has the decoded audio (or will play none: `?mute`, a phone that is a pad, a file that failed three times), and the fold lets the song go on the tick the last connected device has said so, the shared screen's TV included. The field says `DOWNLOADING SONG…`, or who the room waits for. A device that never answers holds the room for at most 30 s (`HOLD_TICKS` in `src/online/game.ts`). This matters most in a random session, whose song is drawn at START.
+
+In the song select a cover wears a download mark while its song is not on the device (`src/app/song-load.ts`). Downloaded songs are kept in cache storage under the rules version (`src/app/song-cache.ts`), so a song is fetched once.
+
 ## Controls
 
 | Control       | Keyboard (default)  | Touch    |

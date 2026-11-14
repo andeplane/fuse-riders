@@ -1188,4 +1188,10 @@ body:has(.fui-top-bar) .fm-ts {
   background: var(--fui-cyan);
   box-shadow: 0 0 2rem color-mix(in srgb, var(--fui-cyan) 55%, transparent);
   animation: none;
+  /* Wide enough to stand in for the field's own GET READY, which it lies over. */
+  box-sizing: border-box;
+  width: max-content;
+  min-width: min(92%, 26rem);
+  max-width: 92%;
+  padding: var(--fui-space-4);
 }
