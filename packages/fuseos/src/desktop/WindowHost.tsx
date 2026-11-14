@@ -7,6 +7,7 @@ import { FuseGameWindow } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
 import { PaintWindow } from "../paint/PaintWindow";
 import { GameWindow } from "../retro/GameWindow";
+import { RetroFolderWindow } from "../retro/RetroFolderWindow";
 import type { WindowState } from "../state/appState";
 import { WinampWindow } from "../winamp/WinampWindow";
 import { MessageBox } from "../windows/MessageBox";
@@ -44,6 +45,8 @@ function WindowContent({
           onActivate={() => commands.focus(window.id)}
         />
       );
+    case "retroFolder":
+      return <RetroFolderWindow windowId={window.id} />;
     case "controlpanel":
       return <ControlPanelWindow windowId={window.id} />;
     case "wallpaper":

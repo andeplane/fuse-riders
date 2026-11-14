@@ -2,6 +2,7 @@ import { useContext } from "react";
 
 import { FuseGamesContext } from "../fusegames/registry";
 import { GAME_LIST } from "../retro/games";
+import { useRetroCommands } from "../retro/useRetroCommands";
 import { useAppState } from "../state/useAppState";
 import type { IconName } from "../ui/icons";
 import { useWindowCommands } from "../windows/useWindowCommands";
@@ -34,6 +35,7 @@ export function useStartMenuViewModel(): {
   const deps = useContext(DesktopDepsContext);
   const games = useContext(FuseGamesContext);
   const desktop = useDesktopViewModel();
+  const retro = useRetroCommands();
 
   const close = () => ui.setStartMenuOpen(false);
   const wrap = (action: () => void) => () => {
@@ -48,12 +50,21 @@ export function useStartMenuViewModel(): {
     onSelect: wrap(() => desktop.openFuseGame(game.id)),
   }));
 
-  const retroGameItems: StartMenuItem[] = GAME_LIST.map((game) => ({
-    id: `retro:${game.id}`,
-    label: game.name,
-    icon: game.icon,
-    onSelect: wrap(() => commands.open({ kind: "retro", game: game.id })),
-  }));
+  const retroGameItems: StartMenuItem[] = [
+    {
+      id: "retro-folder",
+      label: "Open Retro Games folder",
+      icon: "folderOpen",
+      onSelect: wrap(retro.openFolder),
+      separatorAfter: true,
+    },
+    ...GAME_LIST.map((game): StartMenuItem => ({
+      id: `retro:${game.id}`,
+      label: game.name,
+      icon: game.icon,
+      onSelect: wrap(() => retro.openGame(game.id)),
+    })),
+  ];
 
   const items: StartMenuItem[] = [
     {
