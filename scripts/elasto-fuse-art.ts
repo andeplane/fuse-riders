@@ -12,7 +12,8 @@
  * Raw API images are cached in `--raw` (default `node_modules/.cache/elasto-fuse-art/`, git-ignored), named
  * `<source>-<n>.png`. With `--n` above 1 each fitted candidate is written next to its raw image as
  * `<file>-fit-<n>.<ext>` for review, and candidate 0 goes to the public folder; `--pick <source>=<n>` refits a chosen
- * candidate into place. Every run that fits anything also writes `contact-sheet.png` (every file, plus the parts
+ * candidate into place (only the picked sources are refitted). A plain `--reprocess` refits candidate 0 of everything,
+ * so repeat the picks after it. Every run that fits anything also writes `contact-sheet.png` (every file, plus the parts
  * assembled into a bike at the rest layout) and `assembled.png` (the hero's reference image) to the cache.
  * The key is read from the environment and never printed. Prompts live here and in docs/design/elasto-fuse-art.md.
  */
@@ -460,12 +461,22 @@ function parse(argv: string[]): Options {
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--pick") {
       const [id, n] = (argv[i + 1] ?? "").split("=");
-      if (id && n) picks.set(id, Number(n));
+      if (
+        !id ||
+        !SOURCES.some((source) => source.id === id) ||
+        !/^\d+$/.test(n ?? "")
+      )
+        throw new Error("--pick takes <source>=<candidate number>");
+      picks.set(id, Number(n));
     }
   }
+  const n = Number(value("--n") ?? 1);
+  if (!Number.isInteger(n) || n < 1)
+    throw new Error("--n takes a whole number of candidates, 1 or more");
+  if (only?.startsWith("--")) throw new Error("--only takes a list of assets");
   return {
     only: only ? new Set(only.split(",")) : null,
-    n: Number(value("--n") ?? 1),
+    n,
     raw: value("--raw") ?? join(ROOT, "node_modules/.cache/elasto-fuse-art"),
     quality: value("--quality") ?? "high",
     reprocess: argv.includes("--reprocess") || picks.size > 0,
@@ -935,7 +946,7 @@ function writeDoc(): Promise<void> {
     "",
     "## Geometry",
     "",
-    `Sprites are drawn at ${LAYOUT.pxPerUnit} px per world unit. The bike faces right in every sprite (the code mirrors it), in a flat side view with no perspective, ground or shadow. ` +
+    `The frame is drawn at ${LAYOUT.pxPerUnit} px per world unit; the wheel and the head are scaled to their world radius and each limb to the distance between its two joints. The bike faces right in every sprite (the code mirrors it), in a flat side view with no perspective, ground or shadow. ` +
       "The code hue-shifts the cyan accent per player at load, so the bike and rider sprites use cyan (#16e7ff) as their only accent on dark graphite, white and neutral grey.",
     "",
     `Rest layout in world units, x right, y up, origin at the bike frame's centre: rear wheel hub ${point(LAYOUT.rearHub)}, front wheel hub ${point(LAYOUT.frontHub)}, wheel radius ${LAYOUT.wheelRadius}, ` +
@@ -1005,13 +1016,15 @@ async function main(): Promise<void> {
   await writeDoc();
   if (options.manifestOnly) return;
 
+  // A pick refits only the picked sources, so that it never puts candidate 0 back over an earlier pick.
   const wanted = options.sheetOnly
     ? []
-    : ASSETS.filter(
-        (asset) =>
-          !options.only ||
-          options.only.has(stem(asset.file)) ||
-          options.only.has(asset.source),
+    : ASSETS.filter((asset) =>
+        options.picks.size > 0
+          ? options.picks.has(asset.source)
+          : !options.only ||
+            options.only.has(stem(asset.file)) ||
+            options.only.has(asset.source),
       );
   const browser = await chromium.launch();
   try {
@@ -1030,7 +1043,16 @@ async function main(): Promise<void> {
           wanted.some((asset) => asset.source === source.id),
       );
       if (sources.length === 0) continue;
-      if (stage === 2) await writeSheet();
+      if (stage === 2) {
+        const missing = ASSETS.filter(
+          (asset) => asset.transparent && !existsSync(join(OUT, asset.file)),
+        ).map((asset) => asset.file);
+        if (missing.length > 0 && !options.reprocess)
+          throw new Error(
+            `the hero's reference needs the fitted sprites first; missing ${missing.join(", ")}`,
+          );
+        await writeSheet();
+      }
       if (!options.reprocess) {
         await Promise.all(
           sources.map(async (source) => {
@@ -1050,6 +1072,7 @@ async function main(): Promise<void> {
       for (const asset of wanted) {
         if (!sources.some((source) => source.id === asset.source)) continue;
         const count = options.picks.size > 0 ? 1 : options.n;
+        let done = 0;
         for (let i = 0; i < count; i += 1) {
           const path = join(
             options.raw,
@@ -1066,8 +1089,13 @@ async function main(): Promise<void> {
               fitted,
             );
           if (i === 0) writeFileSync(join(OUT, asset.file), fitted);
+          done += 1;
         }
-        console.log(`fitted ${asset.file}`);
+        console.log(
+          done > 0
+            ? `fitted ${asset.file}`
+            : `skipped ${asset.file}: no raw image in the cache`,
+        );
       }
     }
     await writeSheet();

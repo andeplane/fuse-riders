@@ -6,7 +6,7 @@ Look: a side-view motorbike trials game in the Fuse neon style, mechanically mod
 
 ## Geometry
 
-Sprites are drawn at 240 px per world unit. The bike faces right in every sprite (the code mirrors it), in a flat side view with no perspective, ground or shadow. The code hue-shifts the cyan accent per player at load, so the bike and rider sprites use cyan (#16e7ff) as their only accent on dark graphite, white and neutral grey.
+The frame is drawn at 240 px per world unit; the wheel and the head are scaled to their world radius and each limb to the distance between its two joints. The bike faces right in every sprite (the code mirrors it), in a flat side view with no perspective, ground or shadow. The code hue-shifts the cyan accent per player at load, so the bike and rider sprites use cyan (#16e7ff) as their only accent on dark graphite, white and neutral grey.
 
 Rest layout in world units, x right, y up, origin at the bike frame's centre: rear wheel hub (-0.85, -0.6), front wheel hub (0.85, -0.6), wheel radius 0.4, rider head centre (0, 0.44) with radius 0.24. The frame's body stays within x -0.75 to 0.75 and y -0.45 to 0.35; the code draws the front fork and the rear swingarm as lines from the frame to the moving wheels. The torso and the four limb pieces lie horizontally and hang between two joints, listed in `manifest.json` as `joints`.
 
