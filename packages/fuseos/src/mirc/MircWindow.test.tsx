@@ -19,6 +19,12 @@ class ScriptedBrain implements RegularsBrain {
   describe() {
     return "a test script";
   }
+  usesModel() {
+    return false;
+  }
+  prepare() {
+    return Promise.resolve(false);
+  }
   reply(request: BrainRequest) {
     this.requests.push(request);
     return Promise.resolve(`svar fra ${request.regular.nick}`);
@@ -190,15 +196,22 @@ describe("mIRC window", () => {
     const nicks = within(
       mirc().getByRole("listbox", { name: "Nicklist" }),
     ).getAllByRole("option");
-    expect(nicks.map((nick) => nick.textContent)).toEqual([
-      "@Andeplane",
-      "@RiChY",
-      "+CCBSbot",
-      "+Zredna",
-      "FootieFox",
-      "Guest4242",
-      "stepzilla",
-    ]);
+    const labels = nicks.map((nick) => nick.textContent);
+    expect(labels).toEqual(
+      expect.arrayContaining([
+        "@Andeplane",
+        "@RiChY",
+        "+CCBSbot",
+        "+Zredna",
+        "FootieFox",
+        "Guest4242",
+        "stepzilla",
+        "Snute",
+        "Tha_Dragon",
+      ]),
+    );
+    // The six original regulars, the user, and the 63 other CCBS players with 5+ tournaments.
+    expect(labels).toHaveLength(70);
     expect(log("#ddrnorway")).toContain("<@RiChY> hei Guest4242 :)");
     type("#ddrnorway", "Andeplane: hvem vant reunion?");
     await settle(env, 5000);
@@ -318,7 +331,7 @@ describe("mIRC window", () => {
       ),
     );
     expect(
-      screen.getAllByText(/^mIRC - \[#ddrnorway \[7\]/).length,
+      screen.getAllByText(/^mIRC - \[#ddrnorway \[70\]/).length,
     ).toBeGreaterThan(0);
     fireEvent.click(mirc().getByRole("button", { name: "Restore child" }));
     expect(screen.queryByText(/^mIRC - \[/)).toBeNull();

@@ -3,7 +3,9 @@ import { CCBS_DATA as data } from "../ddr/ccbsData";
 /**
  * The Norwegian DDR tournament results kept by CCBS (ccbs.sesse.net), 2002–2012: Challenge Cup seasons, the
  * Euromix 2 series, the Norwegian championships and the 2012 reunion. Fetched once for FuseOS and bundled; the
- * players in it are real people, so the simulation only ever cites them (CCBSbot's answers), never voices them.
+ * players in it are real people. CCBSbot cites these lists. Players with five or more tournaments on
+ * players.pl also sit in #ddrnorway and are voiced from these results (`ddrPlayers.ts`); the model is told
+ * not to invent anything that is not in the list.
  */
 export type Tournament = {
   id: number;
@@ -102,6 +104,23 @@ export function playerRecord(
     if (!best || index + 1 < best.rank) best = { rank: index + 1, tournament };
   }
   return name === undefined ? undefined : { name, events, wins, podiums, best };
+}
+
+/** Every top-eight finish for a player, oldest tournament first. */
+export function placements(
+  query: string,
+  tournaments: readonly Tournament[] = TOURNAMENTS,
+): { rank: number; tournament: Tournament }[] {
+  const wanted = playerName(query).trim().toLowerCase();
+  if (wanted.length === 0) return [];
+  const found: { rank: number; tournament: Tournament }[] = [];
+  for (const tournament of ranked(tournaments)) {
+    const index = tournament.top.findIndex(
+      ([player]) => playerName(player).toLowerCase() === wanted,
+    );
+    if (index >= 0) found.push({ rank: index + 1, tournament });
+  }
+  return found;
 }
 
 export function seasons(

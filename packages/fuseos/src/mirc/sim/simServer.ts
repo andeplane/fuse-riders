@@ -20,6 +20,7 @@ import {
   ranked,
   seasons,
 } from "./ccbs";
+import { sceneCandidates } from "./ddrPlayers";
 import type { Regular } from "./regulars";
 import {
   DDR_CHANNEL,
@@ -28,6 +29,7 @@ import {
   REGULARS,
   regularsIn,
 } from "./regulars";
+import { nickMentioned, pickScene, sceneGapMs } from "./scene";
 
 /**
  * A pretend IRC server that runs in the page: FuseOS has no IRC backend, and browsers cannot reach the real
@@ -77,6 +79,12 @@ export class SimServer {
   private readonly abort = new AbortController();
   private lastSpoke = new Map<string, number>();
   private idleTimer: TimerHandle | undefined;
+  private sceneTimer: TimerHandle | undefined;
+  private sceneBusy = false;
+  private modelReady = false;
+  private preparing: Promise<boolean> | undefined;
+  /** The players still due a line in the current model conversation. */
+  private scene: { nicks: string[]; left: string[] } | undefined;
   private stopped = false;
 
   constructor(
@@ -328,7 +336,7 @@ export class SimServer {
     }
     this.names(channel.name);
     if (ircEquals(channel.name, DDR_CHANNEL)) this.greet(channel);
-    this.scheduleIdle();
+    this.bootTalk();
   }
 
   private names(name: string) {
@@ -337,7 +345,21 @@ export class SimServer {
       const entries = [...channel.members.values()].map(
         (m) => `${m.prefix}${m.nick}`,
       );
-      this.numeric("353", "=", channel.name, entries.join(" "));
+      // Several 353s, each comfortably under a real IRC line. The client accumulates them until 366.
+      let batch: string[] = [];
+      let length = 0;
+      const flush = () => {
+        if (batch.length === 0) return;
+        this.numeric("353", "=", channel.name, batch.join(" "));
+        batch = [];
+        length = 0;
+      };
+      for (const entry of entries) {
+        if (length > 0 && length + 1 + entry.length > 400) flush();
+        batch.push(entry);
+        length += (length > 0 ? 1 : 0) + entry.length;
+      }
+      flush();
     }
     this.numeric("366", name, "End of /NAMES list.");
   }
@@ -513,17 +535,18 @@ export class SimServer {
   }
 
   private reactInChannel(channel: SimChannel, text: string) {
-    const present = [...channel.members.values()]
+    const seated = [...channel.members.values()]
       .map((member) => findRegular(member.nick))
-      .filter(
-        (regular): regular is Regular =>
-          regular !== undefined && regular.lines.length > 0,
-      );
-    if (present.length === 0) return;
-    const lower = text.toLowerCase();
-    const mentioned = present.find((regular) =>
-      lower.includes(regular.nick.toLowerCase()),
+      .filter((regular): regular is Regular => regular !== undefined);
+    // A named person always answers. Unprompted replies stay with the handful who have canned lines;
+    // the model conversation has its own timer.
+    const mentioned = seated.find(
+      (regular) =>
+        (regular.ai || regular.lines.length > 0) &&
+        nickMentioned(text, regular.nick),
     );
+    const present = seated.filter((regular) => regular.lines.length > 0);
+    if (!mentioned && present.length === 0) return;
     const now = this.deps.now();
     const rested = present.filter(
       (r) => now - (this.lastSpoke.get(r.nick) ?? -Infinity) > COOLDOWN_MS,
@@ -562,6 +585,107 @@ export class SimServer {
       });
   }
 
+  /** Canned idling, or a model conversation once web-llm can answer. */
+  private bootTalk() {
+    if (this.stopped || this.idleTimer || this.sceneTimer || this.sceneBusy)
+      return;
+    if (this.deps.brain.usesModel()) {
+      this.preparing ??= this.deps.brain
+        .prepare(this.abort.signal)
+        .then((ready) => {
+          if (!ready) this.preparing = undefined;
+          return ready;
+        });
+      this.armScene();
+      return;
+    }
+    this.scheduleIdle();
+  }
+
+  private armScene() {
+    if (this.sceneTimer || this.stopped) return;
+    const handle = this.deps.scheduler.setTimeout(() => {
+      this.timers.delete(handle);
+      this.sceneTimer = undefined;
+      void this.playSceneLine();
+    }, sceneGapMs(this.deps.random));
+    this.sceneTimer = handle;
+    this.timers.add(handle);
+  }
+
+  /**
+   * One line of the current group. The model call is a promise; the line is posted on the scheduler so a
+   * test can advance the clock instead of waiting on the event loop. The next gap starts after the line.
+   */
+  private playSceneLine() {
+    if (this.stopped || this.sceneBusy) return;
+    this.sceneBusy = true;
+    const pending = this.modelReady
+      ? Promise.resolve(true)
+      : (this.preparing ?? Promise.resolve(false));
+    void pending.then((ready) => this.deliverScene(ready));
+  }
+
+  private deliverScene(ready: boolean) {
+    if (this.stopped) {
+      this.sceneBusy = false;
+      return;
+    }
+    if (!this.deps.brain.usesModel() || !ready) {
+      this.sceneBusy = false;
+      this.modelReady = false;
+      this.scheduleIdle();
+      return;
+    }
+    this.modelReady = true;
+    const channel = this.channel(DDR_CHANNEL);
+    if (!channel?.members.has(ircLower(this.nick))) {
+      this.sceneBusy = false;
+      this.armScene();
+      return;
+    }
+    if (!this.scene || this.scene.left.length === 0) {
+      const nicks = pickScene(sceneCandidates(), this.deps.random);
+      this.scene = { nicks, left: [...nicks] };
+    }
+    const nick = this.scene.left.shift();
+    const regular = nick ? findRegular(nick) : undefined;
+    if (!regular) {
+      this.sceneBusy = false;
+      this.armScene();
+      return;
+    }
+    void this.deps.brain
+      .reply(
+        {
+          regular,
+          channel: channel.name,
+          userNick: this.nick,
+          history: [...channel.history],
+          company: this.scene.nicks.filter((other) => other !== regular.nick),
+        },
+        this.abort.signal,
+      )
+      .then((text) => {
+        this.later(0, () => {
+          this.sceneBusy = false;
+          if (this.stopped) return;
+          if (
+            text &&
+            this.channel(DDR_CHANNEL)?.members.has(ircLower(this.nick))
+          )
+            this.say(regular, channel.name, text);
+          this.armScene();
+        });
+      })
+      .catch(() => {
+        this.later(0, () => {
+          this.sceneBusy = false;
+          if (!this.stopped) this.armScene();
+        });
+      });
+  }
+
   private scheduleIdle() {
     if (this.idleTimer) return;
     const handle = this.deps.scheduler.setTimeout(
@@ -569,6 +693,10 @@ export class SimServer {
         this.timers.delete(handle);
         this.idleTimer = undefined;
         if (this.stopped) return;
+        if (this.deps.brain.usesModel()) {
+          this.bootTalk();
+          return;
+        }
         const channel = this.channel(DDR_CHANNEL);
         if (channel?.members.has(ircLower(this.nick))) {
           const idlers = regularsIn(DDR_CHANNEL).filter(
