@@ -90,6 +90,7 @@ describe("StartMenu", () => {
       "System",
       "Assistant",
       "Keyboard",
+      "Sounds",
       "Screen Saver",
     ]);
 
@@ -109,6 +110,7 @@ describe("StartMenu", () => {
       "Notepad++",
       "Windows Explorer",
       "Task Manager",
+      "Dial-Up Networking",
       "Change desktop background",
     ]);
     expect(

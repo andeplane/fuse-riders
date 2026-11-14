@@ -37,6 +37,7 @@ describe("START_MENU_REGISTRATIONS", () => {
       ["programs", "network-neighborhood", true],
       ["programs", "friends", true],
       ["accessories", "taskmanager", true],
+      ["accessories", "dialup", true],
     ]);
   });
 
@@ -75,6 +76,7 @@ describe("START_MENU_REGISTRATIONS", () => {
       [{ kind: "network" }, { id: "network-neighborhood" }],
       [{ kind: "friends" }, { id: "friends" }],
       [{ kind: "taskmanager" }, { id: "taskmanager" }],
+      { kind: "dialup" },
     ]);
   });
 

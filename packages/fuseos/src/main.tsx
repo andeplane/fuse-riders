@@ -33,6 +33,11 @@ import {
   parseOpenParam,
   withoutOpenParam,
 } from "./state/deepLink";
+import { SoundServiceContext } from "./sounds/soundContext";
+import { LocalStorageSoundPrefsStore } from "./sounds/soundPrefsStore";
+import type { SoundAudioContext } from "./sounds/soundService";
+import { documentGestures, WebAudioSoundService } from "./sounds/soundService";
+import { loadSynth } from "./sounds/synth";
 import { LocalStorageStateStore } from "./state/stateStore";
 import { parseFoldParam, withoutFoldParam } from "./system32/demoTrigger";
 import type { System32Deps } from "./system32/system32Deps";
@@ -119,6 +124,17 @@ const friendsDeps: FriendsDeps = {
 // The millennium bug strikes at local midnight; `?y2k=now` plays it on boot for a demo.
 const y2kDeps = createBrowserY2kDeps({ search });
 
+// System sounds: synthesised on first use, and only after the first click or key press (autoplay policy).
+// `?mute` silences them all, as it does the games.
+const sounds = new WebAudioSoundService({
+  createContext: (): SoundAudioContext | undefined =>
+    typeof AudioContext === "undefined" ? undefined : new AudioContext(),
+  prefs: new LocalStorageSoundPrefsStore(),
+  muted,
+  loadSynth,
+  gestures: documentGestures(window),
+});
+
 export function mountFuseOs(container: HTMLElement): void {
   // Reports the desktop's opening now, and every game launch from here on; the deep link's windows count too.
   const analytics = createBrowserOsAnalytics();
@@ -135,7 +151,9 @@ export function mountFuseOs(container: HTMLElement): void {
               <FriendsDepsContext.Provider value={friendsDeps}>
                 <System32DepsContext.Provider value={system32Deps}>
                   <Y2kDepsContext.Provider value={y2kDeps}>
-                    <App store={store} initialOpen={initialOpen} />
+                    <SoundServiceContext.Provider value={sounds}>
+                      <App store={store} initialOpen={initialOpen} />
+                    </SoundServiceContext.Provider>
                   </Y2kDepsContext.Provider>
                 </System32DepsContext.Provider>
               </FriendsDepsContext.Provider>

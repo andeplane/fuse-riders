@@ -163,6 +163,15 @@ export const START_MENU_REGISTRATIONS: readonly StartMenuRegistration[] = [
       commands.open({ kind: "friends" }, { id: FRIENDS_WINDOW_ID }),
   },
   TASK_MANAGER_REGISTRATION,
+  {
+    slot: "accessories",
+    id: "dialup",
+    label: "Dial-Up Networking",
+    icon: "dialup",
+    // After Task Manager (37), before Change desktop background (40).
+    order: 38,
+    open: (commands) => commands.open({ kind: "dialup" }),
+  },
 ];
 
 export const HALL_OF_FAME_WINDOW_ID = "halloffame";

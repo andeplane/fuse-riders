@@ -4,6 +4,7 @@ import { ComputerFind } from "@react95/icons/ComputerFind";
 import { Conf100 } from "@react95/icons/Conf100";
 import { CurvesAndColors100 } from "@react95/icons/CurvesAndColors100";
 import { Desk100 } from "@react95/icons/Desk100";
+import { Dialmon200 } from "@react95/icons/Dialmon200";
 import { Explorer100 } from "@react95/icons/Explorer100";
 import { FileText } from "@react95/icons/FileText";
 import { Folder } from "@react95/icons/Folder";
@@ -16,6 +17,7 @@ import { Jgdwmie101 } from "@react95/icons/Jgdwmie101";
 import { Joy102 } from "@react95/icons/Joy102";
 import { KeyboardMouse } from "@react95/icons/KeyboardMouse";
 import { Lights100 } from "@react95/icons/Lights100";
+import { Mmsys110 } from "@react95/icons/Mmsys110";
 import { Mplayer10 } from "@react95/icons/Mplayer10";
 import { Mplayer11 } from "@react95/icons/Mplayer11";
 import { Mspaint } from "@react95/icons/Mspaint";
@@ -97,7 +99,9 @@ export type IconName =
   | "video"
   | "trophy"
   | "messenger"
-  | "taskmanager";
+  | "taskmanager"
+  | "sounds"
+  | "dialup";
 
 type IconVariant = "32x32_4" | "16x16_4";
 type IconProps = Omit<SVGProps<SVGSVGElement>, "ref">;
@@ -167,6 +171,8 @@ const ICONS: Record<IconName, IconComponent> = {
   trophy: TrophyIcon,
   messenger: Conf100,
   taskmanager: fixed(Taskman100, "32x32_4"),
+  sounds: Mmsys110,
+  dialup: fixed(Dialmon200, "32x32_4"),
 };
 
 export type Win98IconProps = {

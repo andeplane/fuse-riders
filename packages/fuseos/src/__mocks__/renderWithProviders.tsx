@@ -96,6 +96,13 @@ import {
 import type { LaunchDevice } from "../settings/launchDevice";
 import { LaunchDeviceContext } from "../settings/launchDevice";
 import { Shell } from "../Shell";
+import type { DialUpDeps } from "../sounds/dialup/dialUpDepsContext";
+import { DialUpDepsContext } from "../sounds/dialup/dialUpDepsContext";
+import {
+  DialUpSessionContext,
+  MemoryDialUpSession,
+} from "../sounds/dialup/dialUpSession";
+import { SoundServiceContext } from "../sounds/soundContext";
 import type { AppState, WindowContent } from "../state/appState";
 import { DEFAULT_STATE } from "../state/appState";
 import type { AppStateDeps } from "../state/appStateContext";
@@ -118,10 +125,12 @@ import { createTestDiskDeps } from "./disk";
 import type { FakeEditor } from "./editor";
 import { createFakeEditorDeps } from "./editor";
 import { createTestAssistantDeps } from "./assistantDeps";
+import { ManualScheduler as ManualDialUpScheduler } from "./dialUpDeps";
 import type { FakeEngineFactory } from "./llmEngine";
 import { createFakeEngineFactory } from "./llmEngine";
 import { FakePaintFileDeps } from "./paintFiles";
 import { FakePaintSurface } from "./paintSurface";
+import { FakeSoundService } from "./soundService";
 import type { FakeWebampPlayer } from "./webampPlayer";
 import { createFakeWebampPlayer } from "./webampPlayer";
 
@@ -231,6 +240,12 @@ export type ProviderOptions = {
   networkDeps?: Partial<NetworkDeps>;
   /** Defaults to a hand-stepped scheduler and no demo, so nothing folds unless a test asks. */
   system32Deps?: Partial<System32Deps>;
+  /** Defaults to a recording fake that reports every sound as audible. */
+  sounds?: FakeSoundService;
+  /** Defaults to an offline session, so Network-style windows go through Dial-Up Networking first. */
+  dialUpSession?: MemoryDialUpSession;
+  /** Defaults to a manual scheduler, so the handshake's status lines advance only when a test says. */
+  dialUpDeps?: DialUpDeps;
 };
 
 /** The media player's scheduled ticks, fired by the test rather than a clock. */
@@ -569,6 +584,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     scheduler: new MemoryScheduler(),
     ...options.system32Deps,
   };
+  const sounds = options.sounds ?? new FakeSoundService();
+  const dialUpSession = options.dialUpSession ?? new MemoryDialUpSession();
+  const dialUpDeps = options.dialUpDeps ?? new ManualDialUpScheduler();
   const recycleBinStore =
     options.recycleBinStore ?? new MemoryRecycleBinStore();
   const mediaPlayerTimers = new ManualScheduler();
@@ -616,6 +634,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     provider(PresenceServiceContext, presence),
     provider(FriendsDepsContext, friendsDeps),
     provider(System32DepsContext, system32Deps),
+    provider(SoundServiceContext, sounds),
+    provider(DialUpSessionContext, dialUpSession),
+    provider(DialUpDepsContext, dialUpDeps),
   ];
 
   function Wrapper({ children }: { children: ReactNode }) {
@@ -667,6 +688,9 @@ export function createWrapper(options: ProviderOptions = {}) {
     mediaPlayerDeps,
     mediaPlayerTimers,
     hallOfFameDeps,
+    sounds,
+    dialUpSession,
+    dialUpDeps,
   };
 }
 

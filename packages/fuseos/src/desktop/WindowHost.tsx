@@ -17,6 +17,7 @@ import { PaintWindow } from "../paint/PaintWindow";
 import { RecycleBinWindow } from "../recyclebin/RecycleBinWindow";
 import { GameWindow } from "../retro/GameWindow";
 import { RetroFolderWindow } from "../retro/RetroFolderWindow";
+import { DialUpWindow } from "../sounds/dialup/DialUpWindow";
 import type { WindowState } from "../state/appState";
 import { TaskManagerWindow } from "../taskmanager/TaskManagerWindow";
 import { WinampPlayer } from "../winamp/WinampPlayer";
@@ -107,6 +108,8 @@ function WindowContent({
       return <FriendsWindow windowId={window.id} />;
     case "taskmanager":
       return <TaskManagerWindow windowId={window.id} />;
+    case "dialup":
+      return <DialUpWindow windowId={window.id} then={window.then} />;
     case "recyclebin":
       return <RecycleBinWindow windowId={window.id} />;
     case "mediaplayer":
