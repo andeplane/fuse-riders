@@ -105,6 +105,25 @@ describe(GitHubDiskSource.name, () => {
     await expect(source.readText("gone.txt")).rejects.toThrow("HTTP 404");
   });
 
+  it("names a picture's URL at the commit, or on main once a HEAD request finds the commit missing", async () => {
+    const { fetch, calls } = fakeFetch({
+      [MANIFEST_URL]: { status: 200, body: JSON.stringify(manifest) },
+      [raw(FIXTURE_SHA, "a.png")]: { status: 200, body: "" },
+    });
+    const source = new GitHubDiskSource({ fetch, manifestUrl: MANIFEST_URL });
+    await expect(source.imageUrl("a.png")).resolves.toBe(
+      raw(FIXTURE_SHA, "a.png"),
+    );
+    // Not on GitHub at the commit: the fallback branch, and every later picture skips the probe.
+    await expect(source.imageUrl("b.png")).resolves.toBe(raw("main", "b.png"));
+    await expect(source.imageUrl("c.png")).resolves.toBe(raw("main", "c.png"));
+    expect(calls).toEqual([
+      MANIFEST_URL,
+      raw(FIXTURE_SHA, "a.png"),
+      raw(FIXTURE_SHA, "b.png"),
+    ]);
+  });
+
   it("builds raw URLs with encoded segments, at the commit or the fallback branch", () => {
     const source = new GitHubDiskSource({
       fetch: fakeFetch({}).fetch,
@@ -151,6 +170,12 @@ describe(MemoryDiskSource.name, () => {
     );
     expect(source.fileUrl(manifest, "x.png", true)).toBe(
       "memory://andeplane/fuse-riders/main/x.png",
+    );
+    await expect(source.imageUrl("x.png")).resolves.toBe(
+      `memory://andeplane/fuse-riders/${FIXTURE_SHA}/x.png`,
+    );
+    await expect(source.imageUrl("b.txt")).resolves.toBe(
+      "memory://andeplane/fuse-riders/main/b.txt",
     );
   });
 });

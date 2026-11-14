@@ -1,7 +1,6 @@
 import { createTestGames } from "../__mocks__/renderWithProviders";
 import {
   EXPLORER_WINDOW_SIZE,
-  IMAGE_VIEWER_WINDOW_SIZE,
   NOTEPADPP_WINDOW_SIZE,
   windowMeta,
 } from "../desktop/windowMeta";
@@ -42,10 +41,8 @@ describe("the disk's window kinds", () => {
         activePath: 2,
       }),
     ).toBe(false);
+    // Pictures open in Paint, not a window kind of their own.
     expect(isWindowState({ ...base, kind: "imageviewer", path: "x.png" })).toBe(
-      true,
-    );
-    expect(isWindowState({ ...base, kind: "imageviewer", path: "" })).toBe(
       false,
     );
   });
@@ -62,7 +59,13 @@ describe("the disk's window kinds", () => {
           paths: ["README.md"],
           activePath: "README.md",
         },
-        { ...base, id: "w3", kind: "imageviewer", path: "public/logo.png" },
+        {
+          ...base,
+          id: "w3",
+          kind: "paint",
+          fileName: "logo.png",
+          sourceUrl: "memory://x/logo.png",
+        },
       ],
     };
     expect(parseAppState(serializeAppState(state))).toEqual(state);
@@ -102,13 +105,5 @@ describe("the disk's window kinds", () => {
     expect(meta({ ...base, kind: "notepadpp", paths: [] }).title).toBe(
       "new 1 - Notepad++",
     );
-    expect(
-      meta({ ...base, kind: "imageviewer", path: "public/x.png" }),
-    ).toEqual({
-      title: "x.png - Image Viewer",
-      icon: "image",
-      resizable: true,
-      size: IMAGE_VIEWER_WINDOW_SIZE,
-    });
   });
 });

@@ -15,6 +15,11 @@ export interface DiskSource {
   readText(path: string): Promise<DiskText>;
   /** URL of a file's raw bytes (for images); `fallback` picks the fallback branch instead of the commit. */
   fileUrl(manifest: RepoManifest, path: string, fallback?: boolean): string;
+  /**
+   * The URL a picture is served from, for Paint to fetch: at the build's commit, or on the fallback branch
+   * when the commit is not on GitHub (found out with one HEAD request, remembered like `readText` does).
+   */
+  imageUrl(path: string): Promise<string>;
 }
 
 export class DiskError extends Error {
@@ -77,6 +82,17 @@ export class GitHubDiskSource implements DiskSource {
       .join("/")}`;
   }
 
+  async imageUrl(path: string): Promise<string> {
+    const manifest = await this.manifest();
+    if (!this.commitMissing) {
+      const url = this.fileUrl(manifest, path);
+      const response = await this.deps.fetch(url, { method: "HEAD" });
+      if (response.status !== 404) return url;
+      this.commitMissing = true;
+    }
+    return this.fileUrl(manifest, path, true);
+  }
+
   async readText(path: string): Promise<DiskText> {
     const manifest = await this.manifest();
     if (!this.commitMissing) {
@@ -134,6 +150,16 @@ export class MemoryDiskSource implements DiskSource {
 
   fileUrl(manifest: RepoManifest, path: string, fallback = false): string {
     return `memory://${manifest.repo}/${fallback ? manifest.fallbackRef : manifest.sha}/${path}`;
+  }
+
+  imageUrl(path: string): Promise<string> {
+    return Promise.resolve(
+      this.fileUrl(
+        this.data,
+        path,
+        this.options.missingAtCommit?.includes(path) ?? false,
+      ),
+    );
   }
 
   readText(path: string): Promise<DiskText> {

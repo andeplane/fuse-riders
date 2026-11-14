@@ -13,6 +13,7 @@ import {
   FIXTURE_IMAGE,
   FIXTURE_SHA,
 } from "../__mocks__/disk";
+import { FakePaintFileDeps } from "../__mocks__/paintFiles";
 import { renderWithProviders } from "../__mocks__/renderWithProviders";
 import { Desktop } from "../desktop/Desktop";
 import { DRIVE_A, DRIVE_C, MY_COMPUTER } from "../disk/diskPath";
@@ -170,9 +171,13 @@ describe("Explorer", () => {
     ]);
   });
 
-  it("refuses files that are too large or not text, and shows pictures in the viewer", async () => {
+  it("refuses files that are too large or not text, and opens pictures in Paint", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<Desktop />, { initialOpen: [explorerAt("C:/docs")] });
+    const paintFiles = new FakePaintFileDeps();
+    renderWithProviders(<Desktop />, {
+      initialOpen: [explorerAt("C:/docs")],
+      paintDeps: { files: paintFiles },
+    });
     await waitFor(() => expect(row(/huge\.log/)).toBeInTheDocument());
     await user.dblClick(row(/huge\.log/));
     expect(screen.getByText(/huge\.log is 900 KB/)).toBeInTheDocument();
@@ -189,12 +194,14 @@ describe("Explorer", () => {
 
     await user.clear(address);
     await user.type(address, "C:\\public\\gallery{Enter}");
+    // A picture opens in Paint, fetched from the commit's raw URL.
+    const url = `memory://andeplane/fuse-riders/${FIXTURE_SHA}/${FIXTURE_IMAGE}`;
+    paintFiles.images.set(url, new Blob(["jpg"], { type: "image/jpeg" }));
     await user.dblClick(row(/fuseball\.jpg/));
-    const image = await screen.findByRole("img", { name: "fuseball.jpg" });
-    expect(image).toHaveAttribute(
-      "src",
-      `memory://andeplane/fuse-riders/${FIXTURE_SHA}/${FIXTURE_IMAGE}`,
-    );
+    expect(
+      await screen.findByRole("dialog", { name: "fuseball.jpg - Paint" }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(paintFiles.fetched).toEqual([url]));
   });
 
   it("seeks the floppy once on the way into A:, then lists the archive and the folder", async () => {

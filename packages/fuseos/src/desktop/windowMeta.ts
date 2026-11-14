@@ -36,8 +36,6 @@ export const EXPLORER_WINDOW_SIZE: Size = { width: 720, height: 480 };
 /** Room for the tab bar, a code pane with line numbers and the six-field status bar. */
 export const NOTEPADPP_WINDOW_SIZE: Size = { width: 760, height: 520 };
 
-export const IMAGE_VIEWER_WINDOW_SIZE: Size = { width: 560, height: 440 };
-
 export const OS_NAME = "FuseOS";
 
 /** Title bar text and icon for each window kind. */
@@ -119,12 +117,5 @@ export function windowMeta(
         size: NOTEPADPP_WINDOW_SIZE,
       };
     }
-    case "imageviewer":
-      return {
-        title: `${window.path.slice(window.path.lastIndexOf("/") + 1)} - Image Viewer`,
-        icon: "image",
-        resizable: true,
-        size: IMAGE_VIEWER_WINDOW_SIZE,
-      };
   }
 }

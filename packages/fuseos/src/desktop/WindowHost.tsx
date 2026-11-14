@@ -3,7 +3,6 @@ import { useContext, useEffect } from "react";
 import { AboutDialog } from "../about/AboutDialog";
 import { ControlPanelWindow } from "../controlpanel/ControlPanelWindow";
 import { ExplorerWindow } from "../explorer/ExplorerWindow";
-import { ImageViewerWindow } from "../explorer/ImageViewerWindow";
 import { WallpaperWindow } from "../controlpanel/WallpaperWindow";
 import { FuseGameWindow } from "../fusegames/FuseGameWindow";
 import { FuseGamesContext } from "../fusegames/registry";
@@ -79,8 +78,6 @@ function WindowContent({
           activePath={window.activePath}
         />
       );
-    case "imageviewer":
-      return <ImageViewerWindow path={window.path} />;
   }
 }
 

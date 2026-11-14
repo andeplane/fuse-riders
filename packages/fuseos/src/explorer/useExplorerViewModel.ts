@@ -231,15 +231,28 @@ export function useExplorerViewModel(
         case "notepad":
           openInNotepad(decision.path);
           return;
-        case "image":
-          commands.open({ kind: "imageviewer", path: decision.path });
+        case "image": {
+          // Paint fetches the picture by URL and shows it read-only (Save downloads a copy).
+          const fileName = decision.path.slice(
+            decision.path.lastIndexOf("/") + 1,
+          );
+          void deps.source.imageUrl(decision.path).then(
+            (sourceUrl) =>
+              commands.open({ kind: "paint", fileName, sourceUrl }),
+            (error: unknown) =>
+              commands.showError(
+                "Paint",
+                `Paint cannot open ${fileName}: ${error instanceof Error ? error.message : String(error)}`,
+              ),
+          );
           return;
+        }
         case "error":
           commands.showError(decision.title, decision.message);
           return;
       }
     },
-    [navigate, deps.jokeGate, commands, openInNotepad],
+    [navigate, deps.jokeGate, deps.source, commands, openInNotepad],
   );
 
   const winzipFailed = useCallback(() => {

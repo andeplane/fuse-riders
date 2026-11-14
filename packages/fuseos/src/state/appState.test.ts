@@ -109,11 +109,7 @@ describe(appStateReducer.name, () => {
     expect(sameInstance(explorer, { kind: "explorer", location: "A:" })).toBe(
       false,
     );
-    const picture = { kind: "imageviewer", path: "a.png" } as const;
-    expect(sameInstance(picture, picture)).toBe(true);
-    expect(sameInstance(picture, { kind: "imageviewer", path: "b.png" })).toBe(
-      false,
-    );
+
     expect(sameInstance({ kind: "wallpaper" }, { kind: "about" })).toBe(false);
     expect(sameInstance({ kind: "retroFolder" }, { kind: "retroFolder" })).toBe(
       true,

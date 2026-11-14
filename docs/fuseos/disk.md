@@ -13,14 +13,14 @@ the text files on either; what it saves stays in the browser.
   `origin` remote, else `andeplane/fuse-riders`) and the fallback branch (`main`). The dev server
   serves the same JSON, rebuilt on each request, so a new commit shows up without a restart.
 - **Zero API calls.** The manifest is fetched once, lazily, when the first Explorer, Notepad++ or
-  image viewer window opens (`src/disk/useDisk.ts`), and shared by every window. File contents
+  Paint opens a picture (`src/disk/useDisk.ts`), and shared by every window. File contents
   come from `https://raw.githubusercontent.com/<repo>/<sha>/<path>`: immutable, CORS-enabled and
   outside the GitHub API's rate limits.
 - **The sha is the deployed build's.** In GitHub Actions the checked-out `HEAD` is what Pages
   deploys, so every file is read at exactly that commit. A local build or `vite dev` may be on a
   commit that is not pushed; the first 404 at that sha switches the source to the fallback branch
   for the rest of the session and Notepad++'s status bar says so ("This build's commit is not on
-  GitHub yet; showing the file as it is on main."). The image viewer does the same per picture.
+  GitHub yet; showing the file as it is on main."). A picture Paint opens resolves its URL the same way (`DiskSource.imageUrl`).
 - **Committed files only.** Sizes and the listing are what `HEAD` contains, which is exactly what
   raw.githubusercontent.com serves for that sha. Uncommitted edits in a working tree are invisible
   to the desktop by design.
@@ -29,17 +29,17 @@ the text files on either; what it saves stays in the browser.
 
 `src/disk/fileTypes.ts` decides by extension (`src/explorer/openEntry.ts` applies it):
 
-| Kind                              | Double click                                               |
-| --------------------------------- | ---------------------------------------------------------- |
-| Text up to 512 KB                 | Notepad++ (a new tab in the open window)                   |
-| Text over 512 KB                  | "Notepad++" dialog: too large, read it on GitHub           |
-| Image (png, jpg, gif, webp, svg…) | Image Viewer window (`src/explorer/ImageViewerWindow.tsx`) |
-| Anything else (zip, mp3, wasm…)   | Win95 "Open With" dialog: Windows cannot open this file    |
+| Kind                              | Double click                                                        |
+| --------------------------------- | ------------------------------------------------------------------- |
+| Text up to 512 KB                 | Notepad++ (a new tab in the open window)                            |
+| Text over 512 KB                  | "Notepad++" dialog: too large, read it on GitHub                    |
+| Image (png, jpg, gif, webp, svg…) | Paint, read-only: fetched from GitHub by URL; Save downloads a copy |
+| Anything else (zip, mp3, wasm…)   | Win95 "Open With" dialog: Windows cannot open this file             |
 
-**Images and Paint.** Phase B5 adds a way to open an image URL in Paint. That seam was not on this
-branch, so Explorer opens pictures in a small read-only viewer instead. When B5 lands, replace the
-`image` case in `useExplorerViewModel.open` with Paint's URL import and retire the viewer window
-(`imageviewer` in `state/appState.ts`, `WindowHost.tsx`, `windowMeta.ts`).
+**Images and Paint.** A picture opens in Paint through its `sourceUrl` (`DiskSource.imageUrl`
+names the raw URL at the build's commit, or on the fallback branch after one HEAD request finds
+the commit is not on GitHub). Paint draws it and its Save downloads a copy; nothing is written
+back.
 
 ## Explorer
 
